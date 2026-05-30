@@ -287,6 +287,87 @@
   // 小怪依關卡循環選擇
   const ENEMY_SPRITES = [SPRITE_SLIME, SPRITE_GOBLIN, SPRITE_BAT];
 
+  // ---- 關卡主題（每 100 關一個，共 10 個 / 1000 關）----
+  // far：遠景剪影類型；deco：近景小裝飾類型（隨地面捲動）
+  const THEMES = [
+    {
+      name: "草原",
+      sky: ["#3a6db5", "#4f86c6", "#6fa3d6", "#9cc4e4"],
+      far: "hills", farColor: "#3f7a4a", farColor2: "#356b40",
+      ground: "#5a8a3a", groundTop: "#6fa84a", groundLine: "#8fd05a", tile: "#46702e",
+      deco: "grass", decoColor: "#7ec24a",
+    },
+    {
+      name: "森林",
+      sky: ["#1f2e44", "#2e4a52", "#3a6b54", "#4d8060"],
+      far: "trees", farColor: "#1f4a32", farColor2: "#163a26",
+      ground: "#3a5a2a", groundTop: "#4a6a32", groundLine: "#6a9a3a", tile: "#2c4420",
+      deco: "bush", decoColor: "#3f7a3a",
+    },
+    {
+      name: "沙漠",
+      sky: ["#e0a85a", "#eec06a", "#f5d488", "#f7e6ac"],
+      far: "dunes", farColor: "#d6a85a", farColor2: "#c2934a",
+      ground: "#e0c074", groundTop: "#ecd089", groundLine: "#f4e2a8", tile: "#c6a458",
+      deco: "cactus", decoColor: "#5a8f4a",
+    },
+    {
+      name: "雪地",
+      sky: ["#7a90b0", "#94a8c4", "#b0c2d8", "#d2ddec"],
+      far: "peaks", farColor: "#9fb2c8", farColor2: "#7e94b0",
+      ground: "#dfe8f2", groundTop: "#eef4fb", groundLine: "#ffffff", tile: "#bccde0",
+      deco: "snowtree", decoColor: "#2f5a52",
+    },
+    {
+      name: "熔岩山",
+      sky: ["#2a1014", "#4a161a", "#6e1f1a", "#9a3418"],
+      far: "volcano", farColor: "#3a1410", farColor2: "#5a1a12",
+      ground: "#2a1a18", groundTop: "#3a221c", groundLine: "#ff5a2a", tile: "#180c0a",
+      deco: "lavarock", decoColor: "#ff7a3d",
+    },
+    {
+      name: "深海",
+      sky: ["#0a2a4a", "#0e3a5a", "#125a78", "#1c84a0"],
+      far: "seaweed", farColor: "#1a6a5a", farColor2: "#125247",
+      ground: "#155a6a", groundTop: "#1a7080", groundLine: "#3aa0b0", tile: "#0d4651",
+      deco: "coral", decoColor: "#d06a8a",
+    },
+    {
+      name: "天空之城",
+      sky: ["#5aa0e0", "#7ab8ec", "#9fd0f4", "#cce8fc"],
+      far: "skycity", farColor: "#dcedfb", farColor2: "#b6d4ee",
+      ground: "#cfe4f5", groundTop: "#ffffff", groundLine: "#ffffff", tile: "#aecdea",
+      deco: "smallcloud", decoColor: "#ffffff",
+    },
+    {
+      name: "遺跡",
+      sky: ["#523a5a", "#7a4a52", "#a86a4a", "#d6a258"],
+      far: "pillars", farColor: "#6a5a4a", farColor2: "#4a3e34",
+      ground: "#7a6a52", groundTop: "#8a7a5e", groundLine: "#a89a72", tile: "#5c4e3e",
+      deco: "rubble", decoColor: "#9a8a6a",
+    },
+    {
+      name: "魔王城",
+      sky: ["#160c26", "#26143a", "#361c46", "#46284e"],
+      far: "battlements", farColor: "#2a1a3a", farColor2: "#1a1028",
+      ground: "#2e2438", groundTop: "#3a2e48", groundLine: "#6a3a8a", tile: "#1c1626",
+      deco: "torch", decoColor: "#ff8a3d",
+    },
+    {
+      name: "魔王城深層",
+      sky: ["#0a0410", "#1a0810", "#2a0a12", "#400e14"],
+      far: "abyss", farColor: "#3a0e10", farColor2: "#240a0c",
+      ground: "#180a12", groundTop: "#26101a", groundLine: "#ff2a3a", tile: "#0c060a",
+      deco: "ember", decoColor: "#ff5a3a",
+    },
+  ];
+
+  // 依關卡取得主題（1-100→0, 101-200→1 …，超過 1000 沿用最後一個）
+  function getTheme(stage) {
+    const idx = Math.max(0, Math.min(THEMES.length - 1, Math.floor((stage - 1) / 100)));
+    return THEMES[idx];
+  }
+
   Game.Data = {
     WORLD_H,
     GROUND_FROM_BOTTOM,
@@ -308,6 +389,8 @@
     SPRITE_HERO2,
     SPRITE_BOSS,
     ENEMY_SPRITES,
+    THEMES,
+    getTheme,
     OFFLINE_CAP_SECONDS: 8 * 3600, // 離線收益上限 8 小時
   };
 })();

@@ -20,11 +20,13 @@
     if (n < 1e6) return (n / 1e3).toFixed(2).replace(/\.?0+$/, "") + "K";
     if (n < 1e9) return (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
     if (n < 1e12) return (n / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
-    return (n / 1e12).toFixed(2).replace(/\.?0+$/, "") + "T";
+    if (n < 1e15) return (n / 1e12).toFixed(2).replace(/\.?0+$/, "") + "T";
+    return n.toExponential(2).replace("e+", "e");
   }
 
   function init() {
     els.stage = $("stage-val");
+    els.region = $("region-val");
     els.gold = $("gold-val");
     els.power = $("power-val");
     els.level = $("level-val");
@@ -143,6 +145,7 @@
     const h = E().effectiveHero();
 
     els.stage.textContent = s.stage;
+    els.region.textContent = d.getTheme(s.stage).name;
     els.gold.textContent = formatNum(s.gold);
     els.power.textContent = formatNum(E().heroPower());
     els.level.textContent = s.heroLevel;

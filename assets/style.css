@@ -90,6 +90,10 @@ body {
   color: var(--text);
   font-size: 13px;
 }
+.region {
+  color: var(--gold);
+  font-size: 11px;
+}
 
 .bar-wrap {
   margin-top: 6px;
