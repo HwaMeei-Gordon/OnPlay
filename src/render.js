@@ -157,10 +157,11 @@
     // 遠景丘陵（霧化貼近天空 → 強烈遠感）
     drawHills(lerpColor(theme.horizon, skyBot, 0.62), theme.horizon, lighten(theme.horizon, 16), 7, g - 13, 0.045, scroll * 0.08);
     // 中景丘陵（頂霧化、底偏暗）
-    drawHills(lerpColor(theme.farColor, skyBot, 0.34), lerpColor(theme.farColor, "#0a0610", 0.22), lighten(theme.farColor, 22), 13, g - 1, 0.07, scroll * 0.3);
-    // 地面：垂直漸層（頂部融入丘陵、底部漸暗），無生硬色帶
-    const gTop = lerpColor(theme.ground, theme.farColor, 0.32);
-    const gBot = lerpColor(theme.ground, "#0a0610", 0.5);
+    const midBot = lerpColor(theme.farColor, "#0a0610", 0.22);
+    drawHills(lerpColor(theme.farColor, skyBot, 0.34), midBot, lighten(theme.farColor, 22), 13, g - 1, 0.07, scroll * 0.3);
+    // 地面：從丘陵底色「無縫」往下延續漸暗（gTop = 丘陵底色，消除水平接縫線）
+    const gTop = midBot;
+    const gBot = lerpColor(theme.farColor, "#000000", 0.55);
     const gh = Math.max(1, v.h - g);
     for (let y = g; y < v.h; y++) {
       ctx.fillStyle = lerpColor(gTop, gBot, (y - g) / gh);
