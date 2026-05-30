@@ -97,7 +97,7 @@
 
   // ---- 浮動文字 / 投射物 ----
   function addFloat(x, y, text, color, big) {
-    battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: 0.85, vy: -22, big: !!big });
+    battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: 0.7, vy: -14, big: !!big });
   }
   function addProjectile(x, y, tx, ty, color) {
     battle.projectiles.push({ x, y, tx, ty, color, life: 0.3, t: 0 });

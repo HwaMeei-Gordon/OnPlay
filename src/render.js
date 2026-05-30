@@ -114,6 +114,12 @@
     r = Math.min(255, r + a); g = Math.min(255, g + a); b = Math.min(255, b + a);
     return "rgb(" + r + "," + g + "," + b + ")";
   }
+  function lerpColor(a, b, t) {
+    a = a.replace("#", ""); b = b.replace("#", "");
+    const ar = parseInt(a.slice(0, 2), 16), ag = parseInt(a.slice(2, 4), 16), ab = parseInt(a.slice(4, 6), 16);
+    const br = parseInt(b.slice(0, 2), 16), bg = parseInt(b.slice(2, 4), 16), bb = parseInt(b.slice(4, 6), 16);
+    return "rgb(" + Math.round(ar + (br - ar) * t) + "," + Math.round(ag + (bg - ag) * t) + "," + Math.round(ab + (bb - ab) * t) + ")";
+  }
 
   // 平滑起伏的丘陵層（兩條正弦疊加，頂緣打亮）→ 取代生硬三角形
   function drawHills(body, topcol, amp, base, freq, scroll) {
@@ -128,16 +134,13 @@
 
   function drawBackground(scroll, theme) {
     const v = Game.view, g = v.ground;
-    // 天空色帶
-    const sky = theme.sky, bandH = Math.ceil(g / sky.length);
-    for (let i = 0; i < sky.length; i++) rect(0, i * bandH, v.w, bandH, sky[i]);
-    // 色帶間抖動接縫（平滑漸層）
-    for (let i = 1; i < sky.length; i++) {
-      const y = i * bandH;
-      for (let px = 0; px < v.w; px++) {
-        if ((px + i) % 2 === 0) rect(px, y - 1, 1, 1, sky[i]);
-        else rect(px, y, 1, 1, sky[i - 1]);
-      }
+    // 天空：平滑漸層（逐列內插，消除分層感）
+    const sky = theme.sky, n = sky.length;
+    for (let y = 0; y < g; y++) {
+      const f = (y / (g - 1)) * (n - 1);
+      const i = Math.min(n - 2, Math.floor(f));
+      ctx.fillStyle = lerpColor(sky[i], sky[i + 1], f - i);
+      ctx.fillRect(0, y, v.w, 1);
     }
     // 雲（極慢視差、淡）
     ctx.fillStyle = "rgba(255,255,255,0.10)";
@@ -247,7 +250,7 @@
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     b.floats.forEach((f) => {
       ctx.font = (f.big ? 11 : 7) + "px monospace";
-      ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 0.85));
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 0.5));
       ctx.fillStyle = "#000"; ctx.fillText(f.text, f.x + 1, f.y + 1);
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
     });
