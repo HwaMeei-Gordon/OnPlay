@@ -289,7 +289,7 @@
   // ---- 調色盤（含 v1 與英雄/寵物擴充）----
   const PALETTE = {
     K: "#1a1228", W: "#f4f4f4", e: "#222034",
-    s: "#ffcc99", h: "#7a4b2b", b: "#3b6fb0", p: "#2a4d7a",
+    s: "#ffcc99", H: "#e0a060", h: "#7a4b2b", b: "#3b6fb0", p: "#2a4d7a",
     g: "#c0c0c8", y: "#ffd23f",
     G: "#5ec46b", D: "#2f8f3f", o: "#8fbf4f", O: "#5f8f2f",
     v: "#6b4b8a", V: "#3f2b55", r: "#c0392b", R: "#7a1f15", f: "#ff7a3d",
