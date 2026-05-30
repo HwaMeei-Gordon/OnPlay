@@ -11,7 +11,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
   font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace;
   overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; width: 100%;
   touch-action: none; -webkit-touch-callout: none; }
-#app { display: flex; flex-direction: column; height: 100%; max-width: 720px; margin: 0 auto; overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 720px; margin: 0 auto; overflow: hidden; }
 
 /* ===== 遊戲畫面 + HUD ===== */
 #game-wrap { position: relative; flex: 0 0 34%; min-height: 140px; background: #0d1830; overflow: hidden; border-bottom: 2px solid var(--line); }
