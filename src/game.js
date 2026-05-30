@@ -110,7 +110,8 @@
   }
   function spark(x, y, n, color) {
     for (let k = 0; k < n; k++)
-      addParticle("spark", x, y, (Math.random() - 0.5) * 50, -25 - Math.random() * 35, 0.25 + Math.random() * 0.2, color);
+      addParticle("spark", x, y, (Math.random() - 0.5) * 64, -22 - Math.random() * 40,
+        0.18 + Math.random() * 0.22, k % 2 ? "#ffffff" : color);
   }
 
   function frontEnemy() {
@@ -138,7 +139,8 @@
     target.shake = 0.14;
     const col = opts.color || (opts.crit ? "#ffd23f" : "#ffffff");
     addFloat(target.x, Game.view.ground - 32, "" + dmg, col, opts.crit);
-    spark(target.x, Game.view.ground - 16, opts.crit ? 7 : 4, col);
+    addParticle("flash", target.x, Game.view.ground - 14, 0, 0, opts.crit ? 0.3 : 0.22, "#ffffff");
+    spark(target.x, Game.view.ground - 14, opts.crit ? 9 : 5, col);
     if (opts.melee) addSlash(target.x - 4, Game.view.ground - 18);
     if (opts.lifesteal && opts.src && !opts.src.dead) {
       opts.src.hp = Math.min(opts.src.maxHp, opts.src.hp + Math.max(1, Math.round(dmg * opts.lifesteal)));

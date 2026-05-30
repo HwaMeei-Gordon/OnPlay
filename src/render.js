@@ -159,22 +159,36 @@
     // 中景丘陵（頂霧化、底偏暗）
     const midBot = lerpColor(theme.farColor, "#0a0610", 0.22);
     drawHills(lerpColor(theme.farColor, skyBot, 0.34), midBot, lighten(theme.farColor, 22), 13, g - 1, 0.07, scroll * 0.3);
-    // 地面：從丘陵底色「無縫」往下延續漸暗（gTop = 丘陵底色，消除水平接縫線）
-    const gTop = midBot;
-    const gBot = lerpColor(theme.farColor, "#000000", 0.55);
+    // 地面：泥土漸層（深處漸暗）
+    const gTop = theme.ground;
+    const gBot = lerpColor(theme.ground, "#000000", 0.55);
     const gh = Math.max(1, v.h - g);
     for (let y = g; y < v.h; y++) {
       ctx.fillStyle = lerpColor(gTop, gBot, (y - g) / gh);
       ctx.fillRect(0, y, v.w, 1);
     }
-    // 散落地面細節（隨前進捲動）
-    const sp = 11, off = Math.floor(scroll) % sp, detail = lerpColor(theme.ground, "#000000", 0.3);
-    ctx.fillStyle = detail;
-    for (let x = -sp; x < v.w + sp; x += sp) {
-      const rx = x - off, yy = g + 6 + ((((x / sp) % 3) + 3) % 3) * 5;
-      ctx.fillRect(rx, yy, 2, 1); ctx.fillRect(rx + 5, yy + 3, 1, 1);
+    // 泥土抖動質感（亮/暗碎石斑點，隨前進捲動）
+    const dlite = lighten(theme.ground, 16), ddark = lerpColor(theme.ground, "#000000", 0.4);
+    const dof = Math.floor(scroll) % 12;
+    for (let x = -12; x < v.w + 12; x += 6) {
+      const rx = x - dof;
+      const seed = (((x * 41) % 13) + 13) % 13;
+      ctx.fillStyle = seed < 6 ? ddark : dlite;
+      const yy = g + 4 + ((((x * 17) % (gh - 6)) + (gh - 6)) % (gh - 6));
+      ctx.fillRect(rx, yy, 2, 1);
+      if (seed % 4 === 0) ctx.fillRect(rx + 3, yy + 4, 1, 1);
     }
-    // 近景裝飾
+    // 表層草皮：頂緣短草叢（遮住與山的交界、並與泥土強烈對比）
+    const grassTip = lighten(theme.decoColor, 26), grassBase = lerpColor(theme.decoColor, "#0c1206", 0.5);
+    const tof = Math.floor(scroll) % 5;
+    for (let x = -5; x < v.w + 5; x += 5) {
+      const hgt = 3 + ((((x * 7) % 4) + 4) % 4);
+      const rx = x - tof;
+      ctx.fillStyle = grassBase; ctx.fillRect(rx, g - hgt, 1, hgt + 1);
+      ctx.fillStyle = theme.decoColor; ctx.fillRect(rx, g - hgt, 1, 2);
+      ctx.fillStyle = grassTip; ctx.fillRect(rx, g - hgt, 1, 1);
+    }
+    // 近景裝飾（較大草叢/物件）
     const dgap = 64, doff = scroll % dgap;
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
   }
@@ -244,11 +258,17 @@
       const a = Math.max(0, Math.min(1, p.life / p.life0));
       ctx.globalAlpha = a;
       if (p.type === "coin") {
-        ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 3, 3);
+        ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2);
         ctx.fillStyle = "#fff7c8"; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 1, 1);
       } else if (p.type === "slash") {
         ctx.strokeStyle = "rgba(255,255,255," + a + ")"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 5); ctx.lineTo(p.x + 6, p.y - 5); ctx.stroke();
+      } else if (p.type === "flash") {
+        if (ctx.arc) {
+          const r = (1 - p.life / p.life0) * 6 + 1;
+          ctx.strokeStyle = "rgba(255,255,255," + a + ")"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283); ctx.stroke();
+        }
       } else {
         ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       }
