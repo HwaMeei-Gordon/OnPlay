@@ -33,16 +33,24 @@
     Game.view.ground = worldH - d.GROUND_FROM_BOTTOM;
   }
 
+  function spriteWidth(sprite) {
+    let w = 0;
+    for (let i = 0; i < sprite.length; i++)
+      if (sprite[i].length > w) w = sprite[i].length;
+    return w;
+  }
+
+  // 容忍不等寬的列（缺字當透明），避免手繪點陣圖偶有寬度誤差而錯位
   function drawSprite(sprite, cx, bottomY, flip, tint) {
     const pal = D().PALETTE;
     const h = sprite.length;
-    const w = sprite[0].length;
+    const w = spriteWidth(sprite);
     const startX = Math.round(cx - w / 2);
     const startY = Math.round(bottomY - h);
     for (let row = 0; row < h; row++) {
       const line = sprite[row];
       for (let col = 0; col < w; col++) {
-        const ch = line[col];
+        const ch = col < line.length ? line[col] : ".";
         if (ch === "." || ch === " ") continue;
         const color = tint || pal[ch];
         if (!color) continue;
@@ -232,14 +240,19 @@
     if (state.enemy) {
       const e = state.enemy;
       const tint = e.hitFlash > 0 ? "#ffffff" : null;
-      if (e.isBoss) {
-        drawSprite(d.SPRITE_BOSS, e.x, v.ground + 1, false, tint);
-        drawBar(e.x - 16, v.ground - d.SPRITE_BOSS.length - 6, 32, 3, e.hp / e.maxHp, "#e84141");
-      } else {
-        const sp = d.ENEMY_SPRITES[e.spriteIndex] || d.ENEMY_SPRITES[0];
-        drawSprite(sp, e.x, v.ground + 1, true, tint);
-        drawBar(e.x - 8, v.ground - sp.length - 5, 16, 2, e.hp / e.maxHp, "#e84141");
-      }
+      const sp = e.sprite || d.ENEMY_SPRITES[0];
+      const sw = spriteWidth(sp);
+      // 魔王畫正面（不翻轉），小怪面向左（翻轉）
+      drawSprite(sp, e.x, v.ground + 1, !e.isBoss, tint);
+      const barW = Math.max(14, sw);
+      drawBar(
+        e.x - barW / 2,
+        v.ground - sp.length - (e.isBoss ? 6 : 5),
+        barW,
+        e.isBoss ? 3 : 2,
+        e.hp / e.maxHp,
+        "#e84141"
+      );
     }
 
     // 勇者

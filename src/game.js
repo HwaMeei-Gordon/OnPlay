@@ -128,9 +128,13 @@
     const d = D();
     const isBoss = state.killsThisStage >= d.ENEMIES_PER_STAGE;
     const st = d.makeEnemyStats(state.stage, isBoss);
-    const spriteIndex = isBoss
-      ? -1
-      : (state.stage + state.killsThisStage) % d.ENEMY_SPRITES.length;
+    // 依地區（每 100 關）選擇專屬敵人造型
+    const regionIdx = Math.max(
+      0,
+      Math.min((d.THEMES.length - 1), Math.floor((state.stage - 1) / 100))
+    );
+    const sprites = Game.Sprites;
+    const sprite = isBoss ? sprites.boss[regionIdx] : sprites.small[regionIdx];
     state.enemy = {
       maxHp: st.maxHp,
       hp: st.maxHp,
@@ -140,9 +144,8 @@
       xp: st.xp,
       atkInterval: st.atkInterval,
       atkTimer: st.atkInterval * 0.6,
-      gold_: st.gold,
       isBoss,
-      spriteIndex,
+      sprite,
       x: Game.view.w + 12,
       walkPhase: 0,
       hitFlash: 0,
