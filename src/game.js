@@ -298,6 +298,16 @@
       });
     }
 
+    // 走路塵土（前進時腳後揚塵）
+    if (battle.phase === "walking") {
+      battle.dustT = (battle.dustT || 0) - dt;
+      if (battle.dustT <= 0) {
+        const fh = frontHero();
+        if (fh) addParticle("dust", fh.x - 7, Game.view.ground - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
+        battle.dustT = 0.15;
+      }
+    }
+
     if (battle.phase !== "fighting") return;
 
     // 英雄攻擊 + 技能
