@@ -13,6 +13,7 @@
 
   let current = "heroes";
   let heroDetail = null; // 選中的英雄 id
+  let bagFilter = "all"; // 背包部位篩選
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
@@ -102,7 +103,7 @@
     current = id;
     if (id !== "heroes") heroDetail = null;
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-    renderPanel();
+    renderPanel(false);
   }
 
   // ============ HUD 每幀同步 ============
@@ -132,8 +133,10 @@
   }
 
   // ============ 面板渲染 ============
-  function renderPanel() {
+  // keep=true：保留目前捲動位置（操作後留在原地）；false：回到頂端（切分頁/換頁面）
+  function renderPanel(keep) {
     const el = $("panel-content");
+    const prev = el.scrollTop;
     let html = "";
     if (current === "heroes") html = heroDetail ? renderHeroDetail(heroDetail) : renderHeroList();
     else if (current === "bag") html = renderBag();
@@ -146,9 +149,9 @@
     else if (current === "quests") html = renderQuests();
     else if (current === "settings") html = renderSettings();
     el.innerHTML = html;
-    el.scrollTop = 0;
+    el.scrollTop = keep ? prev : 0;
   }
-  function refresh() { renderPanel(); }
+  function refresh() { renderPanel(true); }
 
   function buyBtn(act, data, cur, cost, label) {
     const dis = (St()[cur] || 0) < cost ? "disabled" : "";
@@ -267,12 +270,26 @@
   function renderBag() {
     const s = St();
     let html = `<div class="sec-title">背包　${s.inventory.length} 件</div>`;
+    // 整理工具
     html += `<div class="row-btns">
-      <button class="act-btn" data-act="salvage-below" data-rarity="rare">分解「稀有」以下</button>
-      <button class="act-btn" data-act="salvage-below" data-rarity="epic">分解「史詩」以下</button>
+      <button class="act-btn" data-act="auto-equip-party">全隊裝最強</button>
+      <button class="act-btn" data-act="salvage-weak">智慧清理（分解比身上差的）</button>
     </div>`;
+    html += `<div class="row-btns">
+      <button class="mini-btn" data-act="salvage-below" data-rarity="uncommon">分解普通</button>
+      <button class="mini-btn" data-act="salvage-below" data-rarity="rare">分解稀有以下</button>
+      <button class="mini-btn" data-act="salvage-below" data-rarity="epic">分解史詩以下</button>
+    </div>`;
+    // 部位篩選
+    html += `<div class="filter-chips"><button class="chip ${bagFilter === "all" ? "on" : ""}" data-act="bag-filter" data-f="all">全部</button>`;
+    D().EQUIPMENT_SLOTS.forEach((sl) => {
+      html += `<button class="chip ${bagFilter === sl.id ? "on" : ""}" data-act="bag-filter" data-f="${sl.id}">${ico(sl.id, 14)}</button>`;
+    });
+    html += `</div>`;
     if (!s.inventory.length) return html + `<div class="empty">背包是空的，去「開箱」或「商店」取得裝備吧！</div>`;
-    const items = s.inventory.slice().sort((a, b) =>
+    let items = s.inventory.slice();
+    if (bagFilter !== "all") items = items.filter((it) => it.slot === bagFilter);
+    items.sort((a, b) =>
       D().RARITIES.findIndex((r) => r.id === b.rarity) - D().RARITIES.findIndex((r) => r.id === a.rarity)
       || D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance)
     );
@@ -390,12 +407,12 @@
   // ---- 訓練 ----
   function renderTraining() {
     let html = `<div class="sec-title">屬性訓練（全隊永久加成）</div>`;
+    const pct = (v) => { const n = v * 100; return n < 10 && n > 0 ? n.toFixed(1) : Math.round(n); };
     D().TRAININGS.forEach((t) => {
       const lv = St().trainings[t.id] || 0;
       const cost = Sy().trainingCost(t);
-      const scale = t.scale || 1;
-      const cur = (t.per * lv * scale).toFixed(t.scale ? 1 : 0);
-      const nxt = (t.per * (lv + 1) * scale).toFixed(t.scale ? 1 : 0);
+      const cur = pct(t.per * lv);
+      const nxt = pct(t.per * (lv + 1));
       html += `<div class="item">
         <div class="item-icon">${ico(t.icon, 24)}</div>
         <div class="item-main"><div class="item-name">${t.name} <span class="lvl">Lv.${lv}</span></div>
@@ -532,7 +549,10 @@
       case "bag-open": openItemModal(uid); rerender = false; break;
       case "bag-enhance": Sy().enhanceItem(uid); break;
       case "bag-salvage": Sy().salvageItem(uid); break;
+      case "bag-filter": bagFilter = t.dataset.f; break;
       case "salvage-below": { const r = Sy().salvageAllBelow(t.dataset.rarity); toast(`分解 ${r.count} 件，獲得金幣 ${fmt(r.gold)}`); break; }
+      case "salvage-weak": { const r = Sy().salvageWeak(); toast(r.count ? `分解 ${r.count} 件多餘裝備，獲得金幣 ${fmt(r.gold)}` : "沒有可清理的多餘裝備"); break; }
+      case "auto-equip-party": { St().party.forEach((h) => Sy().autoEquipBest(h)); toast("全隊已換上最強裝備"); break; }
       case "gacha-open": { const items = Sy().doGacha(t.dataset.box, +t.dataset.count); if (items) showGachaResult(items); else toast("貨幣不足"); break; }
       case "shop-buy": { const r = Sy().shopBuy(id); toast(r.ok ? "購買成功！" : r.msg); if (r.ok && r.result && r.result.items) showGachaResult(r.result.items); break; }
       case "pet-up": Sy().upgradePet(id); break;
@@ -547,7 +567,7 @@
       case "set-speed": St().speed = +t.dataset.v; break;
       case "reset-game": confirmReset(); rerender = false; break;
     }
-    if (rerender) renderPanel();
+    if (rerender) renderPanel(act !== "hero-open" && act !== "hero-back");
     sync();
   }
 

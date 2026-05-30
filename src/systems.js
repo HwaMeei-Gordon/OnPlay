@@ -362,6 +362,30 @@
     State.gold += total;
     return { gold: total, count: n };
   }
+  // 智慧清理：分解所有「未裝備且不優於目前已穿戴同部位」的裝備
+  function salvageWeak() {
+    const d = D();
+    const bestEq = {};
+    Object.keys(State.heroes).forEach((hid) => {
+      const eq = State.heroes[hid].equip;
+      d.EQUIPMENT_SLOTS.forEach((sl) => {
+        const it = itemByUid(eq[sl.id]);
+        if (it) {
+          const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+          if (v > (bestEq[sl.id] || 0)) bestEq[sl.id] = v;
+        }
+      });
+    });
+    let total = 0, n = 0;
+    State.inventory = State.inventory.filter((it) => {
+      if (isEquipped(it.uid)) return true;
+      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+      if ((bestEq[it.slot] || 0) >= v) { total += d.salvageValue(it); n++; return false; }
+      return true;
+    });
+    State.gold += total;
+    return { gold: total, count: n };
+  }
 
   // ---- 訓練 / 才能 / 轉生 ----
   function trainingCost(t) {
@@ -528,7 +552,7 @@
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
     rollItem, openBox, gachaCost, doGacha,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
-    enhanceItem, salvageItem, salvageAllBelow,
+    enhanceItem, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
     canPrestige, prestigeGain, doPrestige,
     ownPet, upgradePet, setActivePet,
