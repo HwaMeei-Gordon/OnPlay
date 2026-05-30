@@ -68,7 +68,7 @@
     { id: "common", name: "普通", color: "#9aa0b0", mult: 1.0, weightGold: 70, weightGem: 30 },
     { id: "uncommon", name: "優秀", color: "#5ec46b", mult: 1.5, weightGold: 22, weightGem: 32 },
     { id: "rare", name: "稀有", color: "#4a9fe0", mult: 2.3, weightGold: 6, weightGem: 24 },
-    { id: "epic", name: "史詩", color: "#b06ae0", mult: 3.6, weightGold: 1.7, weightGem: 11 },
+    { id: "epic", name: "史詩", color: "#b06ae0", mult: 3.6, weightGold: 1.2, weightGem: 7 },
     { id: "legendary", name: "傳說", color: "#ffb43d", mult: 5.5, weightGold: 0.3, weightGem: 3 },
   ];
   const RARITY_BY_ID = {};
@@ -210,7 +210,7 @@
     { id: "ls", name: "吸血訓練", icon: "drop", mod: "lifestealAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100 },
     { id: "dodge", name: "閃避訓練", icon: "boots", mod: "dodgeAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100, cap: 0.5 },
     { id: "gold", name: "尋金術", icon: "coin", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
-    { id: "xp", name: "經驗加成", icon: "book", mod: "xpMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
+    { id: "xp", name: "財富加成", icon: "coin", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
   ];
 
   // ---- 才能天賦（用才能點）----
@@ -220,7 +220,7 @@
     { id: "fortune", name: "幸運", icon: "coin", mod: "goldMul", per: 0.04, max: 50, desc: "金幣" },
     { id: "precision", name: "精準", icon: "target", mod: "critAdd", per: 0.005, max: 40, desc: "暴擊" },
     { id: "ferocity", name: "兇猛", icon: "burst", mod: "critDmgAdd", per: 0.05, max: 40, desc: "暴傷" },
-    { id: "wisdom", name: "智慧", icon: "book", mod: "xpMul", per: 0.04, max: 50, desc: "經驗" },
+    { id: "wisdom", name: "貪婪", icon: "coin", mod: "goldMul", per: 0.04, max: 50, desc: "金幣" },
   ];
 
   // ---- 轉生天賦（用靈魂，永久全域倍率）----
@@ -239,7 +239,7 @@
   const PETS = [
     { id: "slime", name: "史萊姆", icon: "paw", sprite: "p_slime", rarity: "common", mod: "goldMul", per: 0.03 },
     { id: "wolf", name: "幼狼", icon: "paw", sprite: "p_wolf", rarity: "uncommon", mod: "atkMul", per: 0.03 },
-    { id: "owl", name: "貓頭鷹", icon: "paw", sprite: "p_owl", rarity: "rare", mod: "xpMul", per: 0.04 },
+    { id: "owl", name: "貓頭鷹", icon: "paw", sprite: "p_owl", rarity: "rare", mod: "goldMul", per: 0.04 },
     { id: "drake", name: "幼龍", icon: "paw", sprite: "p_drake", rarity: "epic", mod: "atkMul", per: 0.05 },
   ];
   const PET_BY_ID = {};
