@@ -217,3 +217,91 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
   #game-wrap { flex: 1 1 50%; border-bottom: none; border-right: 3px solid var(--line); }
   #panel-area { flex: 1 1 50%; }
 }
+
+/* ============================================================
+ * 行動裝置緊湊化（為手機網頁介面而生：整體縮小、更密）
+ * 置於檔末以覆蓋前面規則
+ * ============================================================ */
+.panel-content { padding: 7px 8px 18px; }
+/* 分頁列 */
+.tab-btn { min-width: 46px; padding: 4px 5px 4px; }
+.tab-btn .ti img { width: 17px; height: 17px; }
+.tab-btn .tl { font-size: 9px; }
+/* HUD */
+.hud-chip { padding: 2px 6px; font-size: 10px; border-radius: 6px; }
+.hud-chip b { font-size: 12px; }
+.region { font-size: 10px; }
+.ci img { width: 12px; height: 12px; }
+/* 區塊標題 */
+.sec-title { font-size: 12px; margin: 8px 0 6px; padding: 4px 8px; letter-spacing: 0.5px; }
+/* 列表項目 */
+.item { padding: 6px 8px; gap: 8px; margin-bottom: 5px; border-radius: 8px; }
+.item-icon { width: 26px; }
+.item-icon img { width: 20px; height: 20px; }
+.item-name { font-size: 12px; }
+.item-bonus { font-size: 10px; }
+.item-name .tag { font-size: 9px; }
+/* 按鈕 */
+.buy-btn { min-width: 62px; min-height: 38px; border-radius: 8px; padding: 3px 7px; }
+.buy-btn .cost { font-size: 11px; }
+.buy-btn .lbl { font-size: 9px; }
+.mini-btn { min-height: 32px; min-width: 50px; font-size: 11px; padding: 3px 8px; }
+.act-btn { min-height: 34px; font-size: 11px; padding: 5px 10px; }
+.primary-btn { min-height: 42px; font-size: 14px; }
+.danger-btn { min-height: 40px; font-size: 13px; }
+/* 英雄 */
+.hero-grid { gap: 7px; }
+.hero-card { padding: 6px 3px 6px; border-radius: 10px; }
+.hc-portrait img { height: 38px; }
+.hc-name { font-size: 12px; margin-top: 3px; }
+.hc-sub { font-size: 9px; }
+.hc-pow { font-size: 10px; }
+.hc-stars img { width: 7px; height: 7px; }
+/* 出戰列 */
+.party-bar { padding: 6px; gap: 6px; border-radius: 9px; }
+.pb-slot { width: 40px; height: 40px; border-radius: 8px; }
+.pb-slot img { height: 28px; }
+.pb-lv { font-size: 7px; }
+/* 英雄詳情 */
+.dh-frame { width: 52px; height: 52px; }
+.dh-frame img { height: 44px; }
+.dh-name { font-size: 15px; }
+.dh-sub { font-size: 10px; }
+.back-btn { min-height: 36px; min-width: 36px; font-size: 15px; padding: 4px 10px; }
+.stat-box { padding: 4px 10px; }
+.sl { font-size: 11px; padding: 4px 0; }
+.equip-slot { padding: 6px; gap: 6px; border-radius: 8px; }
+.es-icon img { width: 18px; height: 18px; }
+.es-name { font-size: 10px; }
+.es-stat { font-size: 9px; }
+/* 背包格子（縮小、可多排）*/
+.bag-cells { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.bag-cell img { width: 22px; height: 22px; }
+.bc-badge { font-size: 8px; }
+/* 商店 / 寵物 / 天賦 / 開箱 */
+.shop-item { padding: 6px 8px; gap: 8px; }
+.si-icon { width: 28px; font-size: 0; }
+.si-icon img { width: 24px; height: 24px; }
+.si-name { font-size: 12px; }
+.si-sub { font-size: 9px; }
+.gacha-card { padding: 9px; gap: 8px; }
+.gc-icon img { width: 28px; height: 28px; }
+.gc-name { font-size: 13px; }
+.gc-sub { font-size: 10px; }
+.pet-grid { gap: 7px; }
+.pet-card { padding: 8px 5px; }
+.pc-icon img { height: 30px; }
+.pc-name { font-size: 12px; }
+.pc-eff { font-size: 10px; }
+.talent-grid { gap: 7px; }
+.talent-card { padding: 8px 5px; }
+.tc-name { font-size: 12px; }
+.tc-eff, .tc-lvl { font-size: 10px; }
+.hint { font-size: 10px; }
+/* Modal 緊湊 */
+.modal-content { max-width: 320px; padding: 14px; border-radius: 11px; }
+.modal-title { font-size: 15px; margin-bottom: 10px; }
+.im-frame { width: 48px; height: 48px; }
+.im-frame img { width: 36px; height: 36px; }
+/* Toast */
+.toast { font-size: 12px; padding: 8px 14px; bottom: 70px; }
