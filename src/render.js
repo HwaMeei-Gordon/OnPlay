@@ -121,48 +121,56 @@
     return "rgb(" + Math.round(ar + (br - ar) * t) + "," + Math.round(ag + (bg - ag) * t) + "," + Math.round(ab + (bb - ab) * t) + ")";
   }
 
-  // 平滑起伏的丘陵層（兩條正弦疊加，頂緣打亮）→ 取代生硬三角形
-  function drawHills(body, topcol, amp, base, freq, scroll) {
+  // 丘陵層：逐列垂直漸層（頂部偏霧色、底部較實），消除「平板色帶」分層感
+  function drawHills(bodyTop, bodyBot, rim, amp, base, freq, scroll) {
     const v = Game.view, g = v.ground;
     for (let x = 0; x < v.w; x++) {
       const t = (x + scroll) * freq;
       const ty = Math.round(base - amp * (0.55 + 0.45 * Math.sin(t)) - amp * 0.3 * Math.sin(t * 2.7 + 1.3));
-      ctx.fillStyle = body; ctx.fillRect(x, ty, 1, g - ty + 2);
-      ctx.fillStyle = topcol; ctx.fillRect(x, ty, 1, 2);
+      const hh = Math.max(1, g + 3 - ty);
+      for (let y = ty; y < g + 3; y++) {
+        ctx.fillStyle = lerpColor(bodyTop, bodyBot, (y - ty) / hh);
+        ctx.fillRect(x, y, 1, 1);
+      }
+      ctx.fillStyle = rim; ctx.fillRect(x, ty, 1, 1);
     }
   }
 
   function drawBackground(scroll, theme) {
     const v = Game.view, g = v.ground;
-    // 天空：平滑漸層（逐列內插，消除分層感）
-    const sky = theme.sky, n = sky.length;
+    const sky = theme.sky, n = sky.length, skyBot = sky[n - 1];
+    // 天空：平滑漸層
     for (let y = 0; y < g; y++) {
       const f = (y / (g - 1)) * (n - 1);
       const i = Math.min(n - 2, Math.floor(f));
       ctx.fillStyle = lerpColor(sky[i], sky[i + 1], f - i);
       ctx.fillRect(0, y, v.w, 1);
     }
-    // 雲（極慢視差、淡）
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
-    const cl = (scroll * 0.05) % 130;
-    for (let bx = -130; bx < v.w + 130; bx += 130) {
-      const x = Math.round(bx - cl), cy = 12 + ((((bx / 130) % 2) + 2) % 2) * 11;
-      ctx.fillRect(x, cy, 22, 4); ctx.fillRect(x + 6, cy - 3, 12, 4); ctx.fillRect(x + 3, cy + 4, 17, 3);
+    // 雲（散落、極淡、不成帶）
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    const cl = (scroll * 0.04) % 150;
+    const puffs = [[10, 14], [62, 24], [118, 10], [176, 28], [232, 18], [288, 12]];
+    puffs.forEach((p) => {
+      let x = Math.round(p[0] - cl); while (x < -30) x += 300; const y = p[1];
+      ctx.fillRect(x, y, 16, 3); ctx.fillRect(x + 4, y - 2, 9, 3); ctx.fillRect(x + 2, y + 3, 12, 2);
+    });
+    // 遠景丘陵（霧化貼近天空 → 強烈遠感）
+    drawHills(lerpColor(theme.horizon, skyBot, 0.62), theme.horizon, lighten(theme.horizon, 16), 7, g - 13, 0.045, scroll * 0.08);
+    // 中景丘陵（頂霧化、底偏暗）
+    drawHills(lerpColor(theme.farColor, skyBot, 0.34), lerpColor(theme.farColor, "#0a0610", 0.22), lighten(theme.farColor, 22), 13, g - 1, 0.07, scroll * 0.3);
+    // 地面：垂直漸層（頂部融入丘陵、底部漸暗），無生硬色帶
+    const gTop = lerpColor(theme.ground, theme.farColor, 0.32);
+    const gBot = lerpColor(theme.ground, "#0a0610", 0.5);
+    const gh = Math.max(1, v.h - g);
+    for (let y = g; y < v.h; y++) {
+      ctx.fillStyle = lerpColor(gTop, gBot, (y - g) / gh);
+      ctx.fillRect(0, y, v.w, 1);
     }
-    // 遠景丘陵（極慢、淺）→ 遠感
-    drawHills(theme.horizon, lighten(theme.horizon, 24), 7, g - 13, 0.045, scroll * 0.08);
-    // 中景丘陵（themed 色、較大較深）
-    drawHills(theme.farColor, lighten(theme.farColor, 28), 13, g - 1, 0.07, scroll * 0.3);
-    // 地面
-    rect(0, g, v.w, v.h - g, theme.ground);
-    rect(0, g, v.w, 1, theme.groundLine);
-    for (let px = 0; px < v.w; px++) if (px % 2 === 0) rect(px, g + 1, 1, 1, theme.groundTop);
-    for (let px = 0; px < v.w; px++) if (px % 2 === 1) rect(px, g + 2, 1, 1, theme.groundTop);
-    // 散落地面細節（隨前進捲動，取代柵欄狀直線）
-    const sp = 11, off = Math.floor(scroll) % sp;
-    ctx.fillStyle = theme.tile;
+    // 散落地面細節（隨前進捲動）
+    const sp = 11, off = Math.floor(scroll) % sp, detail = lerpColor(theme.ground, "#000000", 0.3);
+    ctx.fillStyle = detail;
     for (let x = -sp; x < v.w + sp; x += sp) {
-      const rx = x - off, yy = g + 7 + ((((x / sp) % 3) + 3) % 3) * 5;
+      const rx = x - off, yy = g + 6 + ((((x / sp) % 3) + 3) % 3) * 5;
       ctx.fillRect(rx, yy, 2, 1); ctx.fillRect(rx + 5, yy + 3, 1, 1);
     }
     // 近景裝飾
