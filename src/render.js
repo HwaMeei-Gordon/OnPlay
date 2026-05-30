@@ -264,6 +264,18 @@
     });
     ctx.globalAlpha = 1;
 
+    // 前景「走路」層：最近的草叢快速掠過（畫在角色前方，強化前進感、增加景深）
+    const fg = lerpColor(theme.decoColor, "#0a0610", 0.35);
+    const fgd = lerpColor(theme.decoColor, "#0a0610", 0.55);
+    const fgap = 28, foff = (b.worldScroll * 1.7) % fgap;
+    for (let x = -fgap; x < v.w + fgap; x += fgap) {
+      const rx = Math.round(x - foff);
+      ctx.fillStyle = fg;
+      ctx.fillRect(rx, v.h - 6, 1, 6); ctx.fillRect(rx + 2, v.h - 9, 1, 9); ctx.fillRect(rx + 4, v.h - 4, 1, 4);
+      ctx.fillStyle = fgd;
+      ctx.fillRect(rx + 13, v.h - 7, 1, 7); ctx.fillRect(rx + 15, v.h - 5, 1, 5); ctx.fillRect(rx + 17, v.h - 10, 1, 10);
+    }
+
     // 邊緣暗角
     if (ctx.createRadialGradient) {
       const vg = ctx.createRadialGradient(v.w / 2, v.ground * 0.6, v.ground * 0.3, v.w / 2, v.ground * 0.6, v.w * 0.7);
