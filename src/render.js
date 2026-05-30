@@ -87,35 +87,57 @@
     }
   }
 
+  function lighten(hex, a) {
+    const m = hex.replace("#", "");
+    if (m.length < 6) return hex;
+    let r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
+    r = Math.min(255, r + a); g = Math.min(255, g + a); b = Math.min(255, b + a);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  // 平滑起伏的丘陵層（兩條正弦疊加，頂緣打亮）→ 取代生硬三角形
+  function drawHills(body, topcol, amp, base, freq, scroll) {
+    const v = Game.view, g = v.ground;
+    for (let x = 0; x < v.w; x++) {
+      const t = (x + scroll) * freq;
+      const ty = Math.round(base - amp * (0.55 + 0.45 * Math.sin(t)) - amp * 0.3 * Math.sin(t * 2.7 + 1.3));
+      ctx.fillStyle = body; ctx.fillRect(x, ty, 1, g - ty + 2);
+      ctx.fillStyle = topcol; ctx.fillRect(x, ty, 1, 2);
+    }
+  }
+
   function drawBackground(scroll, theme) {
     const v = Game.view, g = v.ground;
-    // 1 天空（靜止）
-    const bandH = Math.ceil(g / theme.sky.length);
-    for (let i = 0; i < theme.sky.length; i++) rect(0, i * bandH, v.w, bandH, theme.sky[i]);
-    // 2 遠景地平線剪影（極慢視差 → 遠感）
-    const hoff = (scroll * 0.08) % 64;
-    ctx.fillStyle = theme.horizon;
-    for (let bx = -64; bx < v.w + 64; bx += 64) {
-      const x = Math.round(bx - hoff);
-      for (let k = 0; k < 12; k++) ctx.fillRect(x + k, g - 18 - (12 - k), 64 - 2 * k, 1);
+    // 天空色帶
+    const sky = theme.sky, bandH = Math.ceil(g / sky.length);
+    for (let i = 0; i < sky.length; i++) rect(0, i * bandH, v.w, bandH, sky[i]);
+    // 色帶間抖動接縫（平滑漸層）
+    for (let i = 1; i < sky.length; i++) {
+      const y = i * bandH;
+      for (let px = 0; px < v.w; px++) {
+        if ((px + i) % 2 === 0) rect(px, y - 1, 1, 1, sky[i]);
+        else rect(px, y, 1, 1, sky[i - 1]);
+      }
     }
-    // 3 中景剪影（中速視差）
-    const moff = (scroll * 0.3) % 80;
-    for (let bx = -80; bx < v.w + 80; bx += 80) drawFarUnit(theme.far, Math.round(bx - moff), g, theme.farColor, theme.farColor2);
-    // 4 地面（全速）
+    // 遠景丘陵（極慢、淺）→ 遠感
+    drawHills(theme.horizon, lighten(theme.horizon, 24), 7, g - 13, 0.045, scroll * 0.08);
+    // 中景丘陵（themed 色、較大較深）
+    drawHills(theme.farColor, lighten(theme.farColor, 28), 13, g - 1, 0.07, scroll * 0.3);
+    // 地面
     rect(0, g, v.w, v.h - g, theme.ground);
-    rect(0, g, v.w, 3, theme.groundTop);
     rect(0, g, v.w, 1, theme.groundLine);
-    const tile = 16, toff = Math.floor(scroll % tile);
+    for (let px = 0; px < v.w; px++) if (px % 2 === 0) rect(px, g + 1, 1, 1, theme.groundTop);
+    for (let px = 0; px < v.w; px++) if (px % 2 === 1) rect(px, g + 2, 1, 1, theme.groundTop);
+    // 散落地面細節（隨前進捲動，取代柵欄狀直線）
+    const sp = 11, off = Math.floor(scroll) % sp;
     ctx.fillStyle = theme.tile;
-    for (let x = -toff; x < v.w; x += tile) ctx.fillRect(x, g + 6, 1, v.h - g - 6);
-    // 5 近景裝飾（全速）
-    const dgap = 56, doff = scroll % dgap;
+    for (let x = -sp; x < v.w + sp; x += sp) {
+      const rx = x - off, yy = g + 7 + ((((x / sp) % 3) + 3) % 3) * 5;
+      ctx.fillRect(rx, yy, 2, 1); ctx.fillRect(rx + 5, yy + 3, 1, 1);
+    }
+    // 近景裝飾
+    const dgap = 64, doff = scroll % dgap;
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
-    // 6 前景快速掠過（加強景深）
-    const fgap = 40, foff = (scroll * 1.6) % fgap;
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    for (let bx = -fgap; bx < v.w + fgap; bx += fgap) { const x = Math.round(bx - foff); ctx.fillRect(x, v.h - 4, 6, 4); ctx.fillRect(x + 10, v.h - 3, 3, 3); }
   }
 
   function draw() {
@@ -133,8 +155,8 @@
       const sp = e.sprite;
       const tint = e.hitFlash > 0 ? "#ffffff" : null;
       drawSprite(sp, e.x, v.ground + 1, !e.isBoss, tint);
-      const bw = Math.max(14, spriteWidth(sp));
-      drawBar(e.x - bw / 2, v.ground - sp.length - (e.isBoss ? 6 : 5), bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+      const bw = Math.max(10, spriteWidth(sp) - 2);
+      drawBar(e.x - bw / 2, v.ground - sp.length - (e.isBoss ? 4 : 2), bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
     });
 
     // 寵物（跟在隊伍後）
@@ -151,7 +173,7 @@
       const bob = walking ? (Math.floor(b.walkPhase + idx) % 2 === 0 ? 0 : -1) : 0;
       const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : h.rageLeft > 0 ? "#ffcaca" : null;
       drawSprite(h.sprite, h.x, v.ground + 1 - h.lift, false, tint, bob);
-      if (!h.dead) drawBar(h.x - 8, v.ground - h.sprite.length - 4 - h.lift, 16, 2, h.hp / h.maxHp, "#4ad94a");
+      if (!h.dead && h.hp < h.maxHp) drawBar(h.x - 7, v.ground - h.sprite.length - 2 - h.lift, 14, 2, h.hp / h.maxHp, "#4ad94a");
     });
 
     // 投射物
