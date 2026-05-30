@@ -313,10 +313,10 @@
 
   // ---- 關卡主題（4 層景深：sky / horizon / mid / ground+deco）----
   const THEMES = [
-    { name: "草原", sky: ["#3a6db5", "#4f86c6", "#6fa3d6", "#9cc4e4"], horizon: "#2f5e7a",
-      far: "hills", farColor: "#3f7a4a", farColor2: "#356b40",
-      ground: "#5a8a3a", groundTop: "#6fa84a", groundLine: "#8fd05a", tile: "#46702e",
-      deco: "grass", decoColor: "#7ec24a" },
+    { name: "草原", sky: ["#5a7fa8", "#6f93b6", "#8aabc8", "#a9c6dc"], horizon: "#4a6a6e",
+      far: "hills", farColor: "#4f7350", farColor2: "#3f5f44",
+      ground: "#5e7d44", groundTop: "#6f9152", groundLine: "#88a860", tile: "#44643a",
+      deco: "grass", decoColor: "#7aa852" },
     { name: "森林", sky: ["#1f2e44", "#2e4a52", "#3a6b54", "#4d8060"], horizon: "#163a30",
       far: "trees", farColor: "#1f4a32", farColor2: "#163a26",
       ground: "#3a5a2a", groundTop: "#4a6a32", groundLine: "#6a9a3a", tile: "#2c4420",
