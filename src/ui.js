@@ -160,8 +160,14 @@
   // ---- 英雄列表 ----
   function renderHeroList() {
     const s = St();
-    const owned = Sy().ownedHeroes();
-    let html = `<div class="sec-title">隊伍（${s.party.length}/${D().PARTY_MAX}）　點英雄可養成</div><div class="hero-grid">`;
+    // 出戰隊伍展示列
+    let pb = "";
+    s.party.forEach((id) => {
+      pb += `<div class="pb-slot" style="--rc:${rarColor(D().HERO_BY_ID[id].rarity)}">${heroPortrait(id, 30)}<span class="pb-lv">Lv.${s.heroes[id].level}</span></div>`;
+    });
+    for (let i = s.party.length; i < D().PARTY_MAX; i++) pb += `<div class="pb-slot empty">+</div>`;
+    let html = `<div class="party-bar">${pb}</div>`;
+    html += `<div class="sec-title">英雄圖鑑　點英雄可養成</div><div class="hero-grid">`;
     D().HEROES.forEach((h) => {
       const o = s.heroes[h.id] && s.heroes[h.id].owned;
       const inParty = s.party.indexOf(h.id) >= 0;
@@ -257,10 +263,10 @@
   }
   function statLine(k, v) { return `<div class="sl"><span>${k}</span><b>${v}</b></div>`; }
 
-  // ---- 背包 ----
+  // ---- 背包（格子收納）----
   function renderBag() {
     const s = St();
-    let html = `<div class="sec-title">背包（${s.inventory.length} 件）</div>`;
+    let html = `<div class="sec-title">背包　${s.inventory.length} 件</div>`;
     html += `<div class="row-btns">
       <button class="act-btn" data-act="salvage-below" data-rarity="rare">分解「稀有」以下</button>
       <button class="act-btn" data-act="salvage-below" data-rarity="epic">分解「史詩」以下</button>
@@ -270,21 +276,39 @@
       D().RARITIES.findIndex((r) => r.id === b.rarity) - D().RARITIES.findIndex((r) => r.id === a.rarity)
       || D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance)
     );
-    html += `<div class="bag-grid">`;
+    html += `<div class="bag-cells">`;
     items.forEach((it) => {
       const equipped = Sy().isEquipped(it.uid);
-      const eCost = D().enhanceCost(it);
-      html += `<div class="bag-item" style="border-color:${rarColor(it.rarity)}">
-        <div class="bi-top"><span class="bi-icon">${ico(it.slot, 16)}</span>
-        <span class="bi-name" style="color:${rarColor(it.rarity)}">${itemName(it)}</span>${equipped ? '<span class="badge">裝備中</span>' : ""}</div>
-        <div class="bi-stat">${itemStatText(it)}（階${it.tier}）</div>
-        <div class="bi-btns">
-          ${buyBtn("bag-enhance", { uid: it.uid }, "gold", eCost, "強化")}
-          ${equipped ? "" : `<button class="mini-btn danger" data-act="bag-salvage" data-uid="${it.uid}">分解 ${ico("coin", 12)}${fmt(D().salvageValue(it))}</button>`}
-        </div>
+      html += `<div class="bag-cell" data-act="bag-open" data-uid="${it.uid}" style="--rc:${rarColor(it.rarity)}">
+        ${ico(it.slot, 26)}
+        ${it.enhance ? `<span class="bc-badge">+${it.enhance}</span>` : ""}
+        ${equipped ? `<span class="bc-eq"></span>` : ""}
       </div>`;
     });
     return html + `</div>`;
+  }
+
+  function openItemModal(uid) {
+    const it = Sy().itemByUid(uid);
+    if (!it) return;
+    const equipped = Sy().isEquipped(uid);
+    const eCost = D().enhanceCost(it);
+    let html = `<div class="modal-title" style="color:${rarColor(it.rarity)}">${itemName(it)}</div>
+      <div class="item-modal">
+        <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
+        <div class="im-info">
+          <div>${rarName(it.rarity)}・${D().SLOT_BY_ID[it.slot].name}</div>
+          <div class="im-stat">${itemStatText(it)}</div>
+          <div class="im-sub">階級 ${it.tier}　強化 +${it.enhance}</div>
+          ${equipped ? `<div class="badge">裝備中</div>` : ""}
+        </div>
+      </div>
+      <div class="row-btns">
+        <button class="buy-btn" ${St().gold < eCost ? "disabled" : ""} onclick="Game.UI._itemEnhance(${uid})"><span class="cost">${ico("coin", 13)}${fmt(eCost)}</span><span class="lbl">強化</span></button>
+        ${equipped ? "" : `<button class="mini-btn danger" onclick="Game.UI._itemSalvage(${uid})">分解 ${ico("coin", 12)}${fmt(D().salvageValue(it))}</button>`}
+        <button class="act-btn" onclick="Game.UI._close()">關閉</button>
+      </div>`;
+    openModal(html);
   }
 
   // ---- 開箱 ----
@@ -505,6 +529,7 @@
       case "hero-slot": openEquipPicker(id, slot); rerender = false; break;
       case "equip-pick": Sy().equipItem(equipPickHero, uid); closeModal(); break;
       case "slot-unequip": Sy().unequipSlot(equipPickHero, t.dataset.slot); closeModal(); break;
+      case "bag-open": openItemModal(uid); rerender = false; break;
       case "bag-enhance": Sy().enhanceItem(uid); break;
       case "bag-salvage": Sy().salvageItem(uid); break;
       case "salvage-below": { const r = Sy().salvageAllBelow(t.dataset.rarity); toast(`分解 ${r.count} 件，獲得金幣 ${fmt(r.gold)}`); break; }
@@ -605,5 +630,7 @@
     init, sync, tickAfford, showOffline, openTab, refresh,
     _close: closeModal,
     _reset: () => { Game.Save.reset(); location.reload(); },
+    _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(); sync(); },
+    _itemSalvage: (uid) => { Sy().salvageItem(uid); closeModal(); renderPanel(); sync(); },
   };
 })();
