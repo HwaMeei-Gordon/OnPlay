@@ -1,0 +1,11 @@
+{
+  "name": "勇者放置記 Brave Idle",
+  "short_name": "勇者放置記",
+  "description": "馬賽克像素風格的開箱放置 RPG：多英雄隊伍、裝備、技能、寵物、轉生。",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14101f",
+  "theme_color": "#14101f",
+  "icons": []
+}
