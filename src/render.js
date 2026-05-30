@@ -265,19 +265,22 @@
     });
     ctx.globalAlpha = 1;
 
-    // 前景「走路」層：最近的草叢快速掠過（畫在角色前方、明顯可見，強化前進感與景深）
-    const fgL = lighten(theme.decoColor, 26);
-    const fgM = theme.decoColor;
-    const fgD = lerpColor(theme.decoColor, "#000000", 0.45);
-    const fgap = 17, foff = (b.worldScroll * 1.9) % fgap;
+    // 前景「走路」層：高對比草叢快速掠過（亮色尖端 + 深色基部，與背景明顯區隔）
+    const fgD = "#0c1206";                       // 深色基部/外框
+    const fgM = lighten(theme.decoColor, 36);    // 亮草身
+    const fgL = lighten(theme.decoColor, 90);    // 高光尖端
+    // 前景底部加一條暗帶把近景與背景分開
+    ctx.fillStyle = "rgba(8,10,6,0.55)";
+    ctx.fillRect(0, v.h - 6, v.w, 6);
+    const fgap = 16, foff = (b.worldScroll * 1.9) % fgap;
     for (let x = -fgap; x < v.w + fgap; x += fgap) {
       const rx = Math.round(x - foff);
       ctx.fillStyle = fgD;
-      ctx.fillRect(rx, v.h - 12, 2, 12); ctx.fillRect(rx + 4, v.h - 8, 2, 8);
+      ctx.fillRect(rx, v.h - 13, 2, 13); ctx.fillRect(rx + 4, v.h - 9, 2, 9); ctx.fillRect(rx + 8, v.h - 6, 2, 6);
       ctx.fillStyle = fgM;
-      ctx.fillRect(rx + 1, v.h - 14, 1, 14); ctx.fillRect(rx + 5, v.h - 9, 1, 9); ctx.fillRect(rx - 1, v.h - 7, 1, 7);
+      ctx.fillRect(rx + 1, v.h - 15, 1, 15); ctx.fillRect(rx + 5, v.h - 10, 1, 10); ctx.fillRect(rx + 9, v.h - 7, 1, 7);
       ctx.fillStyle = fgL;
-      ctx.fillRect(rx + 1, v.h - 14, 1, 2); ctx.fillRect(rx + 5, v.h - 9, 1, 2);
+      ctx.fillRect(rx + 1, v.h - 15, 1, 3); ctx.fillRect(rx + 5, v.h - 10, 1, 3);
     }
 
     // 邊緣暗角
