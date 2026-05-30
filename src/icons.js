@@ -82,23 +82,42 @@
   const urlCache = {};
   const spriteCache = new Map();
 
-  function render(rows, pal) {
+  function render(rows, pal, outline) {
     try {
       if (typeof document === "undefined" || !document.createElement) return "";
       let w = 0; rows.forEach((r) => (w = Math.max(w, r.length)));
       const h = rows.length;
+      const pad = outline ? 1 : 0;
       const cv = document.createElement("canvas");
-      cv.width = w; cv.height = h;
+      cv.width = w + pad * 2; cv.height = h + pad * 2;
       const ctx = cv.getContext("2d");
       if (!ctx) return "";
+      const filled = [];
+      for (let y = 0; y < h; y++) {
+        filled[y] = [];
+        const line = rows[y];
+        for (let x = 0; x < w; x++) {
+          const ch = x < line.length ? line[x] : ".";
+          filled[y][x] = !(ch === "." || ch === " ");
+        }
+      }
+      if (outline) {
+        ctx.fillStyle = "#0d0a14";
+        for (let y = 0; y < h; y++)
+          for (let x = 0; x < w; x++) {
+            if (filled[y][x]) continue;
+            if ((y > 0 && filled[y - 1][x]) || (y < h - 1 && filled[y + 1][x]) ||
+                (x > 0 && filled[y][x - 1]) || (x < w - 1 && filled[y][x + 1]))
+              ctx.fillRect(x + pad, y + pad, 1, 1);
+          }
+      }
       for (let y = 0; y < h; y++) {
         const line = rows[y];
-        for (let x = 0; x < line.length; x++) {
-          const ch = line[x];
-          if (ch === "." || ch === " ") continue;
-          const c = pal[ch];
+        for (let x = 0; x < w; x++) {
+          if (!filled[y][x]) continue;
+          const c = pal[line[x]];
           if (!c) continue;
-          ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+          ctx.fillStyle = c; ctx.fillRect(x + pad, y + pad, 1, 1);
         }
       }
       return cv.toDataURL ? cv.toDataURL() : "";
@@ -119,7 +138,7 @@
   function spriteURL(arr) {
     if (!arr) return "";
     if (spriteCache.has(arr)) return spriteCache.get(arr);
-    const u = render(arr, Game.Data.PALETTE);
+    const u = render(arr, Game.Data.PALETTE, true);
     spriteCache.set(arr, u);
     return u;
   }

@@ -36,15 +36,35 @@
     const pal = D().PALETTE;
     const h = sprite.length, w = spriteWidth(sprite);
     const sx = Math.round(cx - w / 2), sy = Math.round(bottomY - h + (yoff || 0));
-    for (let row = 0; row < h; row++) {
-      const line = sprite[row];
-      for (let col = 0; col < w; col++) {
-        const ch = col < line.length ? line[col] : ".";
-        if (ch === "." || ch === " ") continue;
-        const color = tint || pal[ch];
+    const filled = [];
+    for (let r = 0; r < h; r++) {
+      filled[r] = [];
+      const line = sprite[r];
+      for (let c = 0; c < w; c++) {
+        const ch = c < line.length ? line[c] : ".";
+        filled[r][c] = !(ch === "." || ch === " ");
+      }
+    }
+    const px = (c) => (flip ? sx + (w - 1 - c) : sx + c);
+    // 自動描邊（在輪廓外緣的空白格畫深色）→ 一線像素遊戲的清晰外框
+    ctx.fillStyle = "#0d0a14";
+    for (let r = 0; r < h; r++)
+      for (let c = 0; c < w; c++) {
+        if (filled[r][c]) continue;
+        if ((r > 0 && filled[r - 1][c]) || (r < h - 1 && filled[r + 1][c]) ||
+            (c > 0 && filled[r][c - 1]) || (c < w - 1 && filled[r][c + 1])) {
+          ctx.fillRect(px(c), sy + r, 1, 1);
+        }
+      }
+    // 填色
+    for (let r = 0; r < h; r++) {
+      const line = sprite[r];
+      for (let c = 0; c < w; c++) {
+        if (!filled[r][c]) continue;
+        const color = tint || pal[line[c]];
         if (!color) continue;
         ctx.fillStyle = color;
-        ctx.fillRect(flip ? sx + (w - 1 - col) : sx + col, sy + row, 1, 1);
+        ctx.fillRect(px(c), sy + r, 1, 1);
       }
     }
   }

@@ -35,6 +35,12 @@
     return Game.Icons.spriteHtml(Game.Sprites.heroes[def.sprite], px || 30);
   }
   function petPortrait(p, px) { return Game.Icons.spriteHtml(Game.Sprites.pets[p.sprite], px || 30); }
+  function stars(rarity) {
+    const n = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 }[rarity] || 1;
+    let h = "";
+    for (let i = 0; i < n; i++) h += Game.Icons.html("star", 8);
+    return h;
+  }
 
   function fmt(n) {
     n = Math.floor(n);
@@ -161,11 +167,14 @@
       const inParty = s.party.indexOf(h.id) >= 0;
       const lvl = o ? s.heroes[h.id].level : 0;
       const pw = o ? Sy().heroPower(h.id) : 0;
-      html += `<div class="hero-card ${o ? "" : "locked"} ${inParty ? "inparty" : ""}" data-act="${o ? "hero-open" : ""}" data-id="${h.id}" style="border-color:${rarColor(h.rarity)}">
-        <div class="hc-emoji">${heroPortrait(h.id, 36)}</div>
+      html += `<div class="hero-card ${o ? "" : "locked"} ${inParty ? "inparty" : ""}" data-act="${o ? "hero-open" : ""}" data-id="${h.id}">
+        <div class="hc-frame" style="--rc:${rarColor(h.rarity)}">
+          <div class="hc-portrait">${heroPortrait(h.id, 44)}</div>
+          <div class="hc-stars">${stars(h.rarity)}</div>
+        </div>
         <div class="hc-name" style="color:${rarColor(h.rarity)}">${h.name}</div>
-        <div class="hc-sub">${o ? "Lv." + lvl + (inParty ? " · 出戰" : "") : h.cls}</div>
-        <div class="hc-pow">${o ? ico("sword",11) + fmt(pw) : "未擁有"}</div>
+        <div class="hc-sub">${o ? "Lv." + lvl : h.cls}</div>
+        <div class="hc-pow">${o ? ico("sword", 11) + fmt(pw) : "未擁有"}</div>
       </div>`;
     });
     html += `</div><div class="hint">未擁有的英雄可在「商店」招募。</div>`;
@@ -181,8 +190,13 @@
     const inParty = s.party.indexOf(id) >= 0;
     const lvlCost = D().heroLevelCost(hs.level);
     let html = `<div class="detail-head">
-      <button class="back-btn" data-act="hero-back">← 返回</button>
-      <span class="dh-name" style="color:${rarColor(def.rarity)}">${heroPortrait(id, 22)} ${def.name} <small>${def.cls}・${rarName(def.rarity)}</small></span>
+      <button class="back-btn" data-act="hero-back">←</button>
+      <div class="dh-frame" style="--rc:${rarColor(def.rarity)}">${heroPortrait(id, 46)}</div>
+      <div class="dh-meta">
+        <div class="dh-name" style="color:${rarColor(def.rarity)}">${def.name}</div>
+        <div class="dh-sub">${def.cls}・${rarName(def.rarity)} <span class="dh-stars">${stars(def.rarity)}</span></div>
+        <div class="dh-sub">Lv.${hs.level}　${ico("sword", 11)}${fmt(st.power)}</div>
+      </div>
     </div>`;
 
     // 屬性
