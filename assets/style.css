@@ -8,8 +8,10 @@
   --gold: #ffd23f; --gem: #67d6ff; --soul: #b06ae0; --green: #4ad94a; --red: #e84141; --blue: #7ad7ff;
 }
 html, body { height: 100%; background: var(--bg); color: var(--text);
-  font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace; overflow: hidden; overscroll-behavior: none; }
-#app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; max-width: 720px; margin: 0 auto; }
+  font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+  overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; width: 100%;
+  touch-action: none; -webkit-touch-callout: none; }
+#app { display: flex; flex-direction: column; height: 100%; max-width: 720px; margin: 0 auto; overflow: hidden; }
 
 /* ===== 遊戲畫面 + HUD ===== */
 #game-wrap { position: relative; flex: 0 0 34%; min-height: 140px; background: #0d1830; overflow: hidden; border-bottom: 2px solid var(--line); }
@@ -335,3 +337,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .gc-icon img { width: 26px; height: 26px; } .gc-name { font-size: 12px; }
 .pc-icon img { height: 28px; } .pc-name { font-size: 11px; }
 .tc-name { font-size: 11px; }
+
+/* ===== 英雄卡縮小（4 欄）+ 僅清單可捲動 ===== */
+.hero-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.hero-card { padding: 5px 2px 6px; border-radius: 9px; }
+.hc-frame { border-radius: 8px; border-width: 2px; }
+.hc-portrait img { height: 30px; }
+.hc-name { font-size: 10px; margin-top: 2px; }
+.hc-sub { font-size: 8px; }
+.hc-pow { font-size: 9px; }
+.hc-stars img { width: 6px; height: 6px; }
+.hero-card.inparty::after { font-size: 8px; padding: 0 3px; top: 3px; right: 3px; }
+/* 只有面板清單能捲動，其餘完全鎖死不滑動 */
+.panel-content { touch-action: pan-y; overscroll-behavior: contain; }
+.tab-bar { touch-action: pan-x; overscroll-behavior: contain; }
+#game-wrap, #hud { touch-action: none; }
