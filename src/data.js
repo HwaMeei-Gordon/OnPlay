@@ -76,12 +76,12 @@
 
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
-    { id: "weapon", name: "武器", icon: "⚔️", stat: "atk", base: 6 },
-    { id: "helmet", name: "頭盔", icon: "⛑️", stat: "maxHp", base: 28 },
-    { id: "armor", name: "鎧甲", icon: "🛡️", stat: "def", base: 3 },
-    { id: "legs", name: "護腿", icon: "👖", stat: "maxHp", base: 22 },
-    { id: "boots", name: "靴子", icon: "🥾", stat: "dodge", base: 0.012 },
-    { id: "trinket", name: "飾品", icon: "💍", stat: "crit", base: 0.012 },
+    { id: "weapon", name: "武器", icon: "sword", stat: "atk", base: 6 },
+    { id: "helmet", name: "頭盔", icon: "helmet", stat: "maxHp", base: 28 },
+    { id: "armor", name: "鎧甲", icon: "shield", stat: "def", base: 3 },
+    { id: "legs", name: "護腿", icon: "legs", stat: "maxHp", base: 22 },
+    { id: "boots", name: "靴子", icon: "boots", stat: "dodge", base: 0.012 },
+    { id: "trinket", name: "飾品", icon: "ring", stat: "crit", base: 0.012 },
   ];
   const SLOT_BY_ID = {};
   EQUIPMENT_SLOTS.forEach((s) => (SLOT_BY_ID[s.id] = s));
@@ -106,8 +106,8 @@
 
   // ---- 開箱 ----
   const GACHA = {
-    gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 150, costMul: 1.0, weightKey: "weightGold", icon: "📦" },
-    gem: { id: "gem", name: "鑽石寶箱", cur: "gems", cost: 30, costMul: 1.0, weightKey: "weightGem", icon: "🎁" },
+    gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 150, costMul: 1.0, weightKey: "weightGold", icon: "box" },
+    gem: { id: "gem", name: "鑽石寶箱", cur: "gems", cost: 30, costMul: 1.0, weightKey: "weightGem", icon: "box" },
   };
 
   // ---- 英雄 ----
@@ -163,64 +163,64 @@
 
   // ---- 英雄技能（被動 passive / 主動 active）----
   const HERO_SKILLS = {
-    slash: { name: "斬擊", icon: "🗡️", type: "active", cooldown: 4, maxLevel: 20,
+    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 4, maxLevel: 20,
       desc: "對前方敵人造成額外傷害", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 傷害` },
-    fireball: { name: "火球術", icon: "🔥", type: "active", cooldown: 5, maxLevel: 20,
+    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 5, maxLevel: 20,
       desc: "範圍火焰傷害", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 傷害` },
-    frost: { name: "冰霜新星", icon: "❄️", type: "active", cooldown: 7, maxLevel: 20,
+    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 7, maxLevel: 20,
       desc: "凍結並重擊", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 傷害` },
-    multishot: { name: "多重射擊", icon: "🏹", type: "active", cooldown: 5, maxLevel: 20,
+    multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 5, maxLevel: 20,
       desc: "連射多箭", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} ×3` },
-    backstab: { name: "背刺", icon: "🔪", type: "active", cooldown: 4, maxLevel: 20,
+    backstab: { name: "背刺", icon: "dagger", type: "active", cooldown: 4, maxLevel: 20,
       desc: "高暴擊一擊", cost: (l) => Math.floor(48 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(2.0 + 0.5 * l).toFixed(1)} 必暴` },
-    heal: { name: "治癒術", icon: "✨", type: "active", cooldown: 8, maxLevel: 20,
+    heal: { name: "治癒術", icon: "heal", type: "active", cooldown: 8, maxLevel: 20,
       desc: "回復全隊生命", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
       effectText: (l) => `全隊回復 ${Math.round((0.08 + 0.02 * l) * 100)}% 生命` },
-    rage: { name: "狂暴", icon: "💢", type: "active", cooldown: 12, duration: 4, maxLevel: 20,
+    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 12, duration: 4, maxLevel: 20,
       desc: "短時間提升攻擊", cost: (l) => Math.floor(55 * Math.pow(1.5, l)),
       effectText: (l) => `4 秒 攻擊 +${50 + 10 * l}%` },
     // 被動
-    guard: { name: "堅守", icon: "🛡️", type: "passive", maxLevel: 20,
+    guard: { name: "堅守", icon: "shield", type: "passive", maxLevel: 20,
       desc: "提升生命與防禦", cost: (l) => Math.floor(35 * Math.pow(1.5, l)),
       effectText: (l) => `生命 +${l * 4}%、防禦 +${l * 5}%` },
-    focus: { name: "專注", icon: "🎯", type: "passive", maxLevel: 20,
+    focus: { name: "專注", icon: "target", type: "passive", maxLevel: 20,
       desc: "提升暴擊與暴傷", cost: (l) => Math.floor(38 * Math.pow(1.5, l)),
       effectText: (l) => `暴擊 +${l * 2}%、暴傷 +${l * 5}%` },
-    rally: { name: "鼓舞", icon: "📣", type: "passive", maxLevel: 20,
+    rally: { name: "鼓舞", icon: "flag", type: "passive", maxLevel: 20,
       desc: "提升攻擊", cost: (l) => Math.floor(36 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊 +${l * 4}%` },
-    bless: { name: "祝福", icon: "🙏", type: "passive", maxLevel: 20,
+    bless: { name: "祝福", icon: "bolt", type: "passive", maxLevel: 20,
       desc: "提升攻速與閃避", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
       effectText: (l) => `攻速 +${l * 2}%、閃避 +${l}%` },
   };
 
   // ---- 屬性訓練（全域，用金幣）----
   const TRAININGS = [
-    { id: "atk", name: "攻擊訓練", icon: "⚔️", mod: "atkMul", per: 0.025, base: 30, mul: 1.15, unit: "%" },
-    { id: "hp", name: "生命訓練", icon: "❤️", mod: "hpMul", per: 0.025, base: 30, mul: 1.15, unit: "%" },
-    { id: "def", name: "防禦訓練", icon: "🛡️", mod: "defMul", per: 0.03, base: 30, mul: 1.15, unit: "%" },
-    { id: "crit", name: "暴擊訓練", icon: "🎯", mod: "critAdd", per: 0.004, base: 80, mul: 1.2, unit: "%", scale: 100 },
-    { id: "critDmg", name: "暴傷訓練", icon: "💥", mod: "critDmgAdd", per: 0.04, base: 80, mul: 1.2, unit: "%" },
-    { id: "spd", name: "攻速訓練", icon: "⚡", mod: "atkSpeedMul", per: 0.012, base: 100, mul: 1.22, unit: "%", cap: 0.6 },
-    { id: "ls", name: "吸血訓練", icon: "🩸", mod: "lifestealAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100 },
-    { id: "dodge", name: "閃避訓練", icon: "💨", mod: "dodgeAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100, cap: 0.5 },
-    { id: "gold", name: "尋金術", icon: "💰", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
-    { id: "xp", name: "經驗加成", icon: "📘", mod: "xpMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
+    { id: "atk", name: "攻擊訓練", icon: "sword", mod: "atkMul", per: 0.025, base: 30, mul: 1.15, unit: "%" },
+    { id: "hp", name: "生命訓練", icon: "heart", mod: "hpMul", per: 0.025, base: 30, mul: 1.15, unit: "%" },
+    { id: "def", name: "防禦訓練", icon: "shield", mod: "defMul", per: 0.03, base: 30, mul: 1.15, unit: "%" },
+    { id: "crit", name: "暴擊訓練", icon: "target", mod: "critAdd", per: 0.004, base: 80, mul: 1.2, unit: "%", scale: 100 },
+    { id: "critDmg", name: "暴傷訓練", icon: "burst", mod: "critDmgAdd", per: 0.04, base: 80, mul: 1.2, unit: "%" },
+    { id: "spd", name: "攻速訓練", icon: "bolt", mod: "atkSpeedMul", per: 0.012, base: 100, mul: 1.22, unit: "%", cap: 0.6 },
+    { id: "ls", name: "吸血訓練", icon: "drop", mod: "lifestealAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100 },
+    { id: "dodge", name: "閃避訓練", icon: "boots", mod: "dodgeAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100, cap: 0.5 },
+    { id: "gold", name: "尋金術", icon: "coin", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
+    { id: "xp", name: "經驗加成", icon: "book", mod: "xpMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
   ];
 
   // ---- 才能天賦（用才能點）----
   const TALENTS = [
-    { id: "might", name: "力量", icon: "💪", mod: "atkMul", per: 0.03, max: 50, desc: "攻擊" },
-    { id: "vigor", name: "活力", icon: "💗", mod: "hpMul", per: 0.03, max: 50, desc: "生命" },
-    { id: "fortune", name: "幸運", icon: "🍀", mod: "goldMul", per: 0.04, max: 50, desc: "金幣" },
-    { id: "precision", name: "精準", icon: "🎯", mod: "critAdd", per: 0.005, max: 40, desc: "暴擊" },
-    { id: "ferocity", name: "兇猛", icon: "💥", mod: "critDmgAdd", per: 0.05, max: 40, desc: "暴傷" },
-    { id: "wisdom", name: "智慧", icon: "📗", mod: "xpMul", per: 0.04, max: 50, desc: "經驗" },
+    { id: "might", name: "力量", icon: "sword", mod: "atkMul", per: 0.03, max: 50, desc: "攻擊" },
+    { id: "vigor", name: "活力", icon: "heart", mod: "hpMul", per: 0.03, max: 50, desc: "生命" },
+    { id: "fortune", name: "幸運", icon: "coin", mod: "goldMul", per: 0.04, max: 50, desc: "金幣" },
+    { id: "precision", name: "精準", icon: "target", mod: "critAdd", per: 0.005, max: 40, desc: "暴擊" },
+    { id: "ferocity", name: "兇猛", icon: "burst", mod: "critDmgAdd", per: 0.05, max: 40, desc: "暴傷" },
+    { id: "wisdom", name: "智慧", icon: "book", mod: "xpMul", per: 0.04, max: 50, desc: "經驗" },
   ];
 
   // ---- 轉生天賦（用靈魂，永久全域倍率）----
@@ -228,19 +228,19 @@
     soulFormula: (best) => Math.floor(Math.pow(Math.max(0, best - 5), 0.8)),
     minStage: 30, // 達此層才能轉生
     nodes: [
-      { id: "p_atk", name: "靈魂之力", icon: "⚔️", mod: "atkMul", per: 0.1, max: 100, cost: (l) => l + 1 },
-      { id: "p_hp", name: "靈魂之軀", icon: "❤️", mod: "hpMul", per: 0.1, max: 100, cost: (l) => l + 1 },
-      { id: "p_gold", name: "靈魂財富", icon: "💰", mod: "goldMul", per: 0.15, max: 100, cost: (l) => l + 1 },
-      { id: "p_drop", name: "靈魂掉寶", icon: "🎁", mod: "gemMul", per: 0.1, max: 50, cost: (l) => 2 * (l + 1) },
+      { id: "p_atk", name: "靈魂之力", icon: "sword", mod: "atkMul", per: 0.1, max: 100, cost: (l) => l + 1 },
+      { id: "p_hp", name: "靈魂之軀", icon: "heart", mod: "hpMul", per: 0.1, max: 100, cost: (l) => l + 1 },
+      { id: "p_gold", name: "靈魂財富", icon: "coin", mod: "goldMul", per: 0.15, max: 100, cost: (l) => l + 1 },
+      { id: "p_drop", name: "靈魂掉寶", icon: "box", mod: "gemMul", per: 0.1, max: 50, cost: (l) => 2 * (l + 1) },
     ],
   };
 
   // ---- 寵物 ----
   const PETS = [
-    { id: "slime", name: "史萊姆", icon: "🟢", sprite: "p_slime", rarity: "common", mod: "goldMul", per: 0.03 },
-    { id: "wolf", name: "幼狼", icon: "🐺", sprite: "p_wolf", rarity: "uncommon", mod: "atkMul", per: 0.03 },
-    { id: "owl", name: "貓頭鷹", icon: "🦉", sprite: "p_owl", rarity: "rare", mod: "xpMul", per: 0.04 },
-    { id: "drake", name: "幼龍", icon: "🐲", sprite: "p_drake", rarity: "epic", mod: "atkMul", per: 0.05 },
+    { id: "slime", name: "史萊姆", icon: "paw", sprite: "p_slime", rarity: "common", mod: "goldMul", per: 0.03 },
+    { id: "wolf", name: "幼狼", icon: "paw", sprite: "p_wolf", rarity: "uncommon", mod: "atkMul", per: 0.03 },
+    { id: "owl", name: "貓頭鷹", icon: "paw", sprite: "p_owl", rarity: "rare", mod: "xpMul", per: 0.04 },
+    { id: "drake", name: "幼龍", icon: "paw", sprite: "p_drake", rarity: "epic", mod: "atkMul", per: 0.05 },
   ];
   const PET_BY_ID = {};
   PETS.forEach((p) => (PET_BY_ID[p.id] = p));
@@ -250,33 +250,33 @@
 
   // ---- 商店 ----
   const SHOP = [
-    { id: "box_gold", name: "金幣寶箱", icon: "📦", cur: "gold", cost: 150, give: { box: "gold" }, daily: false },
-    { id: "box_gem", name: "鑽石寶箱", icon: "🎁", cur: "gems", cost: 30, give: { box: "gem" }, daily: false },
-    { id: "buy_hero_mage", name: "招募：法師", icon: "🧙", cur: "gems", cost: 200, give: { hero: "mage" }, once: true },
-    { id: "buy_hero_archer", name: "招募：弓手", icon: "🏹", cur: "gems", cost: 250, give: { hero: "archer" }, once: true },
-    { id: "buy_hero_priest", name: "招募：牧師", icon: "⛪", cur: "gems", cost: 400, give: { hero: "priest" }, once: true },
-    { id: "buy_hero_rogue", name: "招募：盜賊", icon: "🗡️", cur: "gems", cost: 500, give: { hero: "rogue" }, once: true },
-    { id: "buy_hero_zerk", name: "招募：狂戰士", icon: "🪓", cur: "gems", cost: 800, give: { hero: "berserker" }, once: true },
-    { id: "buy_pet_wolf", name: "寵物：幼狼", icon: "🐺", cur: "gems", cost: 300, give: { pet: "wolf" }, once: true },
-    { id: "buy_pet_owl", name: "寵物：貓頭鷹", icon: "🦉", cur: "gems", cost: 600, give: { pet: "owl" }, once: true },
-    { id: "buy_pet_drake", name: "寵物：幼龍", icon: "🐲", cur: "gems", cost: 1200, give: { pet: "drake" }, once: true },
+    { id: "box_gold", name: "金幣寶箱", icon: "box", cur: "gold", cost: 150, give: { box: "gold" }, daily: false },
+    { id: "box_gem", name: "鑽石寶箱", icon: "box", cur: "gems", cost: 30, give: { box: "gem" }, daily: false },
+    { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 200, give: { hero: "mage" }, once: true },
+    { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 250, give: { hero: "archer" }, once: true },
+    { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 400, give: { hero: "priest" }, once: true },
+    { id: "buy_hero_rogue", name: "招募：盜賊", icon: "dagger", cur: "gems", cost: 500, give: { hero: "rogue" }, once: true },
+    { id: "buy_hero_zerk", name: "招募：狂戰士", icon: "axe", cur: "gems", cost: 800, give: { hero: "berserker" }, once: true },
+    { id: "buy_pet_wolf", name: "寵物：幼狼", icon: "paw", cur: "gems", cost: 300, give: { pet: "wolf" }, once: true },
+    { id: "buy_pet_owl", name: "寵物：貓頭鷹", icon: "paw", cur: "gems", cost: 600, give: { pet: "owl" }, once: true },
+    { id: "buy_pet_drake", name: "寵物：幼龍", icon: "paw", cur: "gems", cost: 1200, give: { pet: "drake" }, once: true },
     // 每日特惠
-    { id: "daily_gold", name: "每日金幣包", icon: "💰", cur: "gems", cost: 10, give: { gold: 2000 }, daily: true, limit: 3 },
-    { id: "daily_gem", name: "每日鑽石（看廣告免費）", icon: "💎", cur: "gold", cost: 0, give: { gems: 15 }, daily: true, limit: 2 },
+    { id: "daily_gold", name: "每日金幣包", icon: "coin", cur: "gems", cost: 10, give: { gold: 2000 }, daily: true, limit: 3 },
+    { id: "daily_gem", name: "每日鑽石（看廣告免費）", icon: "gem", cur: "gold", cost: 0, give: { gems: 15 }, daily: true, limit: 2 },
   ];
 
   // ---- 成就 ----
   const ACHIEVEMENTS = [
-    { id: "kill100", name: "初試身手", icon: "⚔️", stat: "totalKills", goal: 100, reward: { gems: 20 } },
-    { id: "kill1000", name: "百戰之勇", icon: "⚔️", stat: "totalKills", goal: 1000, reward: { gems: 50 } },
-    { id: "kill10000", name: "千軍辟易", icon: "⚔️", stat: "totalKills", goal: 10000, reward: { gems: 120 } },
-    { id: "boss10", name: "屠魔者", icon: "👹", stat: "bossKills", goal: 10, reward: { gems: 40 } },
-    { id: "boss50", name: "魔王剋星", icon: "👹", stat: "bossKills", goal: 50, reward: { gems: 100 } },
-    { id: "box50", name: "開箱新手", icon: "📦", stat: "boxesOpened", goal: 50, reward: { gems: 30 } },
-    { id: "box500", name: "開箱狂人", icon: "📦", stat: "boxesOpened", goal: 500, reward: { gems: 150 } },
-    { id: "stage50", name: "深入險境", icon: "🚩", stat: "bestStage", goal: 50, reward: { gems: 50 } },
-    { id: "stage200", name: "勢如破竹", icon: "🚩", stat: "bestStage", goal: 200, reward: { gems: 150 } },
-    { id: "prestige1", name: "輪迴", icon: "🔮", stat: "prestiges", goal: 1, reward: { gems: 100 } },
+    { id: "kill100", name: "初試身手", icon: "sword", stat: "totalKills", goal: 100, reward: { gems: 20 } },
+    { id: "kill1000", name: "百戰之勇", icon: "sword", stat: "totalKills", goal: 1000, reward: { gems: 50 } },
+    { id: "kill10000", name: "千軍辟易", icon: "sword", stat: "totalKills", goal: 10000, reward: { gems: 120 } },
+    { id: "boss10", name: "屠魔者", icon: "skull", stat: "bossKills", goal: 10, reward: { gems: 40 } },
+    { id: "boss50", name: "魔王剋星", icon: "skull", stat: "bossKills", goal: 50, reward: { gems: 100 } },
+    { id: "box50", name: "開箱新手", icon: "box", stat: "boxesOpened", goal: 50, reward: { gems: 30 } },
+    { id: "box500", name: "開箱狂人", icon: "box", stat: "boxesOpened", goal: 500, reward: { gems: 150 } },
+    { id: "stage50", name: "深入險境", icon: "flag", stat: "bestStage", goal: 50, reward: { gems: 50 } },
+    { id: "stage200", name: "勢如破竹", icon: "flag", stat: "bestStage", goal: 200, reward: { gems: 150 } },
+    { id: "prestige1", name: "輪迴", icon: "soul", stat: "prestiges", goal: 1, reward: { gems: 100 } },
   ];
 
   // ---- 每日任務 ----
