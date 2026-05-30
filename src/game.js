@@ -15,7 +15,7 @@
 
   function newBattle() {
     return {
-      field: [], enemies: [], floats: [], projectiles: [],
+      field: [], enemies: [], floats: [], projectiles: [], particles: [],
       phase: "walking", worldScroll: 0, walkPhase: 0,
       killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
       allDeadTimer: 0,
@@ -39,7 +39,7 @@
         stats, maxHp: stats.maxHp, hp: stats.maxHp,
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
         x: D().PARTY_X - i * 11, lift: (i % 2) * 6,
-        hitFlash: 0, dead: false, rageLeft: 0, rageMul: 1,
+        hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
         actives, skillTimers: timers,
       };
     });
@@ -91,16 +91,26 @@
       maxHp: stx.maxHp, hp: stx.maxHp, atk: stx.atk, def: stx.def,
       gold: stx.gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, sprite,
-      x: Game.view.w + 14, targetX: 0, hitFlash: 0,
+      x: Game.view.w + 14, targetX: 0, hitFlash: 0, shake: 0, lunge: 0,
     });
   }
 
   // ---- 浮動文字 / 投射物 ----
-  function addFloat(x, y, text, color) {
-    battle.floats.push({ x, y, text, color, life: 0.85, vy: -20 });
+  function addFloat(x, y, text, color, big) {
+    battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: 0.85, vy: -22, big: !!big });
   }
   function addProjectile(x, y, tx, ty, color) {
     battle.projectiles.push({ x, y, tx, ty, color, life: 0.3, t: 0 });
+  }
+  function addParticle(type, x, y, vx, vy, life, color) {
+    battle.particles.push({ type, x, y, vx, vy, life, life0: life, color });
+  }
+  function addSlash(x, y) {
+    battle.particles.push({ type: "slash", x, y, vx: 0, vy: 0, life: 0.18, life0: 0.18, color: "#ffffff" });
+  }
+  function spark(x, y, n, color) {
+    for (let k = 0; k < n; k++)
+      addParticle("spark", x, y, (Math.random() - 0.5) * 50, -25 - Math.random() * 35, 0.25 + Math.random() * 0.2, color);
   }
 
   function frontEnemy() {
@@ -120,14 +130,18 @@
     return { dmg: Math.max(1, Math.round(raw - def)), isCrit };
   }
 
-  function damageEnemy(target, dmg, color, healSrc, lifesteal) {
+  function damageEnemy(target, dmg, opts) {
     if (!target) return;
+    opts = opts || {};
     target.hp -= dmg;
     target.hitFlash = 0.12;
-    addFloat(target.x, Game.view.ground - 32, "" + dmg, color || "#ffffff");
-    if (lifesteal && healSrc && !healSrc.dead) {
-      const heal = Math.max(1, Math.round(dmg * lifesteal));
-      healSrc.hp = Math.min(healSrc.maxHp, healSrc.hp + heal);
+    target.shake = 0.14;
+    const col = opts.color || (opts.crit ? "#ffd23f" : "#ffffff");
+    addFloat(target.x, Game.view.ground - 32, "" + dmg, col, opts.crit);
+    spark(target.x, Game.view.ground - 16, opts.crit ? 7 : 4, col);
+    if (opts.melee) addSlash(target.x - 4, Game.view.ground - 18);
+    if (opts.lifesteal && opts.src && !opts.src.dead) {
+      opts.src.hp = Math.min(opts.src.maxHp, opts.src.hp + Math.max(1, Math.round(dmg * opts.lifesteal)));
     }
     if (target.hp <= 0) killEnemy(target);
   }
@@ -136,6 +150,12 @@
     const i = battle.enemies.indexOf(target);
     if (i < 0) return;
     S().onKill(target);
+    // 掉落金幣/鑽石飛出特效
+    const n = target.isBoss ? 9 : 3;
+    for (let k = 0; k < n; k++)
+      addParticle("coin", target.x, Game.view.ground - 14,
+        (Math.random() - 0.5) * 36, -45 - Math.random() * 35, 0.7 + Math.random() * 0.3,
+        target.isBoss && k % 3 === 0 ? "#67d6ff" : "#ffd23f");
     battle.enemies.splice(i, 1);
     battle.killedThisStage++;
   }
@@ -185,7 +205,7 @@
           const isCrit = forceCrit || Math.random() < h.stats.crit;
           const raw = h.stats.atk * h.rageMul * mult * (isCrit ? h.stats.critDmg : 1);
           const dmg = Math.max(1, Math.round(raw - (fe.def || 0)));
-          damageEnemy(fe, dmg, color, h, h.stats.lifesteal);
+          damageEnemy(fe, dmg, { crit: isCrit, color: color, src: h, lifesteal: h.stats.lifesteal });
           if (!battle.enemies.length) break;
         }
         h.skillTimers[sid] = def.cooldown;
@@ -210,8 +230,15 @@
       p.t += dt / p.life;
       if (p.t >= 1) battle.projectiles.splice(i, 1);
     }
-    battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; });
-    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; });
+    for (let i = battle.particles.length - 1; i >= 0; i--) {
+      const p = battle.particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.type !== "slash") p.vy += 90 * dt;
+      p.life -= dt;
+      if (p.life <= 0) battle.particles.splice(i, 1);
+    }
+    battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); });
+    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); });
 
     // 全隊陣亡 → 回本段起點重來
     const anyAlive = battle.field.some((h) => !h.dead);
@@ -281,9 +308,12 @@
         if (target) {
           const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
           const cls = D().HERO_BY_ID[h.heroId].cls;
-          if (cls === "法師" || cls === "弓手" || cls === "牧師")
-            addProjectile(h.x, v.ground - 16 - h.lift, target.x, v.ground - 24, "#ffe45a");
-          damageEnemy(target, r.dmg, r.isCrit ? "#ffd23f" : "#ffffff", h, h.stats.lifesteal);
+          const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
+          h.lunge = ranged ? 2 : 6;
+          if (ranged) {
+            addProjectile(h.x, v.ground - 16 - h.lift, target.x, v.ground - 24, cls === "法師" ? "#b06ae0" : cls === "牧師" ? "#7adf8a" : "#ffe45a");
+          }
+          damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
         }
         h.atkTimer = h.stats.atkInterval;
       }
@@ -296,12 +326,14 @@
       if (e.atkTimer <= 0) {
         const target = frontHero();
         if (target) {
+          e.lunge = 6;
           if (Math.random() < target.stats.dodge) {
             addFloat(target.x, v.ground - 38 - target.lift, "閃避", "#9fd0f4");
           } else {
             const dmg = Math.max(1, Math.round(e.atk - target.stats.def));
             target.hp -= dmg;
             target.hitFlash = 0.12;
+            target.shake = 0.16;
             addFloat(target.x + 4, v.ground - 36 - target.lift, "" + dmg, "#ff6b6b");
             if (target.hp <= 0) {
               target.hp = 0; target.dead = true;

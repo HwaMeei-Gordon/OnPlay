@@ -139,6 +139,13 @@
         else rect(px, y, 1, 1, sky[i - 1]);
       }
     }
+    // 雲（極慢視差、淡）
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    const cl = (scroll * 0.05) % 130;
+    for (let bx = -130; bx < v.w + 130; bx += 130) {
+      const x = Math.round(bx - cl), cy = 12 + ((((bx / 130) % 2) + 2) % 2) * 11;
+      ctx.fillRect(x, cy, 22, 4); ctx.fillRect(x + 6, cy - 3, 12, 4); ctx.fillRect(x + 3, cy + 4, 17, 3);
+    }
     // 遠景丘陵（極慢、淺）→ 遠感
     drawHills(theme.horizon, lighten(theme.horizon, 24), 7, g - 13, 0.045, scroll * 0.08);
     // 中景丘陵（themed 色、較大較深）
@@ -160,6 +167,13 @@
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
   }
 
+  function shadow(x, w) {
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fillRect(Math.round(x - w / 2), Game.view.ground, w, 1);
+    ctx.fillRect(Math.round(x - w / 3), Game.view.ground + 1, Math.round((w * 2) / 3), 1);
+  }
+  function jitter(amp) { return amp > 0 ? Math.round((Math.random() * 2 - 1) * 1.6) : 0; }
+
   function draw() {
     if (!ctx) return;
     const v = Game.view, d = D();
@@ -169,17 +183,23 @@
     drawBackground(b ? b.worldScroll : 0, theme);
     if (!b) return;
 
+    // 腳下陰影（地面層）
+    if (Game.State.activePet && Game.State.pets[Game.State.activePet]) shadow(d.PARTY_X - 26, 8);
+    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2); });
+    b.enemies.forEach((e) => shadow(e.x, spriteWidth(e.sprite) - 2));
+
     // 敵人（後排先畫）
     const es = b.enemies.slice().sort((a, c) => c.x - a.x);
     es.forEach((e) => {
       const sp = e.sprite;
       const tint = e.hitFlash > 0 ? "#ffffff" : null;
-      drawSprite(sp, e.x, v.ground + 1, !e.isBoss, tint);
+      const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake);
+      drawSprite(sp, ex, v.ground + 1 + ey, !e.isBoss, tint);
       const bw = Math.max(10, spriteWidth(sp) - 2);
-      drawBar(e.x - bw / 2, v.ground - sp.length - (e.isBoss ? 4 : 2), bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+      drawBar(ex - bw / 2, v.ground - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
     });
 
-    // 寵物（跟在隊伍後）
+    // 寵物
     if (Game.State.activePet && Game.State.pets[Game.State.activePet]) {
       const pdef = d.PET_BY_ID[Game.State.activePet];
       const psp = Game.Sprites.pets[pdef.sprite];
@@ -192,25 +212,56 @@
     heroesSorted.forEach((h, idx) => {
       const bob = walking ? (Math.floor(b.walkPhase + idx) % 2 === 0 ? 0 : -1) : 0;
       const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : h.rageLeft > 0 ? "#ffcaca" : null;
-      drawSprite(h.sprite, h.x, v.ground + 1 - h.lift, false, tint, bob);
-      if (!h.dead && h.hp < h.maxHp) drawBar(h.x - 7, v.ground - h.sprite.length - 2 - h.lift, 14, 2, h.hp / h.maxHp, "#4ad94a");
+      const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
+      drawSprite(h.sprite, hx, v.ground + 1 - h.lift + hy, false, tint, bob);
+      if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, v.ground - h.sprite.length - 2 - h.lift + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
     });
 
-    // 投射物
+    // 投射物（帶尾光）
     b.projectiles.forEach((p) => {
       const x = p.x + (p.tx - p.x) * p.t, y = p.y + (p.ty - p.y) * p.t;
-      ctx.fillStyle = p.color;
+      ctx.globalAlpha = 0.4; ctx.fillStyle = p.color;
+      ctx.fillRect(Math.round(x - (p.tx - p.x) * 0.04) - 1, Math.round(y) - 1, 3, 2);
+      ctx.globalAlpha = 1; ctx.fillStyle = p.color;
       ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+      ctx.fillStyle = "#fff"; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
     });
 
-    // 浮動文字
-    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "7px monospace";
+    // 粒子（火花 / 金幣 / 揮砍）
+    b.particles.forEach((p) => {
+      const a = Math.max(0, Math.min(1, p.life / p.life0));
+      ctx.globalAlpha = a;
+      if (p.type === "coin") {
+        ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 3, 3);
+        ctx.fillStyle = "#fff7c8"; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 1, 1);
+      } else if (p.type === "slash") {
+        ctx.strokeStyle = "rgba(255,255,255," + a + ")"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 5); ctx.lineTo(p.x + 6, p.y - 5); ctx.stroke();
+      } else {
+        ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    // 浮動文字（暴擊放大）
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     b.floats.forEach((f) => {
+      ctx.font = (f.big ? 11 : 7) + "px monospace";
       ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 0.85));
       ctx.fillStyle = "#000"; ctx.fillText(f.text, f.x + 1, f.y + 1);
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
     });
     ctx.globalAlpha = 1;
+
+    // 邊緣暗角
+    if (ctx.createRadialGradient) {
+      const vg = ctx.createRadialGradient(v.w / 2, v.ground * 0.6, v.ground * 0.3, v.w / 2, v.ground * 0.6, v.w * 0.7);
+      if (vg && vg.addColorStop) {
+        vg.addColorStop(0, "rgba(0,0,0,0)");
+        vg.addColorStop(1, "rgba(0,0,0,0.28)");
+        ctx.fillStyle = vg; ctx.fillRect(0, 0, v.w, v.h);
+      }
+    }
   }
 
   Game.Render = { init, resize, draw };

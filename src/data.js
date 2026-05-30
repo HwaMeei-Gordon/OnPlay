@@ -9,8 +9,8 @@
   const Game = (window.Game = window.Game || {});
 
   // ---- 世界 / 渲染 ----
-  const WORLD_H = 144;
-  const GROUND_FROM_BOTTOM = 30;
+  const WORLD_H = 116;
+  const GROUND_FROM_BOTTOM = 26;
   const PARTY_X = 40; // 隊伍最前排 X
   const CONTACT_RANGE = 30;
   const ENEMY_SPEED = 22;
