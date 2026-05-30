@@ -12,7 +12,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 #app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; max-width: 720px; margin: 0 auto; }
 
 /* ===== 遊戲畫面 + HUD ===== */
-#game-wrap { position: relative; flex: 0 0 40%; min-height: 170px; background: #0d1830; overflow: hidden; border-bottom: 3px solid var(--line); }
+#game-wrap { position: relative; flex: 0 0 34%; min-height: 140px; background: #0d1830; overflow: hidden; border-bottom: 2px solid var(--line); }
 #game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 #hud { position: absolute; top: 0; left: 0; right: 0; padding: 6px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
 .hud-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
@@ -305,3 +305,33 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .im-frame img { width: 36px; height: 36px; }
 /* Toast */
 .toast { font-size: 12px; padding: 8px 14px; bottom: 70px; }
+
+/* ===== 再緊湊一級（更小介面）===== */
+.tab-btn { min-width: 42px; padding: 4px 4px; }
+.tab-btn .ti img { width: 16px; height: 16px; }
+.tab-btn .tl { font-size: 8px; }
+.tab-bar { border-bottom-width: 1px; }
+.panel-content { padding: 6px 7px 16px; }
+.sec-title { font-size: 11px; margin: 7px 0 5px; padding: 4px 7px; }
+.item { padding: 5px 7px; margin-bottom: 4px; gap: 7px; }
+.item-icon { width: 24px; } .item-icon img { width: 18px; height: 18px; }
+.item-name { font-size: 11px; margin-bottom: 2px; } .item-bonus { font-size: 9px; }
+.buy-btn { min-width: 58px; min-height: 34px; } .buy-btn .cost { font-size: 10px; } .buy-btn .lbl { font-size: 8px; }
+.mini-btn { min-height: 30px; min-width: 46px; font-size: 10px; }
+.act-btn { min-height: 32px; font-size: 10px; padding: 4px 9px; }
+.hero-grid { gap: 6px; }
+.hc-portrait img { height: 34px; }
+.hc-name { font-size: 11px; } .hc-sub { font-size: 8px; } .hc-pow { font-size: 9px; }
+.party-bar { padding: 5px; gap: 5px; }
+.pb-slot { width: 36px; height: 36px; } .pb-slot img { height: 25px; }
+.bag-cells { grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.bag-cell img { width: 20px; height: 20px; }
+.hud-chip { padding: 2px 5px; font-size: 9px; } .hud-chip b { font-size: 11px; }
+.region { font-size: 9px; }
+.shop-item { padding: 5px 7px; } .si-icon { width: 26px; } .si-icon img { width: 22px; height: 22px; }
+.si-name { font-size: 11px; }
+.stat-box { padding: 3px 9px; } .sl { font-size: 10px; padding: 3px 0; }
+.equip-slot { padding: 5px; } .es-name { font-size: 9px; }
+.gc-icon img { width: 26px; height: 26px; } .gc-name { font-size: 12px; }
+.pc-icon img { height: 28px; } .pc-name { font-size: 11px; }
+.tc-name { font-size: 11px; }

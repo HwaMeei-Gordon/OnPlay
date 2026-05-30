@@ -18,7 +18,7 @@
     const d = D();
     const rect = canvas.getBoundingClientRect();
     let worldW = Math.round((d.WORLD_H * Math.max(1, rect.width)) / Math.max(1, rect.height));
-    worldW = Math.max(180, Math.min(520, worldW));
+    worldW = Math.max(120, Math.min(460, worldW)); // 允許貼合顯示比例 → 正方形像素，不再被拉伸
     canvas.width = worldW;
     canvas.height = d.WORLD_H;
     ctx.imageSmoothingEnabled = false;
@@ -264,16 +264,19 @@
     });
     ctx.globalAlpha = 1;
 
-    // 前景「走路」層：最近的草叢快速掠過（畫在角色前方，強化前進感、增加景深）
-    const fg = lerpColor(theme.decoColor, "#0a0610", 0.35);
-    const fgd = lerpColor(theme.decoColor, "#0a0610", 0.55);
-    const fgap = 28, foff = (b.worldScroll * 1.7) % fgap;
+    // 前景「走路」層：最近的草叢快速掠過（畫在角色前方、明顯可見，強化前進感與景深）
+    const fgL = lighten(theme.decoColor, 26);
+    const fgM = theme.decoColor;
+    const fgD = lerpColor(theme.decoColor, "#000000", 0.45);
+    const fgap = 17, foff = (b.worldScroll * 1.9) % fgap;
     for (let x = -fgap; x < v.w + fgap; x += fgap) {
       const rx = Math.round(x - foff);
-      ctx.fillStyle = fg;
-      ctx.fillRect(rx, v.h - 6, 1, 6); ctx.fillRect(rx + 2, v.h - 9, 1, 9); ctx.fillRect(rx + 4, v.h - 4, 1, 4);
-      ctx.fillStyle = fgd;
-      ctx.fillRect(rx + 13, v.h - 7, 1, 7); ctx.fillRect(rx + 15, v.h - 5, 1, 5); ctx.fillRect(rx + 17, v.h - 10, 1, 10);
+      ctx.fillStyle = fgD;
+      ctx.fillRect(rx, v.h - 12, 2, 12); ctx.fillRect(rx + 4, v.h - 8, 2, 8);
+      ctx.fillStyle = fgM;
+      ctx.fillRect(rx + 1, v.h - 14, 1, 14); ctx.fillRect(rx + 5, v.h - 9, 1, 9); ctx.fillRect(rx - 1, v.h - 7, 1, 7);
+      ctx.fillStyle = fgL;
+      ctx.fillRect(rx + 1, v.h - 14, 1, 2); ctx.fillRect(rx + 5, v.h - 9, 1, 2);
     }
 
     // 邊緣暗角
@@ -281,7 +284,7 @@
       const vg = ctx.createRadialGradient(v.w / 2, v.ground * 0.6, v.ground * 0.3, v.w / 2, v.ground * 0.6, v.w * 0.7);
       if (vg && vg.addColorStop) {
         vg.addColorStop(0, "rgba(0,0,0,0)");
-        vg.addColorStop(1, "rgba(0,0,0,0.28)");
+        vg.addColorStop(1, "rgba(0,0,0,0.18)");
         ctx.fillStyle = vg; ctx.fillRect(0, 0, v.w, v.h);
       }
     }
