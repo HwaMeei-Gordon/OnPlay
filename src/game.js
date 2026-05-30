@@ -1,441 +1,344 @@
 /* ============================================================
- * game.js — 遊戲狀態 + 戰鬥模擬 + 關卡進程 + 升級 + 離線結算
+ * game.js — 戰鬥引擎（出戰隊伍 vs 多敵人波次）
+ * 讀取 Systems.heroStats / 結算 Systems.onKill；持有 runtime battle。
  * 全域命名空間：window.Game.Engine
  * ============================================================ */
 (function () {
   "use strict";
   const Game = (window.Game = window.Game || {});
   const D = () => Game.Data;
+  const S = () => Game.Systems;
 
-  // 共用視窗資訊（由 render 設定）。world 寬高與地面位置。
   Game.view = { w: 256, h: 144, ground: 114 };
 
-  function defaultState() {
+  let battle = null;
+
+  function newBattle() {
     return {
-      // ---- 持久 ----
-      stage: 1,
-      killsThisStage: 0,
-      gold: 0,
-      heroLevel: 1,
-      xp: 0,
-      equipment: { weapon: 0, armor: 0, accessory: 0 },
-      skills: { vit: 0, critUp: 0, fireball: 0, heal: 0, rage: 0 },
-      goldPerSec: 0,
-      totalKills: 0,
-      bestStage: 1,
-      // ---- runtime（不存檔）----
-      hero: { hp: 0, atkTimer: 0, walkPhase: 0, hitFlash: 0 },
-      enemy: null,
-      phase: "walking", // walking | fighting | dead
-      worldScroll: 0,
-      spawnTimer: 0.6,
-      deathTimer: 0,
-      floats: [],
-      skillTimers: { fireball: 5, heal: 8, rage: 12 },
-      rageLeft: 0,
-      _goldThisSecond: 0,
-      _secondTimer: 1,
+      field: [], enemies: [], floats: [], projectiles: [],
+      phase: "walking", worldScroll: 0, walkPhase: 0,
+      killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
+      allDeadTimer: 0,
     };
   }
 
-  let state = defaultState();
-
-  // ---- 有效屬性計算 ----
-  function effectiveHero() {
-    const d = D();
-    const base = d.HERO_BASE,
-      g = d.HERO_GROWTH;
-    const lvl = state.heroLevel;
-    const eq = state.equipment;
-    const wb = d.EQUIPMENT.weapon.bonus(eq.weapon);
-    const ab = d.EQUIPMENT.armor.bonus(eq.armor);
-    const cb = d.EQUIPMENT.accessory.bonus(eq.accessory);
-
-    const vitLv = state.skills.vit;
-    const critLv = state.skills.critUp;
-
-    let maxHp = base.maxHp + g.maxHp * (lvl - 1) + (ab.maxHp || 0);
-    maxHp = maxHp * (1 + vitLv * 0.05);
-
-    let atk = base.atk + g.atk * (lvl - 1) + (wb.atk || 0);
-    if (state.rageLeft > 0) {
-      const rageLv = state.skills.rage;
-      atk = atk * (1 + (0.5 + 0.1 * rageLv));
-    }
-
-    let def = base.def + g.def * (lvl - 1) + (ab.def || 0);
-    let crit = base.crit + (cb.crit || 0) + critLv * 0.02;
-    crit = Math.min(0.95, crit);
-    let atkInterval = base.atkInterval + (cb.atkInterval || 0);
-    atkInterval = Math.max(0.25, atkInterval);
-
-    return {
-      maxHp: Math.round(maxHp),
-      atk: Math.round(atk),
-      def: Math.round(def),
-      crit,
-      critMult: base.critMult,
-      atkInterval,
-    };
+  // ---- 建立出戰隊伍 runtime ----
+  function buildField() {
+    const st = Game.State;
+    const mods = S().globalMods();
+    battle.field = st.party.map((heroId, i) => {
+      const stats = S().heroStats(heroId, mods);
+      const def = D().HERO_BY_ID[heroId];
+      const actives = def.skills.filter(
+        (sid) => D().HERO_SKILLS[sid].type === "active" && (st.heroes[heroId].skills[sid] || 0) > 0
+      );
+      const timers = {};
+      actives.forEach((sid) => (timers[sid] = D().HERO_SKILLS[sid].cooldown));
+      return {
+        heroId, sprite: Game.Sprites.heroes[def.sprite],
+        stats, maxHp: stats.maxHp, hp: stats.maxHp,
+        atkTimer: stats.atkInterval * (0.4 + i * 0.15),
+        x: D().PARTY_X - i * 11, lift: (i % 2) * 6,
+        hitFlash: 0, dead: false, rageLeft: 0, rageMul: 1,
+        actives, skillTimers: timers,
+      };
+    });
   }
 
-  // 戰力（給玩家一個直觀數字）
-  function heroPower() {
-    const h = effectiveHero();
-    return Math.round(
-      (h.atk / h.atkInterval) * 12 + h.maxHp / 4 + h.def * 3
-    );
+  // 每幀刷新英雄屬性（反映養成升級），維持目前 hp 比例
+  function refreshFieldStats() {
+    const mods = S().globalMods();
+    battle.field.forEach((h) => {
+      const ns = S().heroStats(h.heroId, mods);
+      if (!ns) return;
+      h.stats = ns;
+      if (ns.maxHp !== h.maxHp) {
+        const diff = ns.maxHp - h.maxHp;
+        h.maxHp = ns.maxHp;
+        if (diff > 0 && !h.dead) h.hp = Math.min(h.maxHp, h.hp + diff);
+        else h.hp = Math.min(h.hp, h.maxHp);
+      }
+    });
   }
 
-  function xpNeeded() {
-    return D().xpForLevel(state.heroLevel);
+  // ---- 設定關卡 ----
+  function setupStage(stage) {
+    S().noteStage(stage);
+    const boss = D().isBossStage(stage);
+    battle.killsNeeded = boss ? 1 : D().KILLS_PER_STAGE;
+    battle.killedThisStage = 0;
+    battle.toSpawn = battle.killsNeeded;
+    battle.enemies = [];
+    battle.spawnCD = 0.3;
+    battle.phase = "walking";
   }
 
-  // ---- 初始化 / 載入 ----
-  function init(loaded) {
-    state = defaultState();
-    if (loaded) {
-      state.stage = loaded.stage || 1;
-      state.killsThisStage = loaded.killsThisStage || 0;
-      state.gold = Math.max(0, loaded.gold || 0);
-      state.heroLevel = loaded.heroLevel || 1;
-      state.xp = loaded.xp || 0;
-      if (loaded.equipment)
-        for (const k of D().EQUIPMENT_ORDER)
-          state.equipment[k] = loaded.equipment[k] || 0;
-      if (loaded.skills)
-        for (const k of D().SKILL_ORDER)
-          state.skills[k] = loaded.skills[k] || 0;
-      state.goldPerSec = loaded.goldPerSec || 0;
-      state.totalKills = loaded.totalKills || 0;
-      state.bestStage = loaded.bestStage || state.stage;
-    }
-    // 重置該關進度，從關卡開頭重來（符合「死亡從該關重來」）
-    state.killsThisStage = state.killsThisStage; // 保留已進度（重整視為繼續）
-    const h = effectiveHero();
-    state.hero.hp = h.maxHp;
-    state.enemy = null;
-    state.phase = "walking";
-    state.spawnTimer = 0.6;
-  }
-
-  function applyOfflineGold(amount) {
-    state.gold += amount;
-  }
-
-  // ---- 敵人生成 ----
   function spawnEnemy() {
-    const d = D();
-    const isBoss = state.killsThisStage >= d.ENEMIES_PER_STAGE;
-    const st = d.makeEnemyStats(state.stage, isBoss);
-    // 依地區（每 100 關）選擇專屬敵人造型
-    const regionIdx = Math.max(
-      0,
-      Math.min((d.THEMES.length - 1), Math.floor((state.stage - 1) / 100))
-    );
-    const sprites = Game.Sprites;
-    const sprite = isBoss ? sprites.boss[regionIdx] : sprites.small[regionIdx];
-    state.enemy = {
-      maxHp: st.maxHp,
-      hp: st.maxHp,
-      atk: st.atk,
-      def: st.def,
-      gold: st.gold,
-      xp: st.xp,
-      atkInterval: st.atkInterval,
-      atkTimer: st.atkInterval * 0.6,
-      isBoss,
-      sprite,
-      x: Game.view.w + 12,
-      walkPhase: 0,
-      hitFlash: 0,
-    };
+    const st = Game.State;
+    const stage = st.stage;
+    const boss = D().isBossStage(stage);
+    const r = D().regionOf(stage);
+    const stx = D().makeEnemyStats(stage, boss);
+    let sprite;
+    if (boss) {
+      const pool = Game.Sprites.bossForRegion(r);
+      sprite = pool[Math.floor(stage / D().BOSS_EVERY) % pool.length];
+    } else {
+      const pool = Game.Sprites.smallForRegion(r);
+      sprite = pool[Math.floor(Math.random() * pool.length)];
+    }
+    battle.enemies.push({
+      maxHp: stx.maxHp, hp: stx.maxHp, atk: stx.atk, def: stx.def,
+      gold: stx.gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
+      atkTimer: stx.atkInterval * 0.7, isBoss: boss, sprite,
+      x: Game.view.w + 14, targetX: 0, hitFlash: 0,
+    });
   }
 
-  // ---- 浮動文字 ----
+  // ---- 浮動文字 / 投射物 ----
   function addFloat(x, y, text, color) {
-    state.floats.push({ x, y, text, color, life: 0.9, vy: -18 });
+    battle.floats.push({ x, y, text, color, life: 0.85, vy: -20 });
+  }
+  function addProjectile(x, y, tx, ty, color) {
+    battle.projectiles.push({ x, y, tx, ty, color, life: 0.3, t: 0 });
   }
 
-  // ---- 金幣 / 經驗 ----
-  function addGold(amount) {
-    state.gold += amount;
-    state._goldThisSecond += amount;
+  function frontEnemy() {
+    let f = null;
+    for (const e of battle.enemies) if (!f || e.x < f.x) f = e;
+    return f;
+  }
+  function frontHero() {
+    let f = null;
+    for (const h of battle.field) if (!h.dead && (!f || h.x > f.x)) f = h;
+    return f;
   }
 
-  function gainXp(amount) {
-    state.xp += amount;
-    let leveled = false;
-    while (state.xp >= xpNeeded()) {
-      state.xp -= xpNeeded();
-      const oldMax = effectiveHero().maxHp;
-      state.heroLevel++;
-      const newMax = effectiveHero().maxHp;
-      state.hero.hp += newMax - oldMax; // 升級補滿增加的血量
-      leveled = true;
-    }
-    if (leveled) {
-      addFloat(D().HERO_X, Game.view.ground - 40, "升級！", "#ffd23f");
-    }
-  }
-
-  // ---- 傷害計算 ----
-  function computeDamage(atk, def, crit, critMult) {
+  function rollDamage(atk, crit, critDmg, def) {
     const isCrit = Math.random() < crit;
-    const raw = atk * (isCrit ? critMult : 1);
-    const dmg = Math.max(1, Math.round(raw - def));
-    return { dmg, isCrit };
+    const raw = atk * (isCrit ? critDmg : 1);
+    return { dmg: Math.max(1, Math.round(raw - def)), isCrit };
+  }
+
+  function damageEnemy(target, dmg, color, healSrc, lifesteal) {
+    if (!target) return;
+    target.hp -= dmg;
+    target.hitFlash = 0.12;
+    addFloat(target.x, Game.view.ground - 32, "" + dmg, color || "#ffffff");
+    if (lifesteal && healSrc && !healSrc.dead) {
+      const heal = Math.max(1, Math.round(dmg * lifesteal));
+      healSrc.hp = Math.min(healSrc.maxHp, healSrc.hp + heal);
+    }
+    if (target.hp <= 0) killEnemy(target);
+  }
+
+  function killEnemy(target) {
+    const i = battle.enemies.indexOf(target);
+    if (i < 0) return;
+    S().onKill(target);
+    battle.enemies.splice(i, 1);
+    battle.killedThisStage++;
   }
 
   // ---- 主動技能 ----
-  function updateSkills(dt) {
-    const d = D();
-    const t = state.skillTimers;
-    // 火球
-    if (state.skills.fireball > 0) {
-      t.fireball -= dt;
-      if (t.fireball <= 0 && state.enemy && state.phase === "fighting") {
-        const h = effectiveHero();
-        const lv = state.skills.fireball;
-        const dmg = Math.max(1, Math.round(h.atk * (1 + 0.5 * lv)));
-        damageEnemy(dmg, true, "#ff7a3d");
-        t.fireball = d.SKILLS.fireball.cooldown;
-      } else if (t.fireball <= 0 && (!state.enemy || state.phase !== "fighting")) {
-        t.fireball = 0; // 就緒，等有敵人
-      }
+  function updateHeroSkills(h, dt) {
+    if (h.rageLeft > 0) {
+      h.rageLeft -= dt;
+      if (h.rageLeft <= 0) h.rageMul = 1;
     }
-    // 治癒
-    if (state.skills.heal > 0) {
-      t.heal -= dt;
-      if (t.heal <= 0) {
-        const h = effectiveHero();
-        if (state.hero.hp < h.maxHp) {
-          const lv = state.skills.heal;
-          const amount = Math.round(h.maxHp * (0.08 + 0.025 * lv));
-          state.hero.hp = Math.min(h.maxHp, state.hero.hp + amount);
-          addFloat(d.HERO_X, Game.view.ground - 38, "+" + amount, "#5ec46b");
-          t.heal = d.SKILLS.heal.cooldown;
-        } else {
-          t.heal = 0; // 滿血就緒
+    const fe = frontEnemy();
+    h.actives.forEach((sid) => {
+      h.skillTimers[sid] -= dt;
+      if (h.skillTimers[sid] > 0) return;
+      const def = D().HERO_SKILLS[sid];
+      const lv = Game.State.heroes[h.heroId].skills[sid] || 0;
+      if (sid === "heal") {
+        // 找最缺血隊友
+        let need = false;
+        battle.field.forEach((t) => { if (!t.dead && t.hp < t.maxHp) need = true; });
+        if (!need) { h.skillTimers[sid] = 0; return; }
+        const pct = 0.08 + 0.02 * lv;
+        battle.field.forEach((t) => {
+          if (t.dead) return;
+          const amt = Math.round(t.maxHp * pct);
+          t.hp = Math.min(t.maxHp, t.hp + amt);
+        });
+        addFloat(h.x, Game.view.ground - 40, "治癒", "#5ec46b");
+        h.skillTimers[sid] = def.cooldown;
+      } else if (sid === "rage") {
+        if (!fe) { h.skillTimers[sid] = 0; return; }
+        h.rageMul = 1 + (0.5 + 0.1 * lv);
+        h.rageLeft = def.duration;
+        addFloat(h.x, Game.view.ground - 42, "狂暴!", "#ff4d4d");
+        h.skillTimers[sid] = def.cooldown;
+      } else {
+        // 傷害型技能
+        if (!fe) { h.skillTimers[sid] = 0; return; }
+        let mult = 1.5, hits = 1, forceCrit = false, color = "#ffce54";
+        if (sid === "slash") mult = 1.2 + 0.3 * lv;
+        else if (sid === "fireball") { mult = 1.5 + 0.4 * lv; color = "#ff7a3d"; }
+        else if (sid === "frost") { mult = 1.8 + 0.5 * lv; color = "#7ad7ff"; }
+        else if (sid === "multishot") { mult = 1.0 + 0.25 * lv; hits = 3; color = "#bfe24a"; }
+        else if (sid === "backstab") { mult = 2.0 + 0.5 * lv; forceCrit = true; color = "#ff4d4d"; }
+        addProjectile(h.x, Game.view.ground - 18 - h.lift, fe.x, Game.view.ground - 24, color);
+        for (let k = 0; k < hits; k++) {
+          const isCrit = forceCrit || Math.random() < h.stats.crit;
+          const raw = h.stats.atk * h.rageMul * mult * (isCrit ? h.stats.critDmg : 1);
+          const dmg = Math.max(1, Math.round(raw - (fe.def || 0)));
+          damageEnemy(fe, dmg, color, h, h.stats.lifesteal);
+          if (!battle.enemies.length) break;
         }
+        h.skillTimers[sid] = def.cooldown;
       }
-    }
-    // 狂暴
-    if (state.skills.rage > 0) {
-      t.rage -= dt;
-      if (t.rage <= 0 && state.phase === "fighting") {
-        state.rageLeft = d.SKILLS.rage.duration;
-        addFloat(d.HERO_X, Game.view.ground - 42, "狂暴！", "#ff4d4d");
-        t.rage = d.SKILLS.rage.cooldown;
-      } else if (t.rage <= 0) {
-        t.rage = 0;
-      }
-    }
-    if (state.rageLeft > 0) state.rageLeft = Math.max(0, state.rageLeft - dt);
+    });
   }
 
-  function damageEnemy(dmg, isCrit, color) {
-    const e = state.enemy;
-    if (!e) return;
-    e.hp -= dmg;
-    e.hitFlash = 0.12;
-    addFloat(e.x, Game.view.ground - 30, "" + dmg, color || (isCrit ? "#ffd23f" : "#ffffff"));
-    if (e.hp <= 0) killEnemy();
-  }
-
-  function killEnemy() {
+  // ---- 單步模擬 ----
+  function step(dt) {
     const d = D();
-    const e = state.enemy;
-    if (!e) return;
-    addGold(e.gold);
-    gainXp(e.xp);
-    state.totalKills++;
-    if (e.isBoss) {
-      state.stage++;
-      state.killsThisStage = 0;
-      if (state.stage > state.bestStage) state.bestStage = state.stage;
-      addFloat(Game.view.w / 2, Game.view.ground - 50, "第 " + state.stage + " 關！", "#7ad7ff");
+    const v = Game.view;
+    const contactX = d.PARTY_X + d.CONTACT_RANGE;
+
+    // 浮動 / 投射 / flash
+    for (let i = battle.floats.length - 1; i >= 0; i--) {
+      const f = battle.floats[i];
+      f.life -= dt; f.y += f.vy * dt; f.vy += 16 * dt;
+      if (f.life <= 0) battle.floats.splice(i, 1);
+    }
+    for (let i = battle.projectiles.length - 1; i >= 0; i--) {
+      const p = battle.projectiles[i];
+      p.t += dt / p.life;
+      if (p.t >= 1) battle.projectiles.splice(i, 1);
+    }
+    battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; });
+    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; });
+
+    // 全隊陣亡 → 回本段起點重來
+    const anyAlive = battle.field.some((h) => !h.dead);
+    if (!anyAlive) {
+      battle.allDeadTimer -= dt;
+      battle.worldScroll += d.WALK_SPEED * 0.2 * dt;
+      if (battle.allDeadTimer <= 0) {
+        const seg = d.segmentStart(Game.State.stage);
+        Game.State.stage = seg;
+        buildField();
+        setupStage(seg);
+      }
+      return;
+    }
+
+    // 生成敵人
+    const concurrency = d.isBossStage(Game.State.stage) ? 1 : d.concurrentEnemies(Game.State.stage);
+    if (battle.toSpawn > 0 && battle.enemies.length < concurrency) {
+      battle.spawnCD -= dt;
+      if (battle.spawnCD <= 0) { spawnEnemy(); battle.toSpawn--; battle.spawnCD = 0.3; }
+    }
+
+    // 關卡清除 → 下一層
+    if (battle.toSpawn === 0 && battle.enemies.length === 0 && battle.killedThisStage >= battle.killsNeeded) {
+      setupStage(Game.State.stage + 1);
+      battle.worldScroll += d.WALK_SPEED * dt;
+      battle.walkPhase += dt * 6;
+      return;
+    }
+
+    // 指派敵人陣位（依 x 排序）
+    const sorted = battle.enemies.slice().sort((a, b) => a.x - b.x);
+    sorted.forEach((e, idx) => (e.targetX = contactX + idx * 18));
+
+    const fe = frontEnemy();
+    const engaged = fe && fe.x <= contactX + 2;
+
+    if (!fe) {
+      battle.phase = "walking";
+      battle.worldScroll += d.WALK_SPEED * dt;
+      battle.walkPhase += dt * 6;
+    } else if (!engaged) {
+      // 接近中：捲動 + 敵人左移
+      battle.phase = "walking";
+      battle.worldScroll += d.WALK_SPEED * dt;
+      battle.walkPhase += dt * 6;
+      battle.enemies.forEach((e) => {
+        if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
+      });
     } else {
-      state.killsThisStage++;
-    }
-    state.enemy = null;
-    state.phase = "walking";
-    state.spawnTimer = 0.5;
-  }
-
-  // ---- 勇者死亡：從該關重來 ----
-  function heroDie() {
-    state.phase = "dead";
-    state.deathTimer = 1.2;
-    state.enemy = null;
-    state.killsThisStage = 0; // 從該關開頭重來
-    addFloat(D().HERO_X, Game.view.ground - 40, "倒下了…", "#ff4d4d");
-  }
-
-  function respawnHero() {
-    const h = effectiveHero();
-    state.hero.hp = h.maxHp;
-    state.phase = "walking";
-    state.spawnTimer = 0.8;
-    // 重置主動技能冷卻
-    state.skillTimers.fireball = 1;
-    state.skillTimers.heal = 1;
-    state.skillTimers.rage = 1;
-    state.rageLeft = 0;
-  }
-
-  // ---- 主更新迴圈 ----
-  function update(dt) {
-    // 限制 dt 避免分頁切換造成大跳躍
-    if (dt > 0.1) dt = 0.1;
-
-    // goldPerSec 估計（每秒一次）
-    state._secondTimer -= dt;
-    if (state._secondTimer <= 0) {
-      const rate = state._goldThisSecond;
-      state.goldPerSec = state.goldPerSec * 0.8 + rate * 0.2;
-      state._goldThisSecond = 0;
-      state._secondTimer = 1;
+      battle.phase = "fighting";
+      // 落後的敵人仍補位
+      battle.enemies.forEach((e) => {
+        if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.ENEMY_SPEED * dt);
+      });
     }
 
-    // 更新浮動文字
-    for (let i = state.floats.length - 1; i >= 0; i--) {
-      const f = state.floats[i];
-      f.life -= dt;
-      f.y += f.vy * dt;
-      f.vy += 14 * dt;
-      if (f.life <= 0) state.floats.splice(i, 1);
-    }
-    if (state.hero.hitFlash > 0) state.hero.hitFlash -= dt;
-    if (state.enemy && state.enemy.hitFlash > 0) state.enemy.hitFlash -= dt;
+    if (battle.phase !== "fighting") return;
 
-    if (state.phase === "dead") {
-      state.deathTimer -= dt;
-      state.worldScroll += D().HERO_WALK_SPEED * 0.3 * dt;
-      if (state.deathTimer <= 0) respawnHero();
-      return;
-    }
+    // 英雄攻擊 + 技能
+    battle.field.forEach((h) => {
+      if (h.dead) return;
+      updateHeroSkills(h, dt);
+      h.atkTimer -= dt;
+      if (h.atkTimer <= 0) {
+        const target = frontEnemy();
+        if (target) {
+          const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
+          const cls = D().HERO_BY_ID[h.heroId].cls;
+          if (cls === "法師" || cls === "弓手" || cls === "牧師")
+            addProjectile(h.x, v.ground - 16 - h.lift, target.x, v.ground - 24, "#ffe45a");
+          damageEnemy(target, r.dmg, r.isCrit ? "#ffd23f" : "#ffffff", h, h.stats.lifesteal);
+        }
+        h.atkTimer = h.stats.atkInterval;
+      }
+    });
 
-    updateSkills(dt);
-
-    const d = D();
-    const h = effectiveHero();
-
-    if (!state.enemy) {
-      // 走路中，等待生成敵人
-      state.phase = "walking";
-      state.worldScroll += d.HERO_WALK_SPEED * dt;
-      state.hero.walkPhase += dt * 6;
-      state.spawnTimer -= dt;
-      if (state.spawnTimer <= 0) spawnEnemy();
-      return;
-    }
-
-    const e = state.enemy;
-    const contactX = d.HERO_X + d.CONTACT_RANGE;
-
-    if (e.x > contactX) {
-      // 接近中：背景捲動 + 敵人向左走
-      state.phase = "walking";
-      state.worldScroll += d.HERO_WALK_SPEED * dt;
-      state.hero.walkPhase += dt * 6;
-      e.x -= (d.ENEMY_SPEED + d.HERO_WALK_SPEED) * dt;
-      e.walkPhase += dt * 6;
-      if (e.x < contactX) e.x = contactX;
-      return;
-    }
-
-    // 戰鬥中
-    state.phase = "fighting";
-
-    // 勇者攻擊
-    state.hero.atkTimer -= dt;
-    if (state.hero.atkTimer <= 0) {
-      const r = computeDamage(h.atk, e.def, h.crit, h.critMult);
-      damageEnemy(r.dmg, r.isCrit);
-      state.hero.atkTimer = h.atkInterval;
-      if (!state.enemy) return; // 敵人已死
-    }
-
-    // 敵人攻擊
-    if (state.enemy) {
+    // 敵人攻擊（攻擊最前方存活英雄）
+    battle.enemies.forEach((e) => {
+      if (e.x > e.targetX + 1) return; // 尚未就位
       e.atkTimer -= dt;
       if (e.atkTimer <= 0) {
-        const r = computeDamage(e.atk, h.def, 0.05, 1.5);
-        state.hero.hp -= r.dmg;
-        state.hero.hitFlash = 0.12;
-        addFloat(d.HERO_X + 6, Game.view.ground - 36, "" + r.dmg, "#ff6b6b");
-        e.atkTimer = e.atkInterval;
-        if (state.hero.hp <= 0) {
-          state.hero.hp = 0;
-          heroDie();
+        const target = frontHero();
+        if (target) {
+          if (Math.random() < target.stats.dodge) {
+            addFloat(target.x, v.ground - 38 - target.lift, "閃避", "#9fd0f4");
+          } else {
+            const dmg = Math.max(1, Math.round(e.atk - target.stats.def));
+            target.hp -= dmg;
+            target.hitFlash = 0.12;
+            addFloat(target.x + 4, v.ground - 36 - target.lift, "" + dmg, "#ff6b6b");
+            if (target.hp <= 0) {
+              target.hp = 0; target.dead = true;
+              addFloat(target.x, v.ground - 40, "倒下", "#ff4d4d");
+              if (!battle.field.some((hh) => !hh.dead)) battle.allDeadTimer = 1.4;
+            }
+          }
         }
+        e.atkTimer = e.atkInterval;
       }
-    }
+    });
   }
 
-  // ---- 升級：裝備 ----
-  function upgradeEquipment(slot) {
-    const d = D();
-    const def = d.EQUIPMENT[slot];
-    if (!def) return false;
-    const lvl = state.equipment[slot];
-    const cost = def.cost(lvl);
-    if (state.gold < cost) return false;
-    const oldMax = effectiveHero().maxHp;
-    state.gold -= cost;
-    state.equipment[slot] = lvl + 1;
-    const newMax = effectiveHero().maxHp;
-    if (newMax > oldMax) state.hero.hp += newMax - oldMax;
-    return true;
+  // ---- 對外 ----
+  function init() {
+    battle = newBattle();
+    buildField();
+    setupStage(Game.State.stage);
   }
-
-  // ---- 升級：技能 ----
-  function upgradeSkill(id) {
-    const d = D();
-    const def = d.SKILLS[id];
-    if (!def) return false;
-    const lvl = state.skills[id];
-    if (lvl >= def.maxLevel) return false;
-    const cost = def.cost(lvl);
-    if (state.gold < cost) return false;
-    const oldMax = effectiveHero().maxHp;
-    state.gold -= cost;
-    state.skills[id] = lvl + 1;
-    const newMax = effectiveHero().maxHp;
-    if (newMax > oldMax) state.hero.hp += newMax - oldMax;
-    return true;
+  function update(dt) {
+    if (dt > 0.1) dt = 0.1;
+    // 每秒結算貨幣速率
+    Game.State._secT -= dt;
+    if (Game.State._secT <= 0) { S().tickSecond(); Game.State._secT = 1; }
+    refreshFieldStats();
+    const speed = Math.max(1, Math.min(4, Game.State.speed || 1));
+    for (let i = 0; i < speed; i++) step(dt);
   }
-
-  // ---- 存檔資料 ----
-  function toSaveData() {
-    return {
-      stage: state.stage,
-      killsThisStage: state.killsThisStage,
-      gold: state.gold,
-      heroLevel: state.heroLevel,
-      xp: state.xp,
-      equipment: { ...state.equipment },
-      skills: { ...state.skills },
-      goldPerSec: state.goldPerSec,
-      totalKills: state.totalKills,
-      bestStage: state.bestStage,
-      lastSaveTime: Date.now(),
-    };
+  function onPartyChanged() {
+    if (battle) buildField();
+  }
+  function resetBattle() {
+    init();
   }
 
   Game.Engine = {
-    init,
-    update,
-    applyOfflineGold,
-    upgradeEquipment,
-    upgradeSkill,
-    toSaveData,
-    effectiveHero,
-    heroPower,
-    xpNeeded,
-    get state() {
-      return state;
-    },
+    init, update, onPartyChanged, resetBattle,
+    get battle() { return battle; },
   };
 })();

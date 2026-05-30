@@ -1,20 +1,33 @@
 /* ============================================================
- * ui.js — DOM 介面：HUD、裝備/技能/統計分頁、離線 modal
+ * ui.js — DOM 介面：HUD / 分頁 / 英雄養成 / 背包 / 開箱 / 商店 /
+ *          寵物 / 訓練 / 天賦 / 轉生 / 任務 / 設定 / modal / toast
  * 全域命名空間：window.Game.UI
  * ============================================================ */
 (function () {
   "use strict";
   const Game = (window.Game = window.Game || {});
   const D = () => Game.Data;
-  const E = () => Game.Engine;
+  const Sy = () => Game.Systems;
+  const St = () => Game.State;
+  const $ = (id) => document.getElementById(id);
 
-  let els = {};
+  let current = "heroes";
+  let heroDetail = null; // 選中的英雄 id
 
-  function $(id) {
-    return document.getElementById(id);
-  }
+  const TABS = [
+    { id: "heroes", label: "英雄", icon: "🦸" },
+    { id: "bag", label: "背包", icon: "🎒" },
+    { id: "gacha", label: "開箱", icon: "📦" },
+    { id: "shop", label: "商店", icon: "🛒" },
+    { id: "pets", label: "寵物", icon: "🐾" },
+    { id: "training", label: "訓練", icon: "🏋️" },
+    { id: "talents", label: "天賦", icon: "🌟" },
+    { id: "prestige", label: "轉生", icon: "🔮" },
+    { id: "quests", label: "任務", icon: "📜" },
+    { id: "settings", label: "設定", icon: "⚙️" },
+  ];
 
-  function formatNum(n) {
+  function fmt(n) {
     n = Math.floor(n);
     if (n < 1000) return "" + n;
     if (n < 1e6) return (n / 1e3).toFixed(2).replace(/\.?0+$/, "") + "K";
@@ -23,219 +36,552 @@
     if (n < 1e15) return (n / 1e12).toFixed(2).replace(/\.?0+$/, "") + "T";
     return n.toExponential(2).replace("e+", "e");
   }
+  function rarColor(id) { return D().RARITY_BY_ID[id].color; }
+  function rarName(id) { return D().RARITY_BY_ID[id].name; }
 
+  function itemStatText(it) {
+    const sl = D().SLOT_BY_ID[it.slot];
+    const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", crit: "暴擊", dodge: "閃避" }[sl.stat];
+    const val = sl.stat === "crit" || sl.stat === "dodge" ? (v * 100).toFixed(1) + "%" : "+" + Math.round(v);
+    return statName + " " + val;
+  }
+  function itemName(it) {
+    const sl = D().SLOT_BY_ID[it.slot];
+    return rarName(it.rarity) + sl.name + (it.enhance ? " +" + it.enhance : "");
+  }
+
+  // ============ 初始化 ============
   function init() {
-    els.stage = $("stage-val");
-    els.region = $("region-val");
-    els.gold = $("gold-val");
-    els.power = $("power-val");
-    els.level = $("level-val");
-    els.hpFill = $("hp-fill");
-    els.hpText = $("hp-text");
-    els.xpFill = $("xp-fill");
-    els.xpText = $("xp-text");
-    els.panelEquip = $("panel-equip");
-    els.panelSkill = $("panel-skill");
-    els.panelStats = $("panel-stats");
-
-    buildEquipment();
-    buildSkills();
-
-    // 分頁切換
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => openTab(btn.dataset.tab));
+    // 分頁列
+    const tabBar = $("tab-bar");
+    tabBar.innerHTML = TABS.map(
+      (t) => `<button class="tab-btn" data-tab="${t.id}"><span class="ti">${t.icon}</span><span class="tl">${t.label}</span></button>`
+    ).join("");
+    tabBar.addEventListener("click", (e) => {
+      const b = e.target.closest(".tab-btn");
+      if (!b) return;
+      openTab(b.dataset.tab);
     });
 
-    // 升級事件委派
-    els.panelEquip.addEventListener("click", (e) => {
-      const btn = e.target.closest(".up-btn");
-      if (!btn) return;
-      E().upgradeEquipment(btn.dataset.slot);
+    // 面板事件委派
+    $("panel-content").addEventListener("click", onPanelClick);
+    // modal 點背景關閉
+    $("modal-layer").addEventListener("click", (e) => {
+      if (e.target.id === "modal-layer") closeModal();
     });
-    els.panelSkill.addEventListener("click", (e) => {
-      const btn = e.target.closest(".up-btn");
-      if (!btn) return;
-      E().upgradeSkill(btn.dataset.skill);
+    // HUD 加速鈕
+    $("speed-btn").addEventListener("click", () => {
+      const s = St().speed || 1;
+      St().speed = s === 1 ? 2 : s === 2 ? 4 : 1;
     });
+    $("offline-close") && $("offline-close").addEventListener("click", () => $("offline-modal").classList.add("hidden"));
 
-    // 重置存檔
-    $("reset-btn").addEventListener("click", () => {
-      if (confirm("確定要重置所有進度嗎？此動作無法復原。")) {
-        Game.Save.reset();
-        location.reload();
-      }
-    });
-
-    // 離線 modal 關閉
-    $("offline-close").addEventListener("click", () => {
-      $("offline-modal").classList.add("hidden");
-    });
-
-    openTab("equip");
+    openTab("heroes");
   }
 
-  function buildEquipment() {
-    const d = D();
-    let html = "";
-    for (const slot of d.EQUIPMENT_ORDER) {
-      const def = d.EQUIPMENT[slot];
-      html +=
-        '<div class="item" data-slot="' +
-        slot +
-        '">' +
-        '<div class="item-icon">' +
-        def.icon +
-        "</div>" +
-        '<div class="item-main">' +
-        '<div class="item-name">' +
-        def.name +
-        ' <span class="lvl"></span></div>' +
-        '<div class="item-bonus"></div>' +
-        "</div>" +
-        '<button class="up-btn" data-slot="' +
-        slot +
-        '"><span class="cost"></span><span class="up-label">強化</span></button>' +
-        "</div>";
-    }
-    els.panelEquip.innerHTML = html;
+  function openTab(id) {
+    current = id;
+    if (id !== "heroes") heroDetail = null;
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
+    renderPanel();
   }
 
-  function buildSkills() {
-    const d = D();
-    let html = "";
-    for (const id of d.SKILL_ORDER) {
-      const def = d.SKILLS[id];
-      const typeLabel = def.type === "passive" ? "被動" : "主動";
-      html +=
-        '<div class="item" data-skill="' +
-        id +
-        '">' +
-        '<div class="item-icon">' +
-        def.icon +
-        "</div>" +
-        '<div class="item-main">' +
-        '<div class="item-name">' +
-        def.name +
-        ' <span class="tag">' +
-        typeLabel +
-        '</span> <span class="lvl"></span></div>' +
-        '<div class="item-bonus"></div>' +
-        "</div>" +
-        '<button class="up-btn" data-skill="' +
-        id +
-        '"><span class="cost"></span><span class="up-label"></span></button>' +
-        "</div>";
-    }
-    els.panelSkill.innerHTML = html;
-  }
-
-  function openTab(name) {
-    document.querySelectorAll(".tab-btn").forEach((b) => {
-      b.classList.toggle("active", b.dataset.tab === name);
-    });
-    document.querySelectorAll(".panel").forEach((p) => {
-      p.classList.toggle("active", p.id === "panel-" + name);
-    });
-  }
-
-  // 每幀更新（輕量）
+  // ============ HUD 每幀同步 ============
   function sync() {
-    const s = E().state;
-    const d = D();
-    const h = E().effectiveHero();
-
-    els.stage.textContent = s.stage;
-    els.region.textContent = d.getTheme(s.stage).name;
-    els.gold.textContent = formatNum(s.gold);
-    els.power.textContent = formatNum(E().heroPower());
-    els.level.textContent = s.heroLevel;
-
-    const hpRatio = h.maxHp > 0 ? s.hero.hp / h.maxHp : 0;
-    els.hpFill.style.width = Math.max(0, Math.min(100, hpRatio * 100)) + "%";
-    els.hpText.textContent =
-      Math.max(0, Math.ceil(s.hero.hp)) + " / " + h.maxHp;
-
-    const need = E().xpNeeded();
-    els.xpFill.style.width =
-      Math.max(0, Math.min(100, (s.xp / need) * 100)) + "%";
-    els.xpText.textContent = "Lv." + s.heroLevel;
-
-    // 裝備列表
-    els.panelEquip.querySelectorAll(".item").forEach((row) => {
-      const slot = row.dataset.slot;
-      const def = d.EQUIPMENT[slot];
-      const lvl = s.equipment[slot];
-      const cost = def.cost(lvl);
-      row.querySelector(".lvl").textContent = "Lv." + lvl;
-      row.querySelector(".item-bonus").textContent =
-        (lvl > 0 ? def.bonusText(lvl) + " → " : "") + def.bonusText(lvl + 1);
-      const btn = row.querySelector(".up-btn");
-      btn.querySelector(".cost").textContent = "💰" + formatNum(cost);
-      btn.disabled = s.gold < cost;
-    });
-
-    // 技能列表
-    els.panelSkill.querySelectorAll(".item").forEach((row) => {
-      const id = row.dataset.skill;
-      const def = d.SKILLS[id];
-      const lvl = s.skills[id];
-      row.querySelector(".lvl").textContent = lvl > 0 ? "Lv." + lvl : "未習得";
-      const btn = row.querySelector(".up-btn");
-      const label = btn.querySelector(".up-label");
-      const costEl = btn.querySelector(".cost");
-      if (lvl >= def.maxLevel) {
-        row.querySelector(".item-bonus").textContent = def.effectText(lvl);
-        costEl.textContent = "";
-        label.textContent = "已滿級";
-        btn.disabled = true;
-      } else {
-        row.querySelector(".item-bonus").textContent = def.effectText(lvl + 1);
-        const cost = def.cost(lvl);
-        costEl.textContent = "💰" + formatNum(cost);
-        label.textContent = lvl > 0 ? "升級" : "習得";
-        btn.disabled = s.gold < cost;
-      }
-    });
-
-    // 統計
-    if (els.panelStats.classList.contains("active")) {
-      els.panelStats.innerHTML =
-        statRow("最高關卡", s.bestStage) +
-        statRow("總擊殺數", formatNum(s.totalKills)) +
-        statRow("勇者等級", s.heroLevel) +
-        statRow("戰力", formatNum(E().heroPower())) +
-        statRow("攻擊力", h.atk) +
-        statRow("防禦力", h.def) +
-        statRow("最大生命", h.maxHp) +
-        statRow("暴擊率", Math.round(h.crit * 100) + "%") +
-        statRow("攻擊間隔", h.atkInterval.toFixed(2) + " 秒") +
-        statRow("預估每秒金幣", formatNum(s.goldPerSec));
-    }
+    const s = St();
+    $("stage-val").textContent = s.stage;
+    $("region-val").textContent = D().getTheme(s.stage).name;
+    $("gold-val").textContent = fmt(s.gold);
+    $("gem-val").textContent = fmt(s.gems);
+    $("soul-val").textContent = fmt(s.souls);
+    $("power-val").textContent = fmt(Sy().teamPower());
+    $("speed-btn").textContent = "⏩ " + (s.speed || 1) + "×";
   }
 
-  function statRow(label, val) {
-    return (
-      '<div class="stat-row"><span>' +
-      label +
-      "</span><span>" +
-      val +
-      "</span></div>"
+  // 每秒刷新「可負擔」狀態（不重建 DOM，避免捲動跳動）
+  let affT = 0;
+  function tickAfford(dt) {
+    affT -= dt;
+    if (affT > 0) return;
+    affT = 0.4;
+    document.querySelectorAll("#panel-content [data-cost]").forEach((el) => {
+      const cur = el.getAttribute("data-cur");
+      const cost = parseFloat(el.getAttribute("data-cost"));
+      const have = St()[cur] || 0;
+      el.disabled = have < cost;
+    });
+  }
+
+  // ============ 面板渲染 ============
+  function renderPanel() {
+    const el = $("panel-content");
+    let html = "";
+    if (current === "heroes") html = heroDetail ? renderHeroDetail(heroDetail) : renderHeroList();
+    else if (current === "bag") html = renderBag();
+    else if (current === "gacha") html = renderGacha();
+    else if (current === "shop") html = renderShop();
+    else if (current === "pets") html = renderPets();
+    else if (current === "training") html = renderTraining();
+    else if (current === "talents") html = renderTalents();
+    else if (current === "prestige") html = renderPrestige();
+    else if (current === "quests") html = renderQuests();
+    else if (current === "settings") html = renderSettings();
+    el.innerHTML = html;
+    el.scrollTop = 0;
+  }
+  function refresh() { renderPanel(); }
+
+  function buyBtn(act, data, cur, cost, label) {
+    const icon = cur === "gold" ? "💰" : cur === "gems" ? "💎" : "🔮";
+    const dis = (St()[cur] || 0) < cost ? "disabled" : "";
+    const dataAttr = Object.keys(data).map((k) => `data-${k}="${data[k]}"`).join(" ");
+    return `<button class="buy-btn" data-act="${act}" ${dataAttr} data-cur="${cur}" data-cost="${cost}" ${dis}>
+      <span class="cost">${icon}${fmt(cost)}</span><span class="lbl">${label}</span></button>`;
+  }
+
+  // ---- 英雄列表 ----
+  function renderHeroList() {
+    const s = St();
+    const owned = Sy().ownedHeroes();
+    let html = `<div class="sec-title">隊伍（${s.party.length}/${D().PARTY_MAX}）　點英雄可養成</div><div class="hero-grid">`;
+    D().HEROES.forEach((h) => {
+      const o = s.heroes[h.id] && s.heroes[h.id].owned;
+      const inParty = s.party.indexOf(h.id) >= 0;
+      const lvl = o ? s.heroes[h.id].level : 0;
+      const pw = o ? Sy().heroPower(h.id) : 0;
+      html += `<div class="hero-card ${o ? "" : "locked"} ${inParty ? "inparty" : ""}" data-act="${o ? "hero-open" : ""}" data-id="${h.id}" style="border-color:${rarColor(h.rarity)}">
+        <div class="hc-emoji">${o ? heroEmoji(h.id) : "🔒"}</div>
+        <div class="hc-name" style="color:${rarColor(h.rarity)}">${h.name}</div>
+        <div class="hc-sub">${o ? "Lv." + lvl + (inParty ? " · 出戰" : "") : h.cls}</div>
+        <div class="hc-pow">${o ? "⚔" + fmt(pw) : "未擁有"}</div>
+      </div>`;
+    });
+    html += `</div><div class="hint">未擁有的英雄可在「商店」招募。</div>`;
+    return html;
+  }
+  function heroEmoji(id) {
+    return { knight: "🛡️", mage: "🧙", archer: "🏹", priest: "⛪", rogue: "🗡️", berserker: "🪓" }[id] || "🦸";
+  }
+
+  // ---- 英雄詳情（升級 / 裝備 / 技能 / 出戰）----
+  function renderHeroDetail(id) {
+    const s = St();
+    const def = D().HERO_BY_ID[id];
+    const hs = s.heroes[id];
+    const st = Sy().heroStats(id);
+    const inParty = s.party.indexOf(id) >= 0;
+    const lvlCost = D().heroLevelCost(hs.level);
+    let html = `<div class="detail-head">
+      <button class="back-btn" data-act="hero-back">← 返回</button>
+      <span class="dh-name" style="color:${rarColor(def.rarity)}">${heroEmoji(id)} ${def.name} <small>${def.cls}・${rarName(def.rarity)}</small></span>
+    </div>`;
+
+    // 屬性
+    html += `<div class="stat-box">
+      ${statLine("等級", "Lv." + hs.level)}
+      ${statLine("戰力", "⚔" + fmt(st.power))}
+      ${statLine("攻擊", fmt(st.atk))}
+      ${statLine("生命", fmt(st.maxHp))}
+      ${statLine("防禦", fmt(st.def))}
+      ${statLine("暴擊", Math.round(st.crit * 100) + "%")}
+      ${statLine("暴傷", Math.round(st.critDmg * 100) + "%")}
+      ${statLine("攻速", st.atkInterval.toFixed(2) + "s")}
+      ${statLine("吸血", Math.round(st.lifesteal * 100) + "%")}
+      ${statLine("閃避", Math.round(st.dodge * 100) + "%")}
+    </div>`;
+
+    // 操作列
+    html += `<div class="row-btns">
+      <button class="act-btn ${inParty ? "on" : ""}" data-act="hero-party" data-id="${id}">${inParty ? "✓ 出戰中" : "＋ 出戰"}</button>
+      ${buyBtn("hero-level", { id, n: 1 }, "gold", lvlCost, "升級")}
+      <button class="act-btn" data-act="hero-level10" data-id="${id}">升級×10</button>
+      <button class="act-btn" data-act="hero-auto" data-id="${id}">自動裝備</button>
+    </div>`;
+
+    // 裝備欄
+    html += `<div class="sec-title">裝備</div><div class="equip-grid">`;
+    D().EQUIPMENT_SLOTS.forEach((sl) => {
+      const uid = hs.equip[sl.id];
+      const it = Sy().itemByUid(uid);
+      html += `<div class="equip-slot" data-act="hero-slot" data-id="${id}" data-slot="${sl.id}" style="border-color:${it ? rarColor(it.rarity) : "#3a2f55"}">
+        <div class="es-icon">${sl.icon}</div>
+        <div class="es-info">
+          <div class="es-name" style="color:${it ? rarColor(it.rarity) : "#9a90b5"}">${it ? itemName(it) : sl.name + "（空）"}</div>
+          <div class="es-stat">${it ? itemStatText(it) : "點擊裝備"}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // 技能
+    html += `<div class="sec-title">技能</div>`;
+    def.skills.forEach((sid) => {
+      const sk = D().HERO_SKILLS[sid];
+      const lv = hs.skills[sid] || 0;
+      const max = lv >= sk.maxLevel;
+      const cost = sk.cost(lv);
+      html += `<div class="item">
+        <div class="item-icon">${sk.icon}</div>
+        <div class="item-main">
+          <div class="item-name">${sk.name} <span class="tag">${sk.type === "passive" ? "被動" : "主動"}</span> <span class="lvl">${lv ? "Lv." + lv : "未習得"}</span></div>
+          <div class="item-bonus">${sk.effectText(max ? lv : lv + 1)}</div>
+        </div>
+        ${max ? `<button class="buy-btn" disabled><span class="lbl">已滿級</span></button>`
+          : buyBtn("hero-skill", { id, skill: sid }, "gold", cost, lv ? "升級" : "習得")}
+      </div>`;
+    });
+    return html;
+  }
+  function statLine(k, v) { return `<div class="sl"><span>${k}</span><b>${v}</b></div>`; }
+
+  // ---- 背包 ----
+  function renderBag() {
+    const s = St();
+    let html = `<div class="sec-title">背包（${s.inventory.length} 件）</div>`;
+    html += `<div class="row-btns">
+      <button class="act-btn" data-act="salvage-below" data-rarity="rare">分解「稀有」以下</button>
+      <button class="act-btn" data-act="salvage-below" data-rarity="epic">分解「史詩」以下</button>
+    </div>`;
+    if (!s.inventory.length) return html + `<div class="empty">背包是空的，去「開箱」或「商店」取得裝備吧！</div>`;
+    const items = s.inventory.slice().sort((a, b) =>
+      D().RARITIES.findIndex((r) => r.id === b.rarity) - D().RARITIES.findIndex((r) => r.id === a.rarity)
+      || D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance)
     );
+    html += `<div class="bag-grid">`;
+    items.forEach((it) => {
+      const equipped = Sy().isEquipped(it.uid);
+      const eCost = D().enhanceCost(it);
+      html += `<div class="bag-item" style="border-color:${rarColor(it.rarity)}">
+        <div class="bi-top"><span class="bi-icon">${D().SLOT_BY_ID[it.slot].icon}</span>
+        <span class="bi-name" style="color:${rarColor(it.rarity)}">${itemName(it)}</span>${equipped ? '<span class="badge">裝備中</span>' : ""}</div>
+        <div class="bi-stat">${itemStatText(it)}（階${it.tier}）</div>
+        <div class="bi-btns">
+          ${buyBtn("bag-enhance", { uid: it.uid }, "gold", eCost, "強化")}
+          ${equipped ? "" : `<button class="mini-btn danger" data-act="bag-salvage" data-uid="${it.uid}">分解 💰${fmt(D().salvageValue(it))}</button>`}
+        </div>
+      </div>`;
+    });
+    return html + `</div>`;
+  }
+
+  // ---- 開箱 ----
+  function renderGacha() {
+    let html = `<div class="sec-title">開箱抽裝備</div>`;
+    ["gold", "gem"].forEach((bt) => {
+      const box = D().GACHA[bt];
+      html += `<div class="gacha-card">
+        <div class="gc-icon">${box.icon}</div>
+        <div class="gc-info"><div class="gc-name">${box.name}</div>
+        <div class="gc-sub">${bt === "gem" ? "高機率獲得稀有以上！" : "基礎裝備寶箱"}</div></div>
+        <div class="gc-btns">
+          ${buyBtn("gacha-open", { box: bt, count: 1 }, box.cur, box.cost, "開 1 次")}
+          ${buyBtn("gacha-open", { box: bt, count: 10 }, box.cur, box.cost * 10, "開 10 次")}
+        </div>
+      </div>`;
+    });
+    html += `<div class="sec-title">機率</div><div class="rate-box">`;
+    D().RARITIES.forEach((r) => {
+      html += `<div class="rate-row"><span style="color:${r.color}">${r.name}</span><span>金箱 ${r.weightGold}｜鑽箱 ${r.weightGem}</span></div>`;
+    });
+    return html + `</div>`;
+  }
+
+  // ---- 商店 ----
+  function renderShop() {
+    let html = `<div class="sec-title">商店</div>`;
+    const groups = [
+      { t: "寶箱", f: (s) => s.give.box },
+      { t: "招募英雄", f: (s) => s.give.hero },
+      { t: "寵物", f: (s) => s.give.pet },
+      { t: "每日特惠", f: (s) => s.daily },
+    ];
+    groups.forEach((grp) => {
+      const list = D().SHOP.filter(grp.f);
+      if (!list.length) return;
+      html += `<div class="shop-group">${grp.t}</div>`;
+      list.forEach((s) => {
+        const stt = Sy().shopState(s.id);
+        const icon = s.cur === "gold" ? "💰" : "💎";
+        const label = s.cost === 0 ? "免費" : icon + fmt(s.cost);
+        const dis = stt.soldOut ? "disabled" : (St()[s.cur] < s.cost ? "disabled" : "");
+        html += `<div class="shop-item">
+          <div class="si-icon">${s.icon}</div>
+          <div class="si-main"><div class="si-name">${s.name}</div>
+          <div class="si-sub">${stt.remain != null ? "今日剩 " + stt.remain : s.once ? (stt.soldOut ? "已擁有" : "限購 1") : ""}</div></div>
+          <button class="buy-btn" data-act="shop-buy" data-id="${s.id}" data-cur="${s.cur}" data-cost="${s.cost}" ${dis}>
+            <span class="cost">${stt.soldOut ? "已售完" : label}</span></button>
+        </div>`;
+      });
+    });
+    return html;
+  }
+
+  // ---- 寵物 ----
+  function renderPets() {
+    const s = St();
+    let html = `<div class="sec-title">寵物（出戰提供全隊加成）</div><div class="pet-grid">`;
+    D().PETS.forEach((p) => {
+      const owned = !!s.pets[p.id];
+      const lv = owned ? s.pets[p.id].level : 0;
+      const active = s.activePet === p.id;
+      const eff = Math.round(p.per * (lv || 1) * 100);
+      const cost = D().petUpgradeCost(lv);
+      const modName = { goldMul: "金幣", atkMul: "攻擊", xpMul: "經驗", hpMul: "生命" }[p.mod];
+      html += `<div class="pet-card ${owned ? "" : "locked"} ${active ? "active" : ""}" style="border-color:${rarColor(p.rarity)}">
+        <div class="pc-icon">${p.icon}</div>
+        <div class="pc-name" style="color:${rarColor(p.rarity)}">${p.name}</div>
+        <div class="pc-eff">${owned ? modName + " +" + eff + "%" : "未擁有"}</div>
+        ${owned ? `<div class="pc-btns">
+          <button class="mini-btn ${active ? "on" : ""}" data-act="pet-active" data-id="${p.id}">${active ? "出戰中" : "出戰"}</button>
+          ${buyBtn("pet-up", { id: p.id }, "gold", cost, "升級")}
+        </div>` : `<div class="pc-eff small">商店取得</div>`}
+      </div>`;
+    });
+    return html + `</div>`;
+  }
+
+  // ---- 訓練 ----
+  function renderTraining() {
+    let html = `<div class="sec-title">屬性訓練（全隊永久加成）</div>`;
+    D().TRAININGS.forEach((t) => {
+      const lv = St().trainings[t.id] || 0;
+      const cost = Sy().trainingCost(t);
+      const scale = t.scale || 1;
+      const cur = (t.per * lv * scale).toFixed(t.scale ? 1 : 0);
+      const nxt = (t.per * (lv + 1) * scale).toFixed(t.scale ? 1 : 0);
+      html += `<div class="item">
+        <div class="item-icon">${t.icon}</div>
+        <div class="item-main"><div class="item-name">${t.name} <span class="lvl">Lv.${lv}</span></div>
+        <div class="item-bonus">+${cur}${t.unit} → +${nxt}${t.unit}</div></div>
+        ${buyBtn("train-buy", { id: t.id }, "gold", cost, "訓練")}
+      </div>`;
+    });
+    return html;
+  }
+
+  // ---- 天賦 ----
+  function renderTalents() {
+    let html = `<div class="sec-title">才能天賦　可用點數：<b style="color:#ffd23f">${St().talentPoints}</b></div>
+      <div class="hint">推進關卡里程碑可獲得才能點。</div><div class="talent-grid">`;
+    D().TALENTS.forEach((t) => {
+      const lv = St().talents[t.id] || 0;
+      const max = lv >= t.max;
+      const scale = t.mod === "critAdd" || t.mod === "critDmgAdd" ? 100 : 100;
+      const cur = Math.round(t.per * lv * (t.mod.endsWith("Add") ? 100 : 100));
+      const dis = max || St().talentPoints <= 0 ? "disabled" : "";
+      html += `<div class="talent-card">
+        <div class="tc-icon">${t.icon}</div>
+        <div class="tc-name">${t.name}</div>
+        <div class="tc-eff">${t.desc} +${cur}%</div>
+        <div class="tc-lvl">Lv.${lv}/${t.max}</div>
+        <button class="mini-btn" data-act="talent-buy" data-id="${t.id}" ${dis}>${max ? "滿級" : "點 1 點"}</button>
+      </div>`;
+    });
+    return html + `</div>`;
+  }
+
+  // ---- 轉生 ----
+  function renderPrestige() {
+    const s = St();
+    const can = Sy().canPrestige();
+    const gain = Sy().prestigeGain();
+    let html = `<div class="sec-title">轉生 / 突破</div>
+      <div class="prestige-top">
+        <div>本輪最高層：<b>${s.runBestStage}</b>　（需達 ${D().PRESTIGE.minStage} 層）</div>
+        <div>轉生可得靈魂 🔮 <b style="color:#b06ae0">${gain}</b>　已轉生 ${s.prestige.count} 次</div>
+        <div class="hint">轉生會重置關卡/金幣/訓練/英雄等級，保留裝備、技能、寵物、天賦、鑽石與轉生天賦。</div>
+        <button class="primary-btn ${can ? "" : "dim"}" data-act="prestige-go" ${can ? "" : "disabled"}>${can ? "轉生（+" + gain + " 🔮）" : "尚未達標"}</button>
+      </div>
+      <div class="sec-title">轉生天賦（用靈魂）　持有 🔮 ${fmt(s.souls)}</div>`;
+    D().PRESTIGE.nodes.forEach((n) => {
+      const lv = s.prestige.nodes[n.id] || 0;
+      const max = lv >= n.max;
+      const cost = Sy().prestigeNodeCost(n);
+      const cur = Math.round(n.per * lv * 100);
+      const dis = max || s.souls < cost ? "disabled" : "";
+      html += `<div class="item">
+        <div class="item-icon">${n.icon}</div>
+        <div class="item-main"><div class="item-name">${n.name} <span class="lvl">Lv.${lv}/${n.max}</span></div>
+        <div class="item-bonus">+${cur}%（每級 +${Math.round(n.per * 100)}%）</div></div>
+        <button class="buy-btn" data-act="prestige-node" data-id="${n.id}" ${dis}><span class="cost">🔮${cost}</span><span class="lbl">${max ? "滿級" : "強化"}</span></button>
+      </div>`;
+    });
+    return html;
+  }
+
+  // ---- 任務 / 成就 ----
+  function renderQuests() {
+    const s = St();
+    Sy().refreshDaily();
+    let html = `<div class="sec-title">每日</div>`;
+    html += `<div class="item"><div class="item-icon">🎁</div>
+      <div class="item-main"><div class="item-name">每日登入獎勵</div><div class="item-bonus">💎 20</div></div>
+      <button class="mini-btn" data-act="daily-login" ${s.daily.login ? "disabled" : ""}>${s.daily.login ? "已領取" : "領取"}</button></div>`;
+    D().DAILY_QUESTS.forEach((q) => {
+      const prog = Sy().dailyProgress(q);
+      const done = prog >= q.goal;
+      const claimed = s.daily.claimed[q.id];
+      const rw = q.reward.gold ? "💰" + fmt(q.reward.gold) : "💎" + q.reward.gems;
+      html += `<div class="item"><div class="item-icon">📌</div>
+        <div class="item-main"><div class="item-name">${q.name}</div>
+        <div class="item-bonus">${Math.min(prog, q.goal)}/${q.goal}　獎勵 ${rw}</div></div>
+        <button class="mini-btn" data-act="daily-claim" data-id="${q.id}" ${done && !claimed ? "" : "disabled"}>${claimed ? "已領" : done ? "領取" : "進行中"}</button></div>`;
+    });
+    html += `<div class="sec-title">成就</div>`;
+    D().ACHIEVEMENTS.forEach((a) => {
+      const prog = Sy().achProgress(a);
+      const done = prog >= a.goal;
+      const claimed = s.achievements[a.id];
+      html += `<div class="item"><div class="item-icon">${a.icon}</div>
+        <div class="item-main"><div class="item-name">${a.name} ${claimed ? '<span class="badge">✓</span>' : ""}</div>
+        <div class="item-bonus">${fmt(Math.min(prog, a.goal))}/${fmt(a.goal)}　獎勵 💎${a.reward.gems}</div></div>
+        <button class="mini-btn" data-act="ach-claim" data-id="${a.id}" ${done && !claimed ? "" : "disabled"}>${claimed ? "已領" : done ? "領取" : "進行中"}</button></div>`;
+    });
+    return html;
+  }
+
+  // ---- 設定 ----
+  function renderSettings() {
+    const s = St();
+    return `<div class="sec-title">設定</div>
+      <div class="item"><div class="item-main"><div class="item-name">戰鬥速度</div><div class="item-bonus">目前 ${s.speed}×</div></div>
+        <div class="row-btns mini">
+          <button class="mini-btn ${s.speed === 1 ? "on" : ""}" data-act="set-speed" data-v="1">1×</button>
+          <button class="mini-btn ${s.speed === 2 ? "on" : ""}" data-act="set-speed" data-v="2">2×</button>
+          <button class="mini-btn ${s.speed === 4 ? "on" : ""}" data-act="set-speed" data-v="4">4×</button>
+        </div></div>
+      <div class="stat-box">
+        ${statLine("最高關卡", s.bestStage)}
+        ${statLine("總擊殺", fmt(s.stats.totalKills))}
+        ${statLine("魔王擊殺", fmt(s.stats.bossKills))}
+        ${statLine("開箱次數", fmt(s.stats.boxesOpened))}
+        ${statLine("轉生次數", s.stats.prestiges)}
+        ${statLine("每秒金幣", fmt(s.goldPerSec))}
+      </div>
+      <div class="hint">進度自動儲存於本機 Chrome（localStorage）。換裝置/清除瀏覽資料會遺失存檔。</div>
+      <button class="danger-btn" data-act="reset-game">🗑️ 重置全部進度</button>`;
+  }
+
+  // ============ 事件處理 ============
+  function onPanelClick(e) {
+    const t = e.target.closest("[data-act]");
+    if (!t) return;
+    const act = t.dataset.act;
+    if (!act) return;
+    const id = t.dataset.id, slot = t.dataset.slot, uid = t.dataset.uid != null ? +t.dataset.uid : null;
+    let rerender = true;
+
+    switch (act) {
+      case "hero-open": heroDetail = id; break;
+      case "hero-back": heroDetail = null; break;
+      case "hero-party": Sy().toggleParty(id); Game.Engine.onPartyChanged(); break;
+      case "hero-level": Sy().levelUpHero(id, 1); break;
+      case "hero-level10": Sy().levelUpHero(id, 10); break;
+      case "hero-auto": Sy().autoEquipBest(id); break;
+      case "hero-skill": Sy().upgradeSkill(id, t.dataset.skill); break;
+      case "hero-slot": openEquipPicker(id, slot); rerender = false; break;
+      case "equip-pick": Sy().equipItem(equipPickHero, uid); closeModal(); break;
+      case "slot-unequip": Sy().unequipSlot(equipPickHero, t.dataset.slot); closeModal(); break;
+      case "bag-enhance": Sy().enhanceItem(uid); break;
+      case "bag-salvage": Sy().salvageItem(uid); break;
+      case "salvage-below": { const r = Sy().salvageAllBelow(t.dataset.rarity); toast(`分解 ${r.count} 件，獲得 💰${fmt(r.gold)}`); break; }
+      case "gacha-open": { const items = Sy().doGacha(t.dataset.box, +t.dataset.count); if (items) showGachaResult(items); else toast("貨幣不足"); break; }
+      case "shop-buy": { const r = Sy().shopBuy(id); toast(r.ok ? "購買成功！" : r.msg); if (r.ok && r.result && r.result.items) showGachaResult(r.result.items); break; }
+      case "pet-up": Sy().upgradePet(id); break;
+      case "pet-active": Sy().setActivePet(id); break;
+      case "train-buy": Sy().buyTraining(id); break;
+      case "talent-buy": Sy().buyTalent(id); break;
+      case "prestige-node": Sy().buyPrestigeNode(id); break;
+      case "prestige-go": doPrestige(); break;
+      case "daily-login": Sy().claimDailyLogin(); toast("獲得每日登入獎勵 💎20"); break;
+      case "daily-claim": Sy().claimDaily(id); break;
+      case "ach-claim": Sy().claimAchievement(id); break;
+      case "set-speed": St().speed = +t.dataset.v; break;
+      case "reset-game": confirmReset(); rerender = false; break;
+    }
+    if (rerender) renderPanel();
+    sync();
+  }
+
+  function doPrestige() {
+    if (!Sy().canPrestige()) return;
+    const gain = Sy().doPrestige();
+    Game.Engine.resetBattle();
+    toast(`轉生成功！獲得 🔮${gain} 靈魂`);
+    renderPanel();
+  }
+
+  // ============ Modal ============
+  function openModal(html) {
+    $("modal-content").innerHTML = html;
+    $("modal-layer").classList.remove("hidden");
+  }
+  function closeModal() { $("modal-layer").classList.add("hidden"); }
+
+  let equipPickHero = null;
+  function openEquipPicker(heroId, slot) {
+    equipPickHero = heroId;
+    const items = St().inventory.filter((it) => it.slot === slot)
+      .sort((a, b) => D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance));
+    const cur = St().heroes[heroId].equip[slot];
+    let html = `<div class="modal-title">選擇 ${D().SLOT_BY_ID[slot].name}</div>`;
+    html += `<button class="act-btn" data-act="slot-unequip" data-slot="${slot}">卸下</button>`;
+    if (!items.length) html += `<div class="empty">沒有此部位的裝備</div>`;
+    html += `<div class="pick-list">`;
+    items.forEach((it) => {
+      const eqBy = Sy().isEquipped(it.uid) && cur !== it.uid;
+      html += `<div class="pick-item ${cur === it.uid ? "sel" : ""}" data-act="equip-pick" data-uid="${it.uid}" style="border-color:${rarColor(it.rarity)}">
+        <span class="bi-name" style="color:${rarColor(it.rarity)}">${itemName(it)}</span>
+        <span class="bi-stat">${itemStatText(it)}${eqBy ? " ·他人裝備中" : ""}</span></div>`;
+    });
+    html += `</div>`;
+    openModal(html);
+  }
+
+  function showGachaResult(items) {
+    let html = `<div class="modal-title">開箱結果 ×${items.length}</div><div class="gacha-result">`;
+    items.forEach((it, i) => {
+      html += `<div class="gr-card" style="border-color:${rarColor(it.rarity)};animation-delay:${i * 40}ms">
+        <div class="gr-icon">${D().SLOT_BY_ID[it.slot].icon}</div>
+        <div class="gr-rar" style="color:${rarColor(it.rarity)}">${rarName(it.rarity)}</div>
+        <div class="gr-name">${D().SLOT_BY_ID[it.slot].name}</div>
+        <div class="gr-stat">${itemStatText(it)}</div>
+      </div>`;
+    });
+    html += `</div><button class="primary-btn" data-act="" onclick="Game.UI._close()">確定</button>`;
+    openModal(html);
+    if (current === "bag") renderPanel();
+  }
+
+  function confirmReset() {
+    openModal(`<div class="modal-title">重置全部進度？</div><div class="empty">此動作無法復原。</div>
+      <div class="row-btns"><button class="danger-btn" onclick="Game.UI._reset()">確定重置</button>
+      <button class="act-btn" onclick="Game.UI._close()">取消</button></div>`);
+  }
+
+  // Toast
+  let toastT = null;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(() => el.classList.remove("show"), 1800);
   }
 
   function showOffline(info) {
-    const mins = Math.floor(info.seconds / 60);
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    let timeStr = h > 0 ? h + " 小時 " + m + " 分" : m + " 分鐘";
-    $("offline-text").innerHTML =
-      "你離開了約 <b>" +
-      timeStr +
-      "</b><br>勇者持續奮戰，獲得了<br><span class='offline-gold'>💰 " +
-      formatNum(info.gold) +
-      "</span>";
+    const mins = Math.floor(info.seconds / 60), h = Math.floor(mins / 60), m = mins % 60;
+    const ts = h > 0 ? h + " 小時 " + m + " 分" : m + " 分鐘";
+    let gain = "💰 " + fmt(info.gold);
+    if (info.gems > 0) gain += "　💎 " + fmt(info.gems);
+    $("offline-text").innerHTML = `你離開了約 <b>${ts}</b><br>隊伍持續奮戰，獲得了<br><span class='offline-gold'>${gain}</span>`;
     $("offline-modal").classList.remove("hidden");
   }
 
-  Game.UI = { init, sync, showOffline, openTab };
+  Game.UI = {
+    init, sync, tickAfford, showOffline, openTab, refresh,
+    _close: closeModal,
+    _reset: () => { Game.Save.reset(); location.reload(); },
+  };
 })();

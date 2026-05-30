@@ -1,57 +1,105 @@
 /* ============================================================
- * save.js — localStorage 存讀檔 + 離線收益計算
+ * save.js — localStorage 存讀檔 + v1→v2 遷移 + 離線收益
  * 全域命名空間：window.Game.Save
  * ============================================================ */
 (function () {
   "use strict";
   const Game = (window.Game = window.Game || {});
 
-  const SAVE_KEY = "brave-idle-save-v1";
+  const SAVE_KEY = "brave-idle-save-v2";
+  const OLD_KEY = "brave-idle-save-v1";
 
-  function load() {
+  function rawLoad(key) {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      if (!data || typeof data !== "object") return null;
-      return data;
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : null;
     } catch (e) {
-      console.warn("讀檔失敗：", e);
       return null;
     }
   }
 
-  function save(data) {
+  // 把載入資料合併進預設狀態，確保所有欄位存在（向前相容）
+  function mergeIntoDefault(loaded) {
+    const base = Game.Systems.defaultState();
+    if (!loaded) return base;
+    const keys = [
+      "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage",
+      "heroes", "party", "inventory", "invSeq", "pets", "activePet",
+      "trainings", "talents", "talentPoints", "prestige", "achievements",
+      "daily", "stats", "shop", "speed", "goldPerSec", "gemPerSec",
+    ];
+    keys.forEach((k) => {
+      if (loaded[k] !== undefined && loaded[k] !== null) base[k] = loaded[k];
+    });
+    // 安全檢查
+    if (!base.heroes || !base.heroes.knight) {
+      base.heroes = base.heroes || {};
+      base.heroes.knight = { owned: true, level: 1, stars: 1, equip: {}, skills: {} };
+    }
+    Game.Data.EQUIPMENT_SLOTS.forEach((sl) => {
+      Object.keys(base.heroes).forEach((hid) => {
+        base.heroes[hid].equip = base.heroes[hid].equip || {};
+        if (base.heroes[hid].equip[sl.id] === undefined) base.heroes[hid].equip[sl.id] = null;
+        base.heroes[hid].skills = base.heroes[hid].skills || {};
+      });
+    });
+    if (!Array.isArray(base.party) || base.party.length === 0) base.party = ["knight"];
+    base.stats = Object.assign({ totalKills: 0, bossKills: 0, boxesOpened: 0, prestiges: 0 }, base.stats || {});
+    base.daily = base.daily || Game.Systems.defaultState().daily;
+    base.shop = base.shop || { date: Game.Systems.todayStr(), bought: {} };
+    base.prestige = base.prestige || { count: 0, nodes: {} };
+    base._goldSec = 0; base._gemSec = 0; base._secT = 1;
+    return base;
+  }
+
+  // v1 → v2：保留金幣與最高關卡，其餘重新開始
+  function migrateV1(v1) {
+    const base = Game.Systems.defaultState();
+    base.gold = Math.max(0, v1.gold || 0);
+    base.bestStage = Math.max(1, v1.bestStage || v1.stage || 1);
+    base.gems = 30; // 遷移補償
+    base.stage = 1;
+    return base;
+  }
+
+  // 回傳合併好的 state 物件（main 會 setState）
+  function loadState() {
+    const v2 = rawLoad(SAVE_KEY);
+    if (v2) return { state: mergeIntoDefault(v2), loaded: v2 };
+    const v1 = rawLoad(OLD_KEY);
+    if (v1) return { state: migrateV1(v1), loaded: null, migrated: true };
+    return { state: Game.Systems.defaultState(), loaded: null };
+  }
+
+  function save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      const s = Game.State;
+      const obj = Object.assign({}, s);
+      delete obj._goldSec; delete obj._gemSec; delete obj._secT;
+      obj.lastSaveTime = Date.now();
+      localStorage.setItem(SAVE_KEY, JSON.stringify(obj));
       return true;
     } catch (e) {
-      console.warn("存檔失敗：", e);
+      console.warn("存檔失敗", e);
       return false;
     }
   }
 
   function reset() {
-    try {
-      localStorage.removeItem(SAVE_KEY);
-    } catch (e) {
-      console.warn("重置存檔失敗：", e);
-    }
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
   }
 
-  // 依存檔中的 lastSaveTime 與 goldPerSec 計算離線期間獲得的金幣。
-  // 回傳 { seconds, gold } 或 null（無有效離線時間時）。
-  function computeOffline(data) {
-    if (!data || !data.lastSaveTime || !data.goldPerSec) return null;
-    const now = Date.now();
-    let elapsedSec = Math.floor((now - data.lastSaveTime) / 1000);
-    if (elapsedSec < 60) return null; // 少於 1 分鐘不結算
+  function computeOffline(loaded) {
+    if (!loaded || !loaded.lastSaveTime) return null;
+    const elapsed = Math.floor((Date.now() - loaded.lastSaveTime) / 1000);
+    if (elapsed < 60) return null;
     const cap = Game.Data.OFFLINE_CAP_SECONDS;
-    const cappedSec = Math.min(elapsedSec, cap);
-    const gold = Math.floor(data.goldPerSec * cappedSec);
-    if (gold <= 0) return null;
-    return { seconds: cappedSec, realSeconds: elapsedSec, gold };
+    const sec = Math.min(elapsed, cap);
+    const gold = Math.floor((loaded.goldPerSec || 0) * sec);
+    const gems = Math.floor((loaded.gemPerSec || 0) * sec * 0.5);
+    if (gold <= 0 && gems <= 0) return null;
+    return { seconds: sec, realSeconds: elapsed, gold, gems };
   }
 
-  Game.Save = { SAVE_KEY, load, save, reset, computeOffline };
+  Game.Save = { SAVE_KEY, loadState, save, reset, computeOffline };
 })();
