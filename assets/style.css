@@ -164,6 +164,17 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%) translateY(20px); background: rgba(15,12,24,0.95); border: 1px solid var(--gold); color: var(--text); padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: bold; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; max-width: 80%; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ===== 自製像素圖示 ===== */
+.ico { display: inline-block; vertical-align: middle; image-rendering: pixelated; image-rendering: crisp-edges; }
+.hud-chip { display: inline-flex; align-items: center; gap: 3px; }
+.ci { display: inline-flex; align-items: center; }
+.item-icon, .es-icon, .si-icon, .gc-icon, .tc-icon, .pc-icon, .gr-icon, .hc-emoji, .bi-icon, .tab-btn .ti, .gc-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.hc-emoji { height: 40px; }
+.dh-name .ico { vertical-align: -3px; }
+.buy-btn .cost, .shop-item .buy-btn .cost { display: inline-flex; align-items: center; gap: 1px; }
+
 /* 橫向：遊戲區放大 */
 @media (orientation: landscape) and (max-height: 540px) {
   #app { flex-direction: row; max-width: none; }
