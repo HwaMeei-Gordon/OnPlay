@@ -298,6 +298,8 @@
     i: "#e6f1fb", I: "#9fc4e6", Y: "#ffe45a", c: "#37a8b8", C: "#1c6e7e",
     j: "#ef82b0", J: "#b24a78", 5: "#9a9aae", 6: "#5e5e72",
     w: "#dfe4ee", l: "#ffaa3d", 7: "#241433", 8: "#4a2f5a", a: "#efe7d6", z: "#bfe24a",
+    // 敵人陰影/高光擴充
+    S: "#aef0a8", T: "#c7cede", Z: "#3b4250", 9: "#1f6e2c", 0: "#7a8aa0",
     // 英雄擴充
     P: "#9b59d0", // 法師紫袍
     Q: "#6b3fa0", // 法師深袍
@@ -319,7 +321,7 @@
       deco: "grass", decoColor: "#7aa852" },
     { name: "森林", sky: ["#1f2e44", "#2e4a52", "#3a6b54", "#4d8060"], horizon: "#163a30",
       far: "trees", farColor: "#1f4a32", farColor2: "#163a26",
-      ground: "#3a5a2a", groundTop: "#4a6a32", groundLine: "#6a9a3a", tile: "#2c4420",
+      ground: "#3f3320", groundTop: "#4f4028", groundLine: "#6a9a3a", tile: "#2c2416",
       deco: "bush", decoColor: "#3f7a3a" },
     { name: "沙漠", sky: ["#e0a85a", "#eec06a", "#f5d488", "#f7e6ac"], horizon: "#caa056",
       far: "dunes", farColor: "#d6a85a", farColor2: "#c2934a",

@@ -258,11 +258,22 @@
       const a = Math.max(0, Math.min(1, p.life / p.life0));
       ctx.globalAlpha = a;
       if (p.type === "coin") {
-        ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2);
-        ctx.fillStyle = "#fff7c8"; ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 1, 1);
+        // 旋轉（垂直/水平交替）+ 末段縮小，亮邊高光
+        const px = Math.round(p.x), py = Math.round(p.y);
+        const spin = Math.floor(p.life * 28) % 2;
+        if (a < 0.4) { ctx.fillStyle = p.color; ctx.fillRect(px, py, 1, 1); }
+        else if (spin) { ctx.fillStyle = p.color; ctx.fillRect(px, py - 1, 1, 3); ctx.fillStyle = "#fff7c8"; ctx.fillRect(px, py - 1, 1, 1); }
+        else { ctx.fillStyle = p.color; ctx.fillRect(px - 1, py, 3, 1); ctx.fillStyle = "#fff7c8"; ctx.fillRect(px - 1, py, 1, 1); }
+      } else if (p.type === "dust") {
+        ctx.globalAlpha = a * 0.55;
+        ctx.fillStyle = p.color;
+        const s = p.life > p.life0 * 0.5 ? 1 : 2; // 漸散變大
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), s, s);
       } else if (p.type === "slash") {
         ctx.strokeStyle = "rgba(255,255,255," + a + ")"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 5); ctx.lineTo(p.x + 6, p.y - 5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(p.x - 7, p.y + 6); ctx.lineTo(p.x + 7, p.y - 6); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255," + (a * 0.5) + ")";
+        ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 4); ctx.lineTo(p.x + 7, p.y - 4); ctx.stroke();
       } else if (p.type === "flash") {
         if (ctx.arc) {
           const r = (1 - p.life / p.life0) * 6 + 1;

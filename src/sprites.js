@@ -69,7 +69,7 @@
   };
 
   // ===== 小怪（themed 10 + 通用 4）=====
-  const SLIME = ["............","....GGGG....","..GGGGGGGG..",".GGGGGGGGGG.",".GWGGGGGGWG.",".GeGGGGGGeG.","GGGGGGGGGGGG","GGGGGGGGGGGG",".DDDDDDDDDD."];
+  const SLIME = ["....SGGS....","..SGGGGGGS..",".GGGGGGGGGG.",".GGGGGGGGGG.",".GWWGGGGWWG.",".GWeGGGGWeG.","GGGGGGGGGGGG","9GGGGGGGGGG9","9GGGGGGGGGG9",".99DDDDDD99."];
   const SPIDER = ["1.1......1.1",".11......11.","..11....11..","...222222...","..2q2222q2..","..22222222..","...222222...","..11....11..",".1........1."];
   const SCORPION = ["..........N.",".n.......NN.","nn.nnnn..N..",".nnnnnnnnN..","nnnnnnnnnn..",".nnnnnnnn...","nn.nnnn.nn..",".n......n..."];
   const SNOWMAN = ["............","....iiii....","...iiiiii...","..iieiieii..","..iiilliii..","...iiiiii...","..iiiiiiii..",".iiiiiiiiii.",".iIiiiiiiII.",".iiiiiiiiii.","..iiiiiiii.."];
@@ -79,10 +79,10 @@
   const SKELETON = ["...aaaa.....","..aaaaaa....","..aeaaea....","..aaaaaa....","...aWWa.....","..a.aa.a....",".aa.aa.aa...","..a.aa.a....","..a.aa.a...."];
   const IMP = ["..K....K....","..rKrrKr....","..rrqqrr....","..rrrrrr....","...rrrr.....","..rRrrRr....",".rr.rr.rr...","..r....r...."];
   const SHADOW = ["...7777.....","..777777....",".77q77q77...",".77777777...",".77777777...",".87777778...",".77777777...","..7.77.7....",".7..77..7..."];
-  const BAT = ["................",".VV..........VV.","VVVV..vvvv..VVVV","VVVVvvvvvvvvVVVV",".VVvvWvvvvWvvVV.","..vvveVVeevvv...","...vvvvvvvvv....","....vv..vv......"];
-  const GHOST = ["..wwww....",".wwwwww...","wwewwew...","wwwwwwww..","wwwwwwww..","wwwwwwww..","w.w.w.w..."];
-  const RAT = ["..........","..55......",".5555..6..","55W555.66.",".55555.6..",".5.5.5...."];
-  const WISP = ["...yy.....","..yvvy....",".yvVVvy...",".yvVVvy...","..yvvy....","...yy....."];
+  const BAT = ["................",".VV........VV...","VvvV..2222..VvvV","Vvvvv222222vvvvV",".vvv2WvvvvW2vvv.","..vvveVVeevvv...","...vvvvvvvv.....","....v.v..v.v...."];
+  const GHOST = ["...wwww.....","..wTwwww....",".wTwwwwww...",".wwwwwwww...",".weewweew...",".wwwwwwww...",".wwwwwwww...",".w.ww.ww.w.."];
+  const RAT = ["............","..55........",".5005...6...","550555..66..",".55555.6....",".5.5.5.5....","............"];
+  const WISP = ["...yy.....","..ySSy....",".yvSSvy...",".yvSSvy...",".yvvvvy...","..yvvy....","...yy....."];
 
   const THEMED_SMALL = [SLIME, SPIDER, SCORPION, SNOWMAN, FIRE, JELLY, BIRD, SKELETON, IMP, SHADOW];
   const GENERIC_SMALL = [BAT, GHOST, RAT, WISP];
