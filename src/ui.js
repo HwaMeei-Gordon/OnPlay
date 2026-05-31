@@ -108,8 +108,12 @@
     renderPanel(false);
   }
 
-  // ============ HUD 每幀同步 ============
-  function sync() {
+  // ============ HUD 同步（節流到 ~10/秒，避免每幀 DOM churn）============
+  let hudT = 0, lastSpeed = -1;
+  function sync(dt) {
+    hudT -= dt || 0.033;
+    if (hudT > 0) return;
+    hudT = 0.1;
     const s = St();
     $("stage-val").textContent = s.stage;
     $("region-val").textContent = D().getTheme(s.stage).name;
@@ -117,7 +121,10 @@
     $("gem-val").textContent = fmt(s.gems);
     $("soul-val").textContent = fmt(s.souls);
     $("power-val").textContent = fmt(Sy().teamPower());
-    $("speed-btn").innerHTML = ico("bolt", 12) + " " + (s.speed || 1) + "×";
+    if (s.speed !== lastSpeed) {
+      $("speed-btn").innerHTML = ico("bolt", 12) + " " + (s.speed || 1) + "×";
+      lastSpeed = s.speed;
+    }
   }
 
   // 每秒刷新「可負擔」狀態（不重建 DOM，避免捲動跳動）
