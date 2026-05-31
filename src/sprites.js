@@ -70,15 +70,15 @@
 
   // ===== 小怪（themed 10 + 通用 4）=====
   const SLIME = ["....SGGS....","..SGGGGGGS..",".GGGGGGGGGG.",".GGGGGGGGGG.",".GWWGGGGWWG.",".GWeGGGGWeG.","GGGGGGGGGGGG","9GGGGGGGGGG9","9GGGGGGGGGG9",".99DDDDDD99."];
-  const SPIDER = ["1.1......1.1",".11......11.","..11....11..","...222222...","..2q2222q2..","..22222222..","...222222...","..11....11..",".1........1."];
-  const SCORPION = ["..........N.",".n.......NN.","nn.nnnn..N..",".nnnnnnnnN..","nnnnnnnnnn..",".nnnnnnnn...","nn.nnnn.nn..",".n......n..."];
-  const SNOWMAN = ["............","....iiii....","...iiiiii...","..iieiieii..","..iiilliii..","...iiiiii...","..iiiiiiii..",".iiiiiiiiii.",".iIiiiiiiII.",".iiiiiiiiii.","..iiiiiiii.."];
+  const SPIDER = ["1.1......1.1",".11......11.","..PP2222PP..",".2222222222.",".2q2222q22..",".2211112222.","..22222222..",".11......11.","1.1......1.1"];
+  const SCORPION = [".........NN.",".u......NNn.","un.unnnnnN..",".unnnnnnnN..","unnnnnnnnn..",".unnnnnn....","nn.nnnn.nn..",".n......n..."];
+  const SNOWMAN = ["....ii......","...iWWi.....","..iieeii....","..iillii....","..iiiiii....","...iIIi.....","..iiiiii....",".iiiieiii...",".iIiiiiiI...",".iiiieiii...","..iIiiii...."];
   const FIRE = ["....r..r....","...rf..fr...","..rfYffYfr..","..rfYqqYfr..","..rfYYYYfr..","..rffYYffr..","...rfYYfr...","...rffffr...","..rr.rr.rr.."];
   const JELLY = ["...jjjjjj...","..jjjjjjjj..",".jjjjjjjjjj.",".jJjjjjjjJj.",".jjjjjjjjjj.","..jjjjjjjj..","..c.c.c.c.c.",".c.c.c.c.c..","..c.c.c.c.c."];
-  const BIRD = [".......l....","......lww...","...wwwwwww..","..wwwwwwwww.",".ww.wwwww.ww","w....www...w",".....w.w...."];
+  const BIRD = [".......l....","......lWw...","...wWwwww...","..wwwwwwww..",".ww.wwww.ww.","w....ww....w",".....ww.....","....5..5...."];
   const SKELETON = ["...aaaa.....","..aaaaaa....","..aeaaea....","..aaaaaa....","...aWWa.....","..a.aa.a....",".aa.aa.aa...","..a.aa.a....","..a.aa.a...."];
-  const IMP = ["..K....K....","..rKrrKr....","..rrqqrr....","..rrrrrr....","...rrrr.....","..rRrrRr....",".rr.rr.rr...","..r....r...."];
-  const SHADOW = ["...7777.....","..777777....",".77q77q77...",".77777777...",".77777777...",".87777778...",".77777777...","..7.77.7....",".7..77..7..."];
+  const IMP = ["..K....K....","..KrrrrK....","..frrrrf....","..rqrrqr....","..rrrrrr....","...rRRr.....","..rRrrRr....",".rr.rr.rr...","..r....r...."];
+  const SHADOW = ["...8888.....","..888888....",".88q88q88...",".88888888...",".87777778...",".77777777...",".v777777v...","..7.77.7....",".7..77..7.."];
   const BAT = ["................",".VV........VV...","VvvV..2222..VvvV","Vvvvv222222vvvvV",".vvv2WvvvvW2vvv.","..vvveVVeevvv...","...vvvvvvvv.....","....v.v..v.v...."];
   const GHOST = ["...wwww.....","..wTwwww....",".wTwwwwww...",".wwwwwwww...",".weewweew...",".wwwwwwww...",".wwwwwwww...",".w.ww.ww.w.."];
   const RAT = ["............","..55........",".5005...6...","550555..66..",".55555.6....",".5.5.5.5....","............"];
