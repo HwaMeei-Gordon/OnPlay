@@ -58,7 +58,7 @@
   function itemStatText(it) {
     const sl = D().SLOT_BY_ID[it.slot];
     const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
-    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", critDmg: "暴傷", dodge: "閃避" }[sl.stat];
+    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", critDmg: "暴傷", dodge: "閃避", hit: "命中" }[sl.stat];
     const val = sl.stat === "critDmg" ? "+" + Math.round(v * 100) + "%" : "+" + Math.round(v);
     return statName + " " + val;
   }

@@ -130,6 +130,7 @@
       else if (sl.stat === "def") def_ += v;
       else if (sl.stat === "critDmg") critDmg += v;
       else if (sl.stat === "dodge") dodge += v;
+      else if (sl.stat === "hit") hit += v;
     });
 
     // 技能（被動）

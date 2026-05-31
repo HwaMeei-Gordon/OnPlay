@@ -96,7 +96,7 @@
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
     { id: "weapon", name: "武器", icon: "sword", stat: "atk", base: 6 },
-    { id: "helmet", name: "頭盔", icon: "helmet", stat: "maxHp", base: 28 },
+    { id: "helmet", name: "頭盔", icon: "helmet", stat: "hit", base: 1.5 },
     { id: "armor", name: "鎧甲", icon: "shield", stat: "def", base: 3 },
     { id: "legs", name: "護腿", icon: "legs", stat: "maxHp", base: 22 },
     { id: "boots", name: "靴子", icon: "boots", stat: "dodge", base: 1.2 },
