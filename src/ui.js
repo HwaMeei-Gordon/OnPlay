@@ -179,7 +179,7 @@
     });
     for (let i = s.party.length; i < D().PARTY_MAX; i++) pb += `<div class="pb-slot empty">+</div>`;
     let html = `<div class="party-bar">${pb}</div>`;
-    html += `<div class="sec-title">英雄圖鑑　點英雄可養成</div><div class="hero-grid">`;
+    html += `<div class="sec-title">英雄圖鑑</div><div class="hero-grid">`;
     D().HEROES.forEach((h) => {
       const o = s.heroes[h.id] && s.heroes[h.id].owned;
       const inParty = s.party.indexOf(h.id) >= 0;
@@ -195,7 +195,7 @@
         <div class="hc-pow">${o ? ico("sword", 11) + fmt(pw) : "未擁有"}</div>
       </div>`;
     });
-    html += `</div><div class="hint">未擁有的英雄可在「商店」招募。</div>`;
+    html += `</div>`;
     return html;
   }
 
@@ -257,7 +257,6 @@
     // 套裝效果（同稀有度）
     const set = Sy().heroSetBonus(id);
     html += `<div class="sec-title">套裝效果</div>`;
-    html += `<div class="hint">身上 4 件以上裝備同一稀有度即啟動（攻擊/生命/防禦倍率）</div>`;
     [["uncommon", "全優秀"], ["rare", "全稀有"], ["epic", "全史詩"], ["legendary", "全傳說"]].forEach(([rar, nm]) => {
       const mult = D().SET_RARITY_MULT[rar];
       const active = set && set.rarity === rar;
@@ -347,9 +346,9 @@
         </div>
       </div>`;
     // 升星
-    html += `<div class="sec-title">升星（每星 +25% 基礎數值）</div>`;
+    html += `<div class="sec-title">升星</div>`;
     if (star >= d.STAR_MAX) {
-      html += `<div class="hint">已達最高 ${d.STAR_MAX} 星${it.rarity === "legendary" ? "，可升級為神話" : ""}</div>`;
+      html += "";
     } else {
       const tier = d.scrollTierFor(star), rule = d.STAR_RULES[star], own = St().scrolls[tier] || 0;
       html += `<div class="star-info">
@@ -379,7 +378,7 @@
       html += `<div class="gacha-card">
         <div class="gc-icon">${ico(box.icon, 32)}</div>
         <div class="gc-info"><div class="gc-name">${box.name}</div>
-        <div class="gc-sub">${bt === "gem" ? "高機率獲得稀有以上！" : "基礎裝備寶箱"}</div></div>
+        </div>
         <div class="gc-btns">
           ${buyBtn("gacha-open", { box: bt, count: 1 }, box.cur, box.cost, "開 1 次")}
           ${buyBtn("gacha-open", { box: bt, count: 10 }, box.cur, box.cost * 10, "開 10 次")}
@@ -387,11 +386,7 @@
         </div>
       </div>`;
     });
-    html += `<div class="sec-title">機率</div><div class="rate-box">`;
-    D().RARITIES.forEach((r) => {
-      html += `<div class="rate-row"><span style="color:${r.color}">${r.name}</span><span>金箱 ${r.weightGold}｜鑽箱 ${r.weightGem}</span></div>`;
-    });
-    return html + `</div>`;
+    return html;
   }
 
   // ---- 商店 ----
@@ -438,7 +433,7 @@
   // ---- 寵物 ----
   function renderPets() {
     const s = St();
-    let html = `<div class="sec-title">寵物（出戰提供全隊加成）</div><div class="pet-grid">`;
+    let html = `<div class="sec-title">寵物</div><div class="pet-grid">`;
     D().PETS.forEach((p) => {
       const owned = !!s.pets[p.id];
       const lv = owned ? s.pets[p.id].level : 0;
@@ -461,7 +456,7 @@
 
   // ---- 訓練 ----
   function renderTraining() {
-    let html = `<div class="sec-title">屬性訓練（全隊永久加成）</div>`;
+    let html = `<div class="sec-title">屬性訓練</div>`;
     const pct = (v) => { const n = v * 100; return n < 10 && n > 0 ? n.toFixed(1) : Math.round(n); };
     D().TRAININGS.forEach((t) => {
       const lv = St().trainings[t.id] || 0;
@@ -481,7 +476,7 @@
   // ---- 天賦 ----
   function renderTalents() {
     let html = `<div class="sec-title">才能天賦　可用點數：<b style="color:#ffd23f">${St().talentPoints}</b></div>
-      <div class="hint">推進關卡里程碑可獲得才能點。</div><div class="talent-grid">`;
+      <div class="talent-grid">`;
     D().TALENTS.forEach((t) => {
       const lv = St().talents[t.id] || 0;
       const max = lv >= t.max;
@@ -508,7 +503,6 @@
       <div class="prestige-top">
         <div>本輪最高層：<b>${s.runBestStage}</b>　（需達 ${D().PRESTIGE.minStage} 層）</div>
         <div>轉生可得靈魂 ${ico("soul", 13)} <b style="color:#b06ae0">${gain}</b>　已轉生 ${s.prestige.count} 次</div>
-        <div class="hint">轉生會重置關卡/金幣/訓練/英雄等級，保留裝備、技能、寵物、天賦、鑽石與轉生天賦。</div>
         <button class="primary-btn ${can ? "" : "dim"}" data-act="prestige-go" ${can ? "" : "disabled"}>${can ? "轉生（+" + gain + "）" : "尚未達標"}</button>
       </div>
       <div class="sec-title">轉生天賦（用靈魂）　持有 ${ico("soul", 13)} ${fmt(s.souls)}</div>`;
@@ -577,7 +571,6 @@
         ${statLine("轉生次數", s.stats.prestiges)}
         ${statLine("每秒金幣", fmt(s.goldPerSec))}
       </div>
-      <div class="hint">進度自動儲存於本機 Chrome（localStorage）。換裝置/清除瀏覽資料會遺失存檔。</div>
       <button class="danger-btn" data-act="reset-game">重置全部進度</button>`;
   }
 

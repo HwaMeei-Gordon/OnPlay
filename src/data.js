@@ -101,11 +101,13 @@
   const SLOT_BY_ID = {};
   EQUIPMENT_SLOTS.forEach((s) => (SLOT_BY_ID[s.id] = s));
 
-  // 裝備數值：(欄位基礎 × 稀有度 × 階級) ×(星星加成) ×(強化加成)
+  // 裝備數值：(欄位基礎 × 稀有度 × 階級) 以指數升星 ^(1+星/2)，再算強化加成
   function itemStatValue(slot, rarity, tier, enhance, stars) {
     const sl = SLOT_BY_ID[slot];
     const ra = RARITY_BY_ID[rarity];
-    return sl.base * ra.mult * tier * starMult(stars) * (1 + (enhance || 0) * 0.12);
+    const base0 = sl.base * ra.mult * tier;
+    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 2));
+    return starred * (1 + (enhance || 0) * 0.12);
   }
   function itemTierForStage(stage) {
     return 1 + Math.floor(stage / 12);
