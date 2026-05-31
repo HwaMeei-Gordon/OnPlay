@@ -255,19 +255,18 @@
     });
     html += `</div>`;
 
-    // 套裝效果（同稀有度）
+    // 套裝效果（只顯示已啟動的）
     const set = Sy().heroSetBonus(id);
-    html += `<div class="sec-title">套裝效果</div>`;
-    [["uncommon", "全優秀"], ["rare", "全稀有"], ["epic", "全史詩"], ["legendary", "全傳說"]].forEach(([rar, nm]) => {
-      const mult = D().SET_RARITY_MULT[rar];
-      const active = set && set.rarity === rar;
-      html += `<div class="set-row ${active ? "on" : ""}" style="--rc:${rarColor(rar)}">
+    if (set) {
+      const nm = { uncommon: "全優秀", rare: "全稀有", epic: "全史詩", legendary: "全傳說", mythic: "全神話" }[set.rarity] || "套裝";
+      html += `<div class="sec-title">套裝效果</div>`;
+      html += `<div class="set-row on" style="--rc:${rarColor(set.rarity)}">
         <span class="set-dot"></span>
         <span class="set-name">${nm}套裝</span>
-        <span class="set-eff">攻擊·生命·防禦 ×${Math.round(mult * 100)}%</span>
-        <span class="set-tag">${active ? "啟動中" : "未啟動"}</span>
+        <span class="set-eff">攻擊·生命·防禦 ×${Math.round(set.mult * 100)}%</span>
+        <span class="set-tag">啟動中</span>
       </div>`;
-    });
+    }
 
     // 技能
     html += `<div class="sec-title">技能</div>`;
