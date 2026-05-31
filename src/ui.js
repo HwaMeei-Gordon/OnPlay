@@ -85,6 +85,8 @@
 
     // 面板事件委派
     $("panel-content").addEventListener("click", onPanelClick);
+    // modal 內按鈕也用同一套委派（裝備選擇/卸下等）
+    $("modal-content").addEventListener("click", onPanelClick);
     // modal 點背景關閉
     $("modal-layer").addEventListener("click", (e) => {
       if (e.target.id === "modal-layer") closeModal();
