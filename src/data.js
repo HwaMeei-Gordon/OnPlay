@@ -43,9 +43,9 @@
   function makeEnemyStats(stage, isBoss) {
     const s = stage;
     const base = {
-      maxHp: Math.floor(32 * Math.pow(1.185, s - 1)),
-      atk: Math.floor(6 * Math.pow(1.165, s - 1)),
-      def: Math.floor(1 * Math.pow(1.1, s - 1)),
+      maxHp: Math.floor(32 * Math.pow(1.15, s - 1)),
+      atk: Math.floor(6 * Math.pow(1.12, s - 1)),
+      def: Math.floor(1 * Math.pow(1.08, s - 1)),
       gold: Math.floor(12 * Math.pow(1.18, s - 1)),
       xp: Math.floor(9 * Math.pow(1.15, s - 1)),
       gems: 0,
@@ -54,14 +54,14 @@
       dodge: Math.floor(5 * Math.pow(1.04, s - 1)),
     };
     if (isBoss) {
-      base.maxHp = Math.floor(base.maxHp * 6);
-      base.atk = Math.floor(base.atk * 1.6);
+      base.maxHp = Math.floor(base.maxHp * 4.5);
+      base.atk = Math.floor(base.atk * 1.35);
       base.def = Math.floor(base.def * 1.5);
-      base.hit = Math.floor(base.hit * 1.5);
-      base.dodge = Math.floor(base.dodge * 1.5);
+      base.hit = Math.floor(base.hit * 1.4);
+      base.dodge = Math.floor(base.dodge * 1.4);
       base.gold = Math.floor(base.gold * 16);
       base.xp = Math.floor(base.xp * 10);
-      base.gems = 2 + Math.floor(stage / BOSS_EVERY); // 魔王掉鑽石
+      base.gems = 6 + Math.floor(stage / 3); // 魔王掉鑽石
       base.atkInterval = 1.5;
     }
     return base;
@@ -121,7 +121,7 @@
     return (0.9 * d) / (d + EVADE_K);
   }
   function itemTierForStage(stage) {
-    return 1 + Math.floor(stage / 12);
+    return 1 + Math.floor(stage / 8);
   }
   function enhanceCost(item) {
     return Math.floor(25 * Math.pow(1.45, item.enhance) * (1 + RARITY_BY_ID[item.rarity].mult));
@@ -133,7 +133,7 @@
 
   // ---- 開箱 ----
   const GACHA = {
-    gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 150, costMul: 1.0, weightKey: "weightGold", icon: "box" },
+    gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 80, costMul: 1.0, weightKey: "weightGold", icon: "box" },
     gem: { id: "gem", name: "鑽石寶箱", cur: "gems", cost: 30, costMul: 1.0, weightKey: "weightGem", icon: "box" },
   };
 
@@ -142,38 +142,38 @@
   const HEROES = [
     {
       id: "knight", name: "騎士", cls: "戰士", sprite: "knight", rarity: "common",
-      base: { atk: 14, maxHp: 140, def: 4, crit: 0.05, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 12 },
+      base: { atk: 14, maxHp: 185, def: 4, crit: 0.05, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 12 },
       growth: { atk: 2.4, maxHp: 26, def: 0.7 },
       skills: ["slash", "guard", "rally"],
       starter: true,
     },
     {
       id: "mage", name: "法師", cls: "法師", sprite: "mage", rarity: "uncommon",
-      base: { atk: 18, maxHp: 85, def: 2, crit: 0.07, critDmg: 1.8, atkInterval: 1.25, lifesteal: 0, hit: 95, dodge: 12 },
+      base: { atk: 18, maxHp: 115, def: 2, crit: 0.07, critDmg: 1.8, atkInterval: 1.25, lifesteal: 0, hit: 95, dodge: 12 },
       growth: { atk: 3.6, maxHp: 16, def: 0.4 },
       skills: ["fireball", "frost", "rally"],
     },
     {
       id: "archer", name: "弓手", cls: "弓手", sprite: "archer", rarity: "uncommon",
-      base: { atk: 13, maxHp: 95, def: 2, crit: 0.12, critDmg: 1.9, atkInterval: 0.8, lifesteal: 0, hit: 115, dodge: 28 },
+      base: { atk: 13, maxHp: 125, def: 2, crit: 0.12, critDmg: 1.9, atkInterval: 0.8, lifesteal: 0, hit: 115, dodge: 28 },
       growth: { atk: 2.8, maxHp: 18, def: 0.5 },
       skills: ["multishot", "focus", "guard"],
     },
     {
       id: "priest", name: "牧師", cls: "牧師", sprite: "priest", rarity: "rare",
-      base: { atk: 9, maxHp: 110, def: 3, crit: 0.05, critDmg: 1.6, atkInterval: 1.1, lifesteal: 0, hit: 95, dodge: 16 },
+      base: { atk: 9, maxHp: 150, def: 3, crit: 0.05, critDmg: 1.6, atkInterval: 1.1, lifesteal: 0, hit: 95, dodge: 16 },
       growth: { atk: 1.8, maxHp: 22, def: 0.6 },
       skills: ["heal", "bless", "guard"],
     },
     {
       id: "rogue", name: "盜賊", cls: "盜賊", sprite: "rogue", rarity: "rare",
-      base: { atk: 14, maxHp: 90, def: 2, crit: 0.15, critDmg: 2.1, atkInterval: 0.7, lifesteal: 0.06, hit: 110, dodge: 45 },
+      base: { atk: 14, maxHp: 120, def: 2, crit: 0.15, critDmg: 2.1, atkInterval: 0.7, lifesteal: 0.06, hit: 110, dodge: 45 },
       growth: { atk: 3.0, maxHp: 17, def: 0.4 },
       skills: ["backstab", "focus", "rage"],
     },
     {
       id: "berserker", name: "狂戰士", cls: "狂戰", sprite: "berserker", rarity: "epic",
-      base: { atk: 20, maxHp: 120, def: 2, crit: 0.1, critDmg: 2.0, atkInterval: 0.95, lifesteal: 0.05, hit: 100, dodge: 12 },
+      base: { atk: 20, maxHp: 160, def: 2, crit: 0.1, critDmg: 2.0, atkInterval: 0.95, lifesteal: 0.05, hit: 100, dodge: 12 },
       growth: { atk: 4.0, maxHp: 24, def: 0.5 },
       skills: ["rage", "slash", "rally"],
     },
@@ -185,7 +185,7 @@
     return Math.floor(22 * Math.pow(1.38, level - 1));
   }
   function heroLevelCost(level) {
-    return Math.floor(12 * Math.pow(1.26, level - 1));
+    return Math.floor(12 * Math.pow(1.20, level - 1));
   }
 
   // ---- 英雄技能（被動 passive / 主動 active）----
@@ -280,11 +280,11 @@
   const SHOP = [
     { id: "box_gold", name: "金幣寶箱", icon: "box", cur: "gold", cost: 150, give: { box: "gold" }, daily: false },
     { id: "box_gem", name: "鑽石寶箱", icon: "box", cur: "gems", cost: 30, give: { box: "gem" }, daily: false },
-    { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 200, give: { hero: "mage" }, once: true },
-    { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 250, give: { hero: "archer" }, once: true },
-    { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 400, give: { hero: "priest" }, once: true },
-    { id: "buy_hero_rogue", name: "招募：盜賊", icon: "dagger", cur: "gems", cost: 500, give: { hero: "rogue" }, once: true },
-    { id: "buy_hero_zerk", name: "招募：狂戰士", icon: "axe", cur: "gems", cost: 800, give: { hero: "berserker" }, once: true },
+    { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 50, give: { hero: "mage" }, once: true },
+    { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 90, give: { hero: "archer" }, once: true },
+    { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 180, give: { hero: "priest" }, once: true },
+    { id: "buy_hero_rogue", name: "招募：盜賊", icon: "dagger", cur: "gems", cost: 260, give: { hero: "rogue" }, once: true },
+    { id: "buy_hero_zerk", name: "招募：狂戰士", icon: "axe", cur: "gems", cost: 380, give: { hero: "berserker" }, once: true },
     { id: "buy_pet_wolf", name: "寵物：幼狼", icon: "paw", cur: "gems", cost: 300, give: { pet: "wolf" }, once: true },
     { id: "buy_pet_owl", name: "寵物：貓頭鷹", icon: "paw", cur: "gems", cost: 600, give: { pet: "owl" }, once: true },
     { id: "buy_pet_drake", name: "寵物：幼龍", icon: "paw", cur: "gems", cost: 1200, give: { pet: "drake" }, once: true },

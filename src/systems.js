@@ -222,7 +222,7 @@
     if (stage > State.bestStage) {
       const crossed = Math.floor(stage / 5) > Math.floor(State.bestStage / 5);
       State.bestStage = stage;
-      if (crossed) State.talentPoints += 1; // 推進里程碑給才能點
+      if (crossed) { State.talentPoints += 1; State.gems += 6 + Math.floor(stage / 6); } // 里程碑給才能點 + 鑽石
     }
   }
 
