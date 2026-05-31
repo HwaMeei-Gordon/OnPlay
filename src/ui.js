@@ -57,14 +57,14 @@
 
   function itemStatText(it) {
     const sl = D().SLOT_BY_ID[it.slot];
-    const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+    const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
     const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", crit: "暴擊", dodge: "閃避" }[sl.stat];
     const val = sl.stat === "crit" || sl.stat === "dodge" ? (v * 100).toFixed(1) + "%" : "+" + Math.round(v);
     return statName + " " + val;
   }
   function itemName(it) {
     const sl = D().SLOT_BY_ID[it.slot];
-    return rarName(it.rarity) + sl.name + (it.enhance ? " +" + it.enhance : "");
+    return rarName(it.rarity) + sl.name + (it.stars ? " " + it.stars + "★" : "") + (it.enhance ? " +" + it.enhance : "");
   }
 
   // ============ 初始化 ============
@@ -315,13 +315,14 @@
     if (bagFilter !== "all") items = items.filter((it) => it.slot === bagFilter);
     items.sort((a, b) =>
       D().RARITIES.findIndex((r) => r.id === b.rarity) - D().RARITIES.findIndex((r) => r.id === a.rarity)
-      || D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance)
+      || D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance, b.stars) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance, a.stars)
     );
     html += `<div class="bag-cells">`;
     items.forEach((it) => {
       const equipped = Sy().isEquipped(it.uid);
       html += `<div class="bag-cell" data-act="bag-open" data-uid="${it.uid}" style="--rc:${rarColor(it.rarity)}">
         ${ico(it.slot, 26)}
+        ${it.stars ? `<span class="bc-star">${it.stars}★</span>` : ""}
         ${it.enhance ? `<span class="bc-badge">+${it.enhance}</span>` : ""}
         ${equipped ? `<span class="bc-eq"></span>` : ""}
       </div>`;
@@ -334,17 +335,35 @@
     if (!it) return;
     const equipped = Sy().isEquipped(uid);
     const eCost = D().enhanceCost(it);
+    const star = it.stars || 0, d = D();
     let html = `<div class="modal-title" style="color:${rarColor(it.rarity)}">${itemName(it)}</div>
       <div class="item-modal">
         <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
         <div class="im-info">
           <div>${rarName(it.rarity)}・${D().SLOT_BY_ID[it.slot].name}</div>
           <div class="im-stat">${itemStatText(it)}</div>
-          <div class="im-sub">階級 ${it.tier}　強化 +${it.enhance}</div>
+          <div class="im-sub">階級 ${it.tier}　強化 +${it.enhance}　星 ${star}★/${d.STAR_MAX}</div>
           ${equipped ? `<div class="badge">裝備中</div>` : ""}
         </div>
+      </div>`;
+    // 升星
+    html += `<div class="sec-title">升星（每星 +25% 基礎數值）</div>`;
+    if (star >= d.STAR_MAX) {
+      html += `<div class="hint">已達最高 ${d.STAR_MAX} 星${it.rarity === "legendary" ? "，可升級為神話" : ""}</div>`;
+    } else {
+      const tier = d.scrollTierFor(star), rule = d.STAR_RULES[star], own = St().scrolls[tier] || 0;
+      html += `<div class="star-info">
+        <div>需要 <b>${tier}星卷</b>（持有 ${own}）　成功率 <b style="color:${rule.s >= 0.85 ? "#5ec46b" : rule.s >= 0.6 ? "#ffd23f" : "#e84141"}">${Math.round(rule.s * 100)}%</b></div>
+        <div>失敗時消失機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
       </div>
-      <div class="row-btns">
+      <button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${tier}星卷）</button>`;
+    }
+    if (it.rarity === "legendary" && star >= d.STAR_MAX) {
+      html += `<button class="primary-btn" style="background:linear-gradient(#ff5a64,#c01f2c);box-shadow:0 3px 0 #7a141c;color:#fff" onclick="Game.UI._itemMythic(${uid})">升級為神話（星歸零）</button>`;
+    }
+    html += `<div class="scroll-bag">卷軸：${[1, 2, 3, 4, 5].map((t) => `${t}★×${St().scrolls[t] || 0}`).join("　")}</div>`;
+    // 強化 / 分解 / 關閉
+    html += `<div class="row-btns" style="margin-top:8px">
         <button class="buy-btn" ${St().gold < eCost ? "disabled" : ""} onclick="Game.UI._itemEnhance(${uid})"><span class="cost">${ico("coin", 13)}${fmt(eCost)}</span><span class="lbl">強化</span></button>
         ${equipped ? "" : `<button class="mini-btn danger" onclick="Game.UI._itemSalvage(${uid})">分解 ${ico("coin", 12)}${fmt(D().salvageValue(it))}</button>`}
         <button class="act-btn" onclick="Game.UI._close()">關閉</button>
@@ -401,6 +420,17 @@
             <span class="cost">${stt.soldOut ? "已售完" : label}</span></button>
         </div>`;
       });
+    });
+    // 升星卷軸
+    html += `<div class="shop-group">升星卷軸</div>`;
+    [1, 2, 3, 4, 5].forEach((t) => {
+      const cost = D().SCROLL_COST[t], own = St().scrolls[t] || 0;
+      html += `<div class="shop-item">
+        <div class="si-icon">${ico("scroll", 24)}</div>
+        <div class="si-main"><div class="si-name">${t} 星卷軸</div><div class="si-sub">持有 ${own}</div></div>
+        <button class="buy-btn" data-act="buy-scroll" data-tier="${t}" data-cur="gold" data-cost="${cost}" ${St().gold < cost ? "disabled" : ""}>
+          <span class="cost">${curIco("gold")}${fmt(cost)}</span></button>
+      </div>`;
     });
     return html;
   }
@@ -580,6 +610,7 @@
       case "auto-equip-party": { St().party.forEach((h) => Sy().autoEquipBest(h)); toast("全隊已換上最強裝備"); break; }
       case "gacha-open": { const items = Sy().doGacha(t.dataset.box, +t.dataset.count); if (items) showGachaResult(items); else toast("貨幣不足"); break; }
       case "shop-buy": { const r = Sy().shopBuy(id); toast(r.ok ? "購買成功！" : r.msg); if (r.ok && r.result && r.result.items) showGachaResult(r.result.items); break; }
+      case "buy-scroll": { if (Sy().buyScroll(+t.dataset.tier)) toast("購買 " + t.dataset.tier + " 星卷軸"); break; }
       case "pet-up": Sy().upgradePet(id); break;
       case "pet-active": Sy().setActivePet(id); break;
       case "train-buy": Sy().buyTraining(id); break;
@@ -615,7 +646,7 @@
   function openEquipPicker(heroId, slot) {
     equipPickHero = heroId;
     const items = St().inventory.filter((it) => it.slot === slot)
-      .sort((a, b) => D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance));
+      .sort((a, b) => D().itemStatValue(b.slot, b.rarity, b.tier, b.enhance, b.stars) - D().itemStatValue(a.slot, a.rarity, a.tier, a.enhance, a.stars));
     const cur = St().heroes[heroId].equip[slot];
     let html = `<div class="modal-title">選擇 ${D().SLOT_BY_ID[slot].name}</div>`;
     html += `<button class="act-btn" data-act="slot-unequip" data-slot="${slot}">卸下</button>`;
@@ -690,7 +721,16 @@
     init, sync, tickAfford, showOffline, openTab, refresh,
     _close: closeModal,
     _reset: () => { Game.Save.reset(); location.reload(); },
-    _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(); sync(); },
-    _itemSalvage: (uid) => { Sy().salvageItem(uid); closeModal(); renderPanel(); sync(); },
+    _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(true); sync(); },
+    _itemSalvage: (uid) => { Sy().salvageItem(uid); closeModal(); renderPanel(true); sync(); },
+    _itemStar: (uid) => {
+      const r = Sy().starUp(uid);
+      if (!r.ok) { toast(r.msg); return; }
+      if (r.destroyed) { toast("升星失敗…裝備消失了！"); closeModal(); }
+      else if (r.success) { toast("升星成功！ ★" + r.star); openItemModal(uid); }
+      else { toast("升星失敗（卷軸消耗）"); openItemModal(uid); }
+      renderPanel(true); sync();
+    },
+    _itemMythic: (uid) => { if (Sy().upgradeToMythic(uid)) { toast("升級為神話裝備！"); openItemModal(uid); renderPanel(true); sync(); } },
   };
 })();

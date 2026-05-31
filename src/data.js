@@ -70,12 +70,24 @@
     { id: "rare", name: "稀有", color: "#4a9fe0", mult: 2.3, weightGold: 6, weightGem: 24 },
     { id: "epic", name: "史詩", color: "#b06ae0", mult: 3.6, weightGold: 1.2, weightGem: 7 },
     { id: "legendary", name: "傳說", color: "#ffb43d", mult: 5.5, weightGold: 0.3, weightGem: 3 },
+    { id: "mythic", name: "神話", color: "#ff3b46", mult: 9.0, weightGold: 0, weightGem: 0 },
   ];
   const RARITY_BY_ID = {};
   RARITIES.forEach((r) => (RARITY_BY_ID[r.id] = r));
 
   // 套裝：身上 4 件以上同稀有度 → 攻擊/生命/防禦 倍率
-  const SET_RARITY_MULT = { uncommon: 1.5, rare: 2.0, epic: 3.0, legendary: 5.0 };
+  const SET_RARITY_MULT = { uncommon: 1.5, rare: 2.0, epic: 3.0, legendary: 5.0, mythic: 10.0 };
+
+  // ---- 升星 ----
+  const STAR_MAX = 10;
+  // 由「目前星數」升下一星：success 成功率、destroy 失敗後消失機率
+  const STAR_RULES = [
+    { s: 1.0, d: 0 }, { s: 1.0, d: 0 }, { s: 0.95, d: 0 }, { s: 0.9, d: 0 }, { s: 0.85, d: 0.1 },
+    { s: 0.8, d: 0.15 }, { s: 0.75, d: 0.2 }, { s: 0.7, d: 0.33 }, { s: 0.6, d: 0.5 }, { s: 0.45, d: 1.0 },
+  ];
+  function scrollTierFor(star) { return Math.min(5, star + 1); } // 5 星以上都用 5 星卷
+  function starMult(stars) { return 1 + 0.25 * (stars || 0); }   // 每星 +25% 基礎數值
+  const SCROLL_COST = { 1: 1500, 2: 6000, 3: 24000, 4: 90000, 5: 320000 }; // 金幣
 
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
@@ -89,12 +101,11 @@
   const SLOT_BY_ID = {};
   EQUIPMENT_SLOTS.forEach((s) => (SLOT_BY_ID[s.id] = s));
 
-  // 裝備物品某屬性的數值：欄位基礎 × 稀有度 × 階級(隨開箱時關卡) ×(1+強化*0.12)
-  function itemStatValue(slot, rarity, tier, enhance) {
+  // 裝備數值：(欄位基礎 × 稀有度 × 階級) ×(星星加成) ×(強化加成)
+  function itemStatValue(slot, rarity, tier, enhance, stars) {
     const sl = SLOT_BY_ID[slot];
     const ra = RARITY_BY_ID[rarity];
-    const v = sl.base * ra.mult * tier * (1 + (enhance || 0) * 0.12);
-    return v;
+    return sl.base * ra.mult * tier * starMult(stars) * (1 + (enhance || 0) * 0.12);
   }
   function itemTierForStage(stage) {
     return 1 + Math.floor(stage / 12);
@@ -367,7 +378,7 @@
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
-    RARITIES, RARITY_BY_ID, SET_RARITY_MULT,
+    RARITIES, RARITY_BY_ID, SET_RARITY_MULT, STAR_MAX, STAR_RULES, scrollTierFor, starMult, SCROLL_COST,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
     GACHA,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,

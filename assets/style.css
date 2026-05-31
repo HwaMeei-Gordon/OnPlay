@@ -375,3 +375,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .set-eff { font-size: 10px; color: var(--muted); flex: 1; }
 .set-tag { font-size: 10px; font-weight: bold; color: #6f6790; }
 .set-row.on .set-tag { color: var(--rc); }
+
+/* ===== 升星 / 神話 ===== */
+.bc-star { position: absolute; top: 1px; left: 2px; font-size: 8px; color: #ffd23f; font-weight: bold; text-shadow: 0 1px 0 #000; }
+.star-info { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 11px; line-height: 1.7; margin-bottom: 8px; }
+.scroll-bag { font-size: 10px; color: var(--muted); text-align: center; margin-top: 8px; }
