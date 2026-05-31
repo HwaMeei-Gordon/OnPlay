@@ -248,9 +248,15 @@
       const sp = e.sprite;
       const tint = e.hitFlash > 0 ? "#ffffff" : null;
       const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake);
-      drawSprite(sp, ex, v.ground + 1 + ey, !e.isBoss, tint);
+      drawSprite(sp, ex, v.ground + 1 + ey, !e.isBoss, e.isChest && !tint ? "#ffcf3d" : tint);
       const bw = Math.max(10, spriteWidth(sp) - 2);
       drawBar(ex - bw / 2, v.ground - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+      // 寶箱怪：頭頂金色寶箱標記
+      if (e.isChest) {
+        const my = v.ground - sp.length - 9 + ey, mx = Math.round(ex);
+        rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
+        rect(mx - 1, my + 1, 2, 5, "#ffe27a");
+      }
     });
 
     // 寵物
