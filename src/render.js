@@ -5,12 +5,15 @@
 (function () {
   "use strict";
   const Game = (window.Game = window.Game || {});
-  let canvas, ctx;
+  let canvas, ctx, mainCtx;
+  let bgCanvas, bgCtx, bgKey = "", lutCache = {};
   const D = () => Game.Data;
 
   function init(cv) {
     canvas = cv;
-    ctx = canvas.getContext("2d");
+    mainCtx = ctx = canvas.getContext("2d");
+    bgCanvas = document.createElement("canvas");
+    bgCtx = bgCanvas.getContext("2d");
     resize();
     window.addEventListener("resize", resize);
   }
@@ -21,10 +24,16 @@
     worldW = Math.max(120, Math.min(460, worldW)); // 允許貼合顯示比例 → 正方形像素，不再被拉伸
     canvas.width = worldW;
     canvas.height = d.WORLD_H;
-    ctx.imageSmoothingEnabled = false;
+    mainCtx.imageSmoothingEnabled = false;
     Game.view.w = worldW;
     Game.view.h = d.WORLD_H;
     Game.view.ground = d.WORLD_H - d.GROUND_FROM_BOTTOM;
+    // 背景離屏快取尺寸 + 失效
+    bgCanvas.width = worldW;
+    bgCanvas.height = d.WORLD_H;
+    if (bgCtx) bgCtx.imageSmoothingEnabled = false;
+    bgKey = "";
+    lutCache = {};
   }
 
   function spriteWidth(sp) {
@@ -121,32 +130,54 @@
     return "rgb(" + Math.round(ar + (br - ar) * t) + "," + Math.round(ag + (bg - ag) * t) + "," + Math.round(ab + (bb - ab) * t) + ")";
   }
 
-  // 丘陵層：逐列垂直漸層（頂部偏霧色、底部較實），消除「平板色帶」分層感
-  function drawHills(bodyTop, bodyBot, rim, amp, base, freq, scroll) {
+  // 預先建立「與捲動無關」的顏色查表（每主題/尺寸只算一次）→ 繪製時不再逐像素配置字串
+  function buildLUT(theme) {
+    const v = Game.view, g = v.ground;
+    const key = theme.name + "|" + g + "|" + v.h;
+    if (lutCache[key]) return lutCache[key];
+    const sky = theme.sky, n = sky.length, skyBot = sky[n - 1];
+    const skyRow = new Array(g);
+    for (let y = 0; y < g; y++) {
+      const f = (y / Math.max(1, g - 1)) * (n - 1);
+      const i = Math.min(n - 2, Math.floor(f));
+      skyRow[y] = lerpColor(sky[i], sky[i + 1], f - i);
+    }
+    const gTop = theme.ground, gBot = lerpColor(theme.ground, "#000000", 0.55), gh = Math.max(1, v.h - g);
+    const groundRow = new Array(v.h - g);
+    for (let y = g; y < v.h; y++) groundRow[y - g] = lerpColor(gTop, gBot, (y - g) / gh);
+    const RN = 20, farRamp = new Array(RN), midRamp = new Array(RN);
+    const farTop = lerpColor(theme.horizon, skyBot, 0.62), farBot = theme.horizon;
+    const midTop = lerpColor(theme.farColor, skyBot, 0.34), midBot = lerpColor(theme.farColor, "#0a0610", 0.22);
+    for (let i = 0; i < RN; i++) { farRamp[i] = lerpColor(farTop, farBot, i / (RN - 1)); midRamp[i] = lerpColor(midTop, midBot, i / (RN - 1)); }
+    return (lutCache[key] = {
+      skyRow, groundRow, farRamp, midRamp, RN,
+      farRim: lighten(theme.horizon, 16), midRim: lighten(theme.farColor, 22),
+      dlite: lighten(theme.ground, 16), ddark: lerpColor(theme.ground, "#000000", 0.4),
+      grassTip: lighten(theme.decoColor, 26), grassBase: lerpColor(theme.decoColor, "#0c1206", 0.5),
+    });
+  }
+
+  // 丘陵層：用預建色階查表（不再逐像素 lerpColor）
+  function drawHills(ramp, RN, rim, amp, base, freq, scroll) {
     const v = Game.view, g = v.ground;
     for (let x = 0; x < v.w; x++) {
       const t = (x + scroll) * freq;
       const ty = Math.round(base - amp * (0.55 + 0.45 * Math.sin(t)) - amp * 0.3 * Math.sin(t * 2.7 + 1.3));
       const hh = Math.max(1, g + 3 - ty);
       for (let y = ty; y < g + 3; y++) {
-        ctx.fillStyle = lerpColor(bodyTop, bodyBot, (y - ty) / hh);
-        ctx.fillRect(x, y, 1, 1);
+        let idx = (((y - ty) / hh) * RN) | 0; if (idx >= RN) idx = RN - 1;
+        ctx.fillStyle = ramp[idx]; ctx.fillRect(x, y, 1, 1);
       }
       ctx.fillStyle = rim; ctx.fillRect(x, ty, 1, 1);
     }
   }
 
+  // 繪製整個背景到目前的 ctx（呼叫前 ctx 已指向離屏快取）
   function drawBackground(scroll, theme) {
-    const v = Game.view, g = v.ground;
-    const sky = theme.sky, n = sky.length, skyBot = sky[n - 1];
-    // 天空：平滑漸層
-    for (let y = 0; y < g; y++) {
-      const f = (y / (g - 1)) * (n - 1);
-      const i = Math.min(n - 2, Math.floor(f));
-      ctx.fillStyle = lerpColor(sky[i], sky[i + 1], f - i);
-      ctx.fillRect(0, y, v.w, 1);
-    }
-    // 雲（散落、極淡、不成帶）
+    const v = Game.view, g = v.ground, L = buildLUT(theme);
+    // 天空（查表）
+    for (let y = 0; y < g; y++) { ctx.fillStyle = L.skyRow[y]; ctx.fillRect(0, y, v.w, 1); }
+    // 雲
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     const cl = (scroll * 0.04) % 150;
     const puffs = [[10, 14], [62, 24], [118, 10], [176, 28], [232, 18], [288, 12]];
@@ -154,41 +185,29 @@
       let x = Math.round(p[0] - cl); while (x < -30) x += 300; const y = p[1];
       ctx.fillRect(x, y, 16, 3); ctx.fillRect(x + 4, y - 2, 9, 3); ctx.fillRect(x + 2, y + 3, 12, 2);
     });
-    // 遠景丘陵（霧化貼近天空 → 強烈遠感）
-    drawHills(lerpColor(theme.horizon, skyBot, 0.62), theme.horizon, lighten(theme.horizon, 16), 7, g - 13, 0.045, scroll * 0.08);
-    // 中景丘陵（頂霧化、底偏暗）
-    const midBot = lerpColor(theme.farColor, "#0a0610", 0.22);
-    drawHills(lerpColor(theme.farColor, skyBot, 0.34), midBot, lighten(theme.farColor, 22), 13, g - 1, 0.07, scroll * 0.3);
-    // 地面：泥土漸層（深處漸暗）
-    const gTop = theme.ground;
-    const gBot = lerpColor(theme.ground, "#000000", 0.55);
-    const gh = Math.max(1, v.h - g);
-    for (let y = g; y < v.h; y++) {
-      ctx.fillStyle = lerpColor(gTop, gBot, (y - g) / gh);
-      ctx.fillRect(0, y, v.w, 1);
-    }
-    // 泥土抖動質感（亮/暗碎石斑點，隨前進捲動）
-    const dlite = lighten(theme.ground, 16), ddark = lerpColor(theme.ground, "#000000", 0.4);
-    const dof = Math.floor(scroll) % 12;
+    // 遠/中景丘陵
+    drawHills(L.farRamp, L.RN, L.farRim, 7, g - 13, 0.045, scroll * 0.08);
+    drawHills(L.midRamp, L.RN, L.midRim, 13, g - 1, 0.07, scroll * 0.3);
+    // 地面（查表）
+    for (let y = g; y < v.h; y++) { ctx.fillStyle = L.groundRow[y - g]; ctx.fillRect(0, y, v.w, 1); }
+    // 泥土碎石
+    const gh = Math.max(1, v.h - g), dof = Math.floor(scroll) % 12;
     for (let x = -12; x < v.w + 12; x += 6) {
-      const rx = x - dof;
-      const seed = (((x * 41) % 13) + 13) % 13;
-      ctx.fillStyle = seed < 6 ? ddark : dlite;
+      const rx = x - dof, seed = (((x * 41) % 13) + 13) % 13;
+      ctx.fillStyle = seed < 6 ? L.ddark : L.dlite;
       const yy = g + 4 + ((((x * 17) % (gh - 6)) + (gh - 6)) % (gh - 6));
       ctx.fillRect(rx, yy, 2, 1);
       if (seed % 4 === 0) ctx.fillRect(rx + 3, yy + 4, 1, 1);
     }
-    // 表層草皮：頂緣短草叢（遮住與山的交界、並與泥土強烈對比）
-    const grassTip = lighten(theme.decoColor, 26), grassBase = lerpColor(theme.decoColor, "#0c1206", 0.5);
+    // 表層草皮
     const tof = Math.floor(scroll) % 5;
     for (let x = -5; x < v.w + 5; x += 5) {
-      const hgt = 3 + ((((x * 7) % 4) + 4) % 4);
-      const rx = x - tof;
-      ctx.fillStyle = grassBase; ctx.fillRect(rx, g - hgt, 1, hgt + 1);
+      const hgt = 3 + ((((x * 7) % 4) + 4) % 4), rx = x - tof;
+      ctx.fillStyle = L.grassBase; ctx.fillRect(rx, g - hgt, 1, hgt + 1);
       ctx.fillStyle = theme.decoColor; ctx.fillRect(rx, g - hgt, 1, 2);
-      ctx.fillStyle = grassTip; ctx.fillRect(rx, g - hgt, 1, 1);
+      ctx.fillStyle = L.grassTip; ctx.fillRect(rx, g - hgt, 1, 1);
     }
-    // 近景裝飾（較大草叢/物件）
+    // 近景裝飾
     const dgap = 64, doff = scroll % dgap;
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
   }
@@ -206,7 +225,16 @@
     const b = Game.Engine.battle;
     const stage = Game.State ? Game.State.stage : 1;
     const theme = d.getTheme(stage);
-    drawBackground(b ? b.worldScroll : 0, theme);
+    // 背景：只在「整數捲動 / 主題 / 尺寸」改變時重畫到離屏快取，否則直接貼上 → 戰鬥時背景零重算
+    const scrollInt = Math.floor(b ? b.worldScroll : 0);
+    const key = theme.name + "|" + v.w + "|" + v.h + "|" + scrollInt;
+    if (key !== bgKey) {
+      ctx = bgCtx;
+      drawBackground(scrollInt, theme);
+      ctx = mainCtx;
+      bgKey = key;
+    }
+    if (bgCanvas.width) mainCtx.drawImage(bgCanvas, 0, 0);
     if (!b) return;
 
     // 腳下陰影（地面層）

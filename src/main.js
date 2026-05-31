@@ -24,21 +24,35 @@
     }
     save();
 
-    let last = performance.now();
+    // 主迴圈：限制 ~30 FPS（用累加器），大幅降低 CPU/發熱；高刷新率手機也只更新 30 次/秒
+    const STEP = 1 / 30;
+    let last = performance.now(), acc = 0, rafId = 0, running = true;
     function frame(now) {
+      rafId = requestAnimationFrame(frame);
       let dt = (now - last) / 1000;
       last = now;
       if (dt > 0.25) dt = 0.25;
-      Game.Engine.update(dt);
+      acc += dt;
+      if (acc < STEP) return; // 還沒到下一幀，直接略過（省電）
+      const step = acc;
+      acc = 0;
+      Game.Engine.update(step);
       Game.Render.draw();
-      Game.UI.sync();
-      Game.UI.tickAfford(dt);
-      requestAnimationFrame(frame);
+      Game.UI.sync(step);
+      Game.UI.tickAfford(step);
     }
-    requestAnimationFrame(frame);
+    rafId = requestAnimationFrame(frame);
 
     setInterval(save, 5000);
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        save();
+        if (running) { cancelAnimationFrame(rafId); running = false; }
+      } else if (!running) {
+        running = true; last = performance.now(); acc = 0;
+        rafId = requestAnimationFrame(frame);
+      }
+    });
     window.addEventListener("pagehide", save);
     window.addEventListener("beforeunload", save);
   }
