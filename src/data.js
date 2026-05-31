@@ -50,11 +50,15 @@
       xp: Math.floor(9 * Math.pow(1.15, s - 1)),
       gems: 0,
       atkInterval: 1.2,
+      hit: Math.floor(15 * Math.pow(1.05, s - 1)),
+      dodge: Math.floor(5 * Math.pow(1.04, s - 1)),
     };
     if (isBoss) {
       base.maxHp = Math.floor(base.maxHp * 6);
       base.atk = Math.floor(base.atk * 1.6);
       base.def = Math.floor(base.def * 1.5);
+      base.hit = Math.floor(base.hit * 1.5);
+      base.dodge = Math.floor(base.dodge * 1.5);
       base.gold = Math.floor(base.gold * 16);
       base.xp = Math.floor(base.xp * 10);
       base.gems = 2 + Math.floor(stage / BOSS_EVERY); // 魔王掉鑽石
@@ -95,19 +99,26 @@
     { id: "helmet", name: "頭盔", icon: "helmet", stat: "maxHp", base: 28 },
     { id: "armor", name: "鎧甲", icon: "shield", stat: "def", base: 3 },
     { id: "legs", name: "護腿", icon: "legs", stat: "maxHp", base: 22 },
-    { id: "boots", name: "靴子", icon: "boots", stat: "dodge", base: 0.012 },
-    { id: "trinket", name: "飾品", icon: "ring", stat: "crit", base: 0.012 },
+    { id: "boots", name: "靴子", icon: "boots", stat: "dodge", base: 1.2 },
+    { id: "trinket", name: "飾品", icon: "ring", stat: "critDmg", base: 0.05 },
   ];
   const SLOT_BY_ID = {};
   EQUIPMENT_SLOTS.forEach((s) => (SLOT_BY_ID[s.id] = s));
 
-  // 裝備數值：(欄位基礎 × 稀有度 × 階級) 以指數升星 ^(1+星/2)，再算強化加成
+  // 裝備數值：base0^(1+星/10) × (1 + 0.10×強化)，強化封頂 500
   function itemStatValue(slot, rarity, tier, enhance, stars) {
     const sl = SLOT_BY_ID[slot];
     const ra = RARITY_BY_ID[rarity];
     const base0 = sl.base * ra.mult * tier;
-    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 5));
-    return starred * (1 + (enhance || 0) * 0.12);
+    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 10));
+    return starred * (1 + 0.1 * Math.min(enhance || 0, 500));
+  }
+  const ENHANCE_MAX = 500;
+  // 命中 vs 閃避 → 實際閃避機率（飽和曲線，上限 90%）
+  const EVADE_K = 120;
+  function evadeChance(hit, dodge) {
+    const d = Math.max(0, (dodge || 0) - (hit || 0));
+    return (0.9 * d) / (d + EVADE_K);
   }
   function itemTierForStage(stage) {
     return 1 + Math.floor(stage / 12);
@@ -131,38 +142,38 @@
   const HEROES = [
     {
       id: "knight", name: "騎士", cls: "戰士", sprite: "knight", rarity: "common",
-      base: { atk: 14, maxHp: 140, def: 4, crit: 0.05, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, dodge: 0.02 },
+      base: { atk: 14, maxHp: 140, def: 4, crit: 0.05, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 12 },
       growth: { atk: 2.4, maxHp: 26, def: 0.7 },
       skills: ["slash", "guard", "rally"],
       starter: true,
     },
     {
       id: "mage", name: "法師", cls: "法師", sprite: "mage", rarity: "uncommon",
-      base: { atk: 18, maxHp: 85, def: 2, crit: 0.07, critDmg: 1.8, atkInterval: 1.25, lifesteal: 0, dodge: 0.02 },
+      base: { atk: 18, maxHp: 85, def: 2, crit: 0.07, critDmg: 1.8, atkInterval: 1.25, lifesteal: 0, hit: 95, dodge: 12 },
       growth: { atk: 3.6, maxHp: 16, def: 0.4 },
       skills: ["fireball", "frost", "rally"],
     },
     {
       id: "archer", name: "弓手", cls: "弓手", sprite: "archer", rarity: "uncommon",
-      base: { atk: 13, maxHp: 95, def: 2, crit: 0.12, critDmg: 1.9, atkInterval: 0.8, lifesteal: 0, dodge: 0.05 },
+      base: { atk: 13, maxHp: 95, def: 2, crit: 0.12, critDmg: 1.9, atkInterval: 0.8, lifesteal: 0, hit: 115, dodge: 28 },
       growth: { atk: 2.8, maxHp: 18, def: 0.5 },
       skills: ["multishot", "focus", "guard"],
     },
     {
       id: "priest", name: "牧師", cls: "牧師", sprite: "priest", rarity: "rare",
-      base: { atk: 9, maxHp: 110, def: 3, crit: 0.05, critDmg: 1.6, atkInterval: 1.1, lifesteal: 0, dodge: 0.03 },
+      base: { atk: 9, maxHp: 110, def: 3, crit: 0.05, critDmg: 1.6, atkInterval: 1.1, lifesteal: 0, hit: 95, dodge: 16 },
       growth: { atk: 1.8, maxHp: 22, def: 0.6 },
       skills: ["heal", "bless", "guard"],
     },
     {
       id: "rogue", name: "盜賊", cls: "盜賊", sprite: "rogue", rarity: "rare",
-      base: { atk: 14, maxHp: 90, def: 2, crit: 0.15, critDmg: 2.1, atkInterval: 0.7, lifesteal: 0.06, dodge: 0.08 },
+      base: { atk: 14, maxHp: 90, def: 2, crit: 0.15, critDmg: 2.1, atkInterval: 0.7, lifesteal: 0.06, hit: 110, dodge: 45 },
       growth: { atk: 3.0, maxHp: 17, def: 0.4 },
       skills: ["backstab", "focus", "rage"],
     },
     {
       id: "berserker", name: "狂戰士", cls: "狂戰", sprite: "berserker", rarity: "epic",
-      base: { atk: 20, maxHp: 120, def: 2, crit: 0.1, critDmg: 2.0, atkInterval: 0.95, lifesteal: 0.05, dodge: 0.02 },
+      base: { atk: 20, maxHp: 120, def: 2, crit: 0.1, critDmg: 2.0, atkInterval: 0.95, lifesteal: 0.05, hit: 100, dodge: 12 },
       growth: { atk: 4.0, maxHp: 24, def: 0.5 },
       skills: ["rage", "slash", "rally"],
     },
@@ -212,7 +223,7 @@
       effectText: (l) => `攻擊 +${l * 4}%` },
     bless: { name: "祝福", icon: "bolt", type: "passive", maxLevel: 20,
       desc: "提升攻速與閃避", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
-      effectText: (l) => `攻速 +${l * 2}%、閃避 +${l}%` },
+      effectText: (l) => `攻速 +${l * 2}%、閃避 +${l * 2}` },
   };
 
   // ---- 屬性訓練（全域，用金幣）----
@@ -224,7 +235,8 @@
     { id: "critDmg", name: "暴傷訓練", icon: "burst", mod: "critDmgAdd", per: 0.04, base: 80, mul: 1.2, unit: "%" },
     { id: "spd", name: "攻速訓練", icon: "bolt", mod: "atkSpeedMul", per: 0.012, base: 100, mul: 1.22, unit: "%", cap: 0.6 },
     { id: "ls", name: "吸血訓練", icon: "drop", mod: "lifestealAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100 },
-    { id: "dodge", name: "閃避訓練", icon: "boots", mod: "dodgeAdd", per: 0.004, base: 120, mul: 1.22, unit: "%", scale: 100, cap: 0.5 },
+    { id: "dodge", name: "閃避訓練", icon: "boots", mod: "dodgeAdd", per: 8, base: 120, mul: 1.22, unit: "", rating: true },
+    { id: "hit", name: "命中訓練", icon: "target", mod: "hitAdd", per: 8, base: 100, mul: 1.2, unit: "", rating: true },
     { id: "gold", name: "尋金術", icon: "coin", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
     { id: "xp", name: "財富加成", icon: "coin", mod: "goldMul", per: 0.03, base: 60, mul: 1.18, unit: "%" },
   ];
@@ -381,6 +393,7 @@
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     RARITIES, RARITY_BY_ID, SET_RARITY_MULT, STAR_MAX, STAR_RULES, scrollTierFor, starMult, SCROLL_COST,
+    ENHANCE_MAX, EVADE_K, evadeChance,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
     GACHA,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,

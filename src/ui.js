@@ -58,8 +58,8 @@
   function itemStatText(it) {
     const sl = D().SLOT_BY_ID[it.slot];
     const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
-    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", crit: "暴擊", dodge: "閃避" }[sl.stat];
-    const val = sl.stat === "crit" || sl.stat === "dodge" ? (v * 100).toFixed(1) + "%" : "+" + Math.round(v);
+    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", critDmg: "暴傷", dodge: "閃避" }[sl.stat];
+    const val = sl.stat === "critDmg" ? "+" + Math.round(v * 100) + "%" : "+" + Math.round(v);
     return statName + " " + val;
   }
   function itemName(it) {
@@ -228,7 +228,8 @@
       ${statLine("暴傷", Math.round(st.critDmg * 100) + "%")}
       ${statLine("攻速", st.atkInterval.toFixed(2) + "s")}
       ${statLine("吸血", Math.round(st.lifesteal * 100) + "%")}
-      ${statLine("閃避", Math.round(st.dodge * 100) + "%")}
+      ${statLine("命中", st.hit)}
+      ${statLine("閃避", st.dodge)}
     </div>`;
 
     // 操作列
@@ -461,8 +462,8 @@
     D().TRAININGS.forEach((t) => {
       const lv = St().trainings[t.id] || 0;
       const cost = Sy().trainingCost(t);
-      const cur = pct(t.per * lv);
-      const nxt = pct(t.per * (lv + 1));
+      const cur = t.rating ? Math.round(t.per * lv) : pct(t.per * lv);
+      const nxt = t.rating ? Math.round(t.per * (lv + 1)) : pct(t.per * (lv + 1));
       html += `<div class="item">
         <div class="item-icon">${ico(t.icon, 24)}</div>
         <div class="item-main"><div class="item-name">${t.name} <span class="lvl">Lv.${lv}</span></div>
