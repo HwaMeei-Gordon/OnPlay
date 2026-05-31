@@ -161,6 +161,165 @@
     return Math.floor(15 * RARITY_BY_ID[item.rarity].mult * item.tier);
   }
 
+  // ---- 具名套裝（區域掉落，101 關後）----
+  // 副屬性基礎值（= 各欄位主屬 base）。副屬只能是這 6 個欄位屬性，比率類（吸血/暴擊…）只走套裝 mod。
+  const SUB_BASE = { atk: 6, hit: 1.5, def: 3, maxHp: 22, dodge: 1.2, critDmg: 0.05 };
+  // 副屬數值：與 itemStatValue 相同的星/強化縮放，但 base0 為主屬的一半
+  function itemSubValue(stat, rarity, tier, enhance, stars) {
+    const ra = RARITY_BY_ID[rarity];
+    const base0 = (SUB_BASE[stat] || 0) * 0.5 * ra.mult * tier;
+    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 10));
+    return starred * (1 + 0.1 * Math.min(enhance || 0, 500));
+  }
+
+  // 18 套具名套裝；mods 沿用 globalMods 詞彙；special 為 [{k,v}] 特殊機制
+  const SETS = {
+    forest_hunter: { id: "forest_hunter", name: "翠林獵手", region: 1, color: "#5ec46b", main: "攻擊·命中",
+      sub: { weapon: ["hit"], helmet: ["dodge"], boots: ["hit"] },
+      bonuses: [
+        { pieces: 2, mods: { hitAdd: 60, dodgeAdd: 30 }, text: "命中 +60、閃避 +30" },
+        { pieces: 4, mods: { atkMul: 0.20 }, text: "攻擊 +20%" },
+        { pieces: 6, mods: { critAdd: 0.12 }, special: [{ k: "multi", v: 0.18 }], text: "暴擊率 +12%、18% 機率連擊" },
+      ] },
+    sun_walker: { id: "sun_walker", name: "烈陽行者", region: 2, color: "#eec06a", main: "攻擊·爆傷",
+      sub: { weapon: ["critDmg"], trinket: ["hit"], helmet: ["critDmg"] },
+      bonuses: [
+        { pieces: 2, mods: { critDmgAdd: 0.40 }, text: "爆擊傷害 +40%" },
+        { pieces: 4, mods: { atkMul: 0.25 }, text: "攻擊 +25%" },
+        { pieces: 6, mods: { critAdd: 0.15 }, special: [{ k: "explode", v: 0.35 }], text: "暴擊率 +15%、暴擊爆炸濺射 35%" },
+      ] },
+    frost_guard: { id: "frost_guard", name: "霜鎧守衛", region: 3, color: "#b0c2d8", main: "防禦·生命",
+      sub: { armor: ["maxHp"], legs: ["def"], helmet: ["def"] },
+      bonuses: [
+        { pieces: 2, mods: { hpMul: 0.25 }, text: "生命 +25%" },
+        { pieces: 4, mods: { defMul: 0.40 }, text: "防禦 +40%" },
+        { pieces: 6, mods: { hpMul: 0.20 }, special: [{ k: "reflect", v: 0.25 }], text: "生命 +20%、反傷 25%" },
+      ] },
+    magma_berserker: { id: "magma_berserker", name: "熔心狂戰", region: 4, color: "#ff5a2a", main: "攻擊·吸血",
+      sub: { weapon: ["critDmg"], armor: ["atk"], helmet: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.20 }, text: "攻擊 +20%" },
+        { pieces: 4, mods: { lifestealAdd: 0.08, critDmgAdd: 0.50 }, text: "吸血 +8%、爆傷 +50%" },
+        { pieces: 6, mods: { atkMul: 0.25 }, special: [{ k: "execute", v: 0.12 }], text: "攻擊 +25%、斬殺 12%（魔王免疫）" },
+      ] },
+    bulwark: { id: "bulwark", name: "磐岩壁壘", region: 4, color: "#8a7a5e", main: "防禦·生命",
+      sub: { armor: ["maxHp"], legs: ["def"], boots: ["maxHp"] },
+      bonuses: [
+        { pieces: 2, mods: { defMul: 0.30 }, text: "防禦 +30%" },
+        { pieces: 4, mods: { hpMul: 0.35 }, text: "生命 +35%" },
+        { pieces: 6, mods: { defMul: 0.30 }, special: [{ k: "reflect", v: 0.35 }], text: "防禦 +30%、反傷 35%" },
+      ] },
+    abyssal_tide: { id: "abyssal_tide", name: "深淵潮汐", region: 5, color: "#1c84a0", main: "生命·閃避",
+      sub: { legs: ["dodge"], boots: ["maxHp"], armor: ["dodge"] },
+      bonuses: [
+        { pieces: 2, mods: { hpMul: 0.30 }, text: "生命 +30%" },
+        { pieces: 4, mods: { dodgeAdd: 120 }, text: "閃避 +120" },
+        { pieces: 6, mods: { hpMul: 0.25 }, special: [{ k: "regen", v: 0.02 }], text: "生命 +25%、每秒回復 2% 生命" },
+      ] },
+    riptide_blade: { id: "riptide_blade", name: "利刃暗流", region: 5, color: "#3aa0b0", main: "攻擊·閃避",
+      sub: { weapon: ["dodge"], boots: ["atk"], helmet: ["dodge"] },
+      bonuses: [
+        { pieces: 2, mods: { dodgeAdd: 100 }, text: "閃避 +100" },
+        { pieces: 4, mods: { atkMul: 0.30 }, text: "攻擊 +30%" },
+        { pieces: 6, mods: { atkSpeedMul: 0.20 }, special: [{ k: "multi", v: 0.22 }], text: "攻速 +20%、22% 機率連擊" },
+      ] },
+    storm_wing: { id: "storm_wing", name: "風暴之翼", region: 6, color: "#9fd0f4", main: "攻擊·攻速",
+      sub: { weapon: ["hit"], boots: ["atk"], helmet: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkSpeedMul: 0.15 }, text: "攻速 +15%" },
+        { pieces: 4, mods: { atkMul: 0.35 }, text: "攻擊 +35%" },
+        { pieces: 6, mods: { atkSpeedMul: 0.15 }, special: [{ k: "explode", v: 0.40 }], text: "攻速 +15%、爆炸濺射 40%" },
+      ] },
+    holy_aegis: { id: "holy_aegis", name: "聖光庇佑", region: 6, color: "#ffe9a8", main: "生命·防禦",
+      sub: { armor: ["maxHp"], legs: ["def"], trinket: ["maxHp"] },
+      bonuses: [
+        { pieces: 2, mods: { hpMul: 0.35 }, text: "生命 +35%" },
+        { pieces: 4, mods: { defMul: 0.45 }, text: "防禦 +45%" },
+        { pieces: 6, mods: { hpMul: 0.30 }, special: [{ k: "regen", v: 0.03 }], text: "生命 +30%、每秒回復 3% 生命" },
+      ] },
+    ruin_render: { id: "ruin_render", name: "遺跡狂攻", region: 7, color: "#d6a258", main: "攻擊·爆傷",
+      sub: { weapon: ["critDmg"], helmet: ["atk"], trinket: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { critDmgAdd: 0.60 }, text: "爆傷 +60%" },
+        { pieces: 4, mods: { atkMul: 0.40 }, text: "攻擊 +40%" },
+        { pieces: 6, mods: { critAdd: 0.15 }, special: [{ k: "explode", v: 0.45 }], text: "暴擊率 +15%、暴擊爆炸 45%" },
+      ] },
+    ruin_warden: { id: "ruin_warden", name: "遺跡壁壘", region: 7, color: "#9a8a6a", main: "防禦·生命",
+      sub: { armor: ["maxHp"], legs: ["def"], helmet: ["def"] },
+      bonuses: [
+        { pieces: 2, mods: { defMul: 0.40 }, text: "防禦 +40%" },
+        { pieces: 4, mods: { hpMul: 0.40 }, text: "生命 +40%" },
+        { pieces: 6, mods: { defMul: 0.35 }, special: [{ k: "reflect", v: 0.45 }], text: "防禦 +35%、反傷 45%" },
+      ] },
+    ruin_stalker: { id: "ruin_stalker", name: "遺跡獵殺", region: 7, color: "#a86a4a", main: "攻擊·吸血",
+      sub: { weapon: ["critDmg"], armor: ["atk"], helmet: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.30 }, text: "攻擊 +30%" },
+        { pieces: 4, mods: { lifestealAdd: 0.10, critDmgAdd: 0.60 }, text: "吸血 +10%、爆傷 +60%" },
+        { pieces: 6, mods: { atkMul: 0.30 }, special: [{ k: "execute", v: 0.15 }], text: "攻擊 +30%、斬殺 15%（魔王免疫）" },
+      ] },
+    demon_might: { id: "demon_might", name: "魔王之力", region: 8, color: "#b06ae0", main: "攻擊",
+      sub: { weapon: ["critDmg"], helmet: ["atk"], trinket: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.30, critDmgAdd: 0.50 }, text: "攻擊 +30%、爆傷 +50%" },
+        { pieces: 4, mods: { atkMul: 0.50 }, text: "攻擊 +50%" },
+        { pieces: 6, mods: { critAdd: 0.18 }, special: [{ k: "multi", v: 0.25 }], text: "暴擊率 +18%、25% 機率連擊" },
+      ] },
+    demon_bulwark: { id: "demon_bulwark", name: "魔王壁壘", region: 8, color: "#6a3a8a", main: "防禦·生命",
+      sub: { armor: ["maxHp"], legs: ["def"], boots: ["maxHp"] },
+      bonuses: [
+        { pieces: 2, mods: { hpMul: 0.40 }, text: "生命 +40%" },
+        { pieces: 4, mods: { defMul: 0.60 }, text: "防禦 +60%" },
+        { pieces: 6, mods: { hpMul: 0.35 }, special: [{ k: "reflect", v: 0.55 }], text: "生命 +35%、反傷 55%" },
+      ] },
+    demon_devour: { id: "demon_devour", name: "魔王噬血", region: 8, color: "#ff3b46", main: "攻擊·吸血",
+      sub: { weapon: ["critDmg"], armor: ["atk"], helmet: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.35 }, text: "攻擊 +35%" },
+        { pieces: 4, mods: { lifestealAdd: 0.12 }, text: "吸血 +12%" },
+        { pieces: 6, mods: { atkMul: 0.35 }, special: [{ k: "execute", v: 0.18 }], text: "攻擊 +35%、斬殺 18%（魔王免疫）" },
+      ] },
+    abyss_ender: { id: "abyss_ender", name: "深淵滅世", region: 9, color: "#ff2a3a", main: "攻擊·爆傷",
+      sub: { weapon: ["critDmg"], helmet: ["atk"], trinket: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.40, critDmgAdd: 0.70 }, text: "攻擊 +40%、爆傷 +70%" },
+        { pieces: 4, mods: { atkMul: 0.60 }, text: "攻擊 +60%" },
+        { pieces: 6, mods: { critAdd: 0.20 }, special: [{ k: "explode", v: 0.55 }], text: "暴擊率 +20%、暴擊爆炸 55%" },
+      ] },
+    abyss_eternal: { id: "abyss_eternal", name: "深淵不滅", region: 9, color: "#ff5a3a", main: "防禦·生命",
+      sub: { armor: ["maxHp"], legs: ["def"], boots: ["maxHp"] },
+      bonuses: [
+        { pieces: 2, mods: { hpMul: 0.50 }, text: "生命 +50%" },
+        { pieces: 4, mods: { defMul: 0.70 }, text: "防禦 +70%" },
+        { pieces: 6, mods: { hpMul: 0.40 }, special: [{ k: "reflect", v: 0.60 }, { k: "regen", v: 0.04 }], text: "生命 +40%、反傷 60%、每秒回復 4% 生命" },
+      ] },
+    abyss_reaper: { id: "abyss_reaper", name: "深淵噬魂", region: 9, color: "#d040d0", main: "攻擊·攻速·吸血",
+      sub: { weapon: ["critDmg"], boots: ["atk"], helmet: ["atk"] },
+      bonuses: [
+        { pieces: 2, mods: { atkMul: 0.40, atkSpeedMul: 0.15 }, text: "攻擊 +40%、攻速 +15%" },
+        { pieces: 4, mods: { lifestealAdd: 0.15 }, text: "吸血 +15%" },
+        { pieces: 6, mods: {}, special: [{ k: "multi", v: 0.30 }, { k: "execute", v: 0.20 }], text: "30% 機率連擊、斬殺 20%（魔王免疫）" },
+      ] },
+  };
+  const SET_BY_ID = SETS;
+  const SETS_BY_REGION = {};
+  Object.keys(SETS).forEach((id) => {
+    const r = SETS[id].region;
+    (SETS_BY_REGION[r] = SETS_BY_REGION[r] || []).push(id);
+  });
+
+  // ---- 掉寶率參數（全可調）----
+  const DROP = {
+    minRegion: 1,            // 僅 101 關後（region>=1）才掉具名裝
+    base: 0.004,             // 一般怪基礎掉率 ≈ 每 250 隻一件
+    boss: 0.06,              // 魔王 6%
+    chest: 0.85,             // 寶箱怪 85%
+    chestSpawnChance: 0.02,  // 每次生怪 2% 機率改生成寶箱怪（僅 region>=1，非魔王關）
+    chestTierBonus: 2,       // 寶箱怪掉裝 tier +2
+    rarityWeights: { uncommon: 45, rare: 35, epic: 14, legendary: 5, mythic: 1 },
+    chestRarityWeights: { uncommon: 8, rare: 30, epic: 37, legendary: 20, mythic: 5 },
+  };
+
   // ---- 開箱 ----
   const GACHA = {
     gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 80, costMul: 1.0, weightKey: "weightGold", icon: "box" },
@@ -426,6 +585,7 @@
     RARITIES, RARITY_BY_ID, SET_RARITY_MULT, STAR_MAX, STAR_RULES, scrollTierFor, starMult, SCROLL_COST,
     ENHANCE_MAX, EVADE_K, evadeChance,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
+    SUB_BASE, itemSubValue, SETS, SET_BY_ID, SETS_BY_REGION, DROP,
     GACHA,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,
     HERO_SKILLS, TRAININGS, TALENTS, PRESTIGE,

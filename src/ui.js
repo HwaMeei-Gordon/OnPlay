@@ -55,16 +55,25 @@
   function rarColor(id) { return D().RARITY_BY_ID[id].color; }
   function rarName(id) { return D().RARITY_BY_ID[id].name; }
 
+  const STAT_NAMES = { atk: "攻擊", maxHp: "生命", def: "防禦", critDmg: "暴傷", dodge: "閃避", hit: "命中" };
+  function statVal(stat, v) { return stat === "critDmg" ? "+" + Math.round(v * 100) + "%" : "+" + Math.round(v); }
   function itemStatText(it) {
     const sl = D().SLOT_BY_ID[it.slot];
     const v = D().itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
-    const statName = { atk: "攻擊", maxHp: "生命", def: "防禦", critDmg: "暴傷", dodge: "閃避", hit: "命中" }[sl.stat];
-    const val = sl.stat === "critDmg" ? "+" + Math.round(v * 100) + "%" : "+" + Math.round(v);
-    return statName + " " + val;
+    let txt = STAT_NAMES[sl.stat] + " " + statVal(sl.stat, v);
+    // 具名裝固定副屬性
+    const sdef = it.setId && D().SET_BY_ID[it.setId];
+    const subs = sdef && sdef.sub && sdef.sub[it.slot];
+    if (subs) subs.forEach((st) => {
+      txt += "　" + STAT_NAMES[st] + " " + statVal(st, D().itemSubValue(st, it.rarity, it.tier, it.enhance, it.stars));
+    });
+    return txt;
   }
   function itemName(it) {
     const sl = D().SLOT_BY_ID[it.slot];
-    return rarName(it.rarity) + sl.name + (it.stars ? " " + it.stars + "★" : "") + (it.enhance ? " +" + it.enhance : "");
+    const sdef = it.setId && D().SET_BY_ID[it.setId];
+    const base = sdef ? sdef.name + sl.name : rarName(it.rarity) + sl.name;
+    return base + (it.stars ? " " + it.stars + "★" : "") + (it.enhance ? " +" + it.enhance : "");
   }
 
   // ============ 初始化 ============
@@ -268,6 +277,32 @@
       </div>`;
     }
 
+    // 具名套裝（顯示 2/4/6 進度；未達階段灰階）
+    const setCounts = {};
+    D().EQUIPMENT_SLOTS.forEach((sl) => {
+      const it = Sy().itemByUid(hs.equip[sl.id]);
+      if (it && it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
+    });
+    const ownedSetIds = Object.keys(setCounts);
+    if (ownedSetIds.length) {
+      html += `<div class="sec-title">具名套裝</div>`;
+      ownedSetIds.forEach((sid) => {
+        const sdef = D().SET_BY_ID[sid];
+        if (!sdef) return;
+        const pc = setCounts[sid];
+        html += `<div style="font-size:12px;font-weight:bold;margin:6px 0 3px;color:${sdef.color}">${sdef.name} <span style="color:#8a8fa0">${pc}/6</span></div>`;
+        sdef.bonuses.forEach((b) => {
+          const on = pc >= b.pieces;
+          html += `<div class="set-row ${on ? "on" : ""}" style="--rc:${sdef.color}">
+            <span class="set-dot"></span>
+            <span class="set-name">${b.pieces} 件</span>
+            <span class="set-eff">${b.text}</span>
+            <span class="set-tag">${on ? "啟動" : "未達"}</span>
+          </div>`;
+        });
+      });
+    }
+
     // 技能
     html += `<div class="sec-title">技能</div>`;
     def.skills.forEach((sid) => {
@@ -339,12 +374,20 @@
       <div class="item-modal">
         <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
         <div class="im-info">
-          <div>${rarName(it.rarity)}・${D().SLOT_BY_ID[it.slot].name}</div>
+          <div>${rarName(it.rarity)}・${D().SLOT_BY_ID[it.slot].name}${it.setId && d.SET_BY_ID[it.setId] ? `　<b style="color:${d.SET_BY_ID[it.setId].color}">${d.SET_BY_ID[it.setId].name}</b>` : ""}</div>
           <div class="im-stat">${itemStatText(it)}</div>
           <div class="im-sub">階級 ${it.tier}　強化 +${it.enhance}　星 ${star}★/${d.STAR_MAX}</div>
           ${equipped ? `<div class="badge">裝備中</div>` : ""}
         </div>
       </div>`;
+    // 具名套裝效果一覽
+    const sdef = it.setId && d.SET_BY_ID[it.setId];
+    if (sdef) {
+      html += `<div class="sec-title">套裝效果</div>`;
+      sdef.bonuses.forEach((b) => {
+        html += `<div class="set-row" style="--rc:${sdef.color}"><span class="set-dot"></span><span class="set-name">${b.pieces} 件</span><span class="set-eff">${b.text}</span></div>`;
+      });
+    }
     // 升星
     html += `<div class="sec-title">升星</div>`;
     if (star >= d.STAR_MAX) {
@@ -711,7 +754,7 @@
   }
 
   Game.UI = {
-    init, sync, tickAfford, showOffline, openTab, refresh,
+    init, sync, tickAfford, showOffline, openTab, refresh, toast,
     _close: closeModal,
     _reset: () => { Game.Save.reset(); location.reload(); },
     _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(true); sync(); },

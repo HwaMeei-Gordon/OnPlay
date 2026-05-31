@@ -102,6 +102,27 @@
     return { rarity: rar, mult, count };
   }
 
+  // ---- 具名套裝：依 setId 分組，每 2 件啟動一階（2/4/6）；與稀有度套裝並存 ----
+  function heroNamedSets(heroId) {
+    const hs = State.heroes[heroId];
+    if (!hs) return [];
+    const d = D();
+    const counts = {};
+    d.EQUIPMENT_SLOTS.forEach((sl) => {
+      const it = itemByUid(hs.equip[sl.id]);
+      if (it && it.setId) counts[it.setId] = (counts[it.setId] || 0) + 1;
+    });
+    const out = [];
+    Object.keys(counts).forEach((sid) => {
+      const set = d.SET_BY_ID[sid];
+      if (!set) return;
+      const pieces = counts[sid];
+      const stages = set.bonuses.filter((b) => pieces >= b.pieces);
+      if (stages.length) out.push({ setId: sid, name: set.name, color: set.color, pieces, stages });
+    });
+    return out;
+  }
+
   // ---- 英雄有效屬性 ----
   function heroStats(heroId, mods) {
     const d = D();
@@ -120,17 +141,23 @@
     let hit = (b.hit || 0) + 8 * (lvl - 1);   // 命中（隨等級成長）
     let dodge = b.dodge || 0;                 // 閃避（rating）
 
-    // 裝備
+    // 裝備（主屬 + 具名裝固定副屬）
+    const addStat = (stat, v) => {
+      if (stat === "atk") atk += v;
+      else if (stat === "maxHp") maxHp += v;
+      else if (stat === "def") def_ += v;
+      else if (stat === "critDmg") critDmg += v;
+      else if (stat === "dodge") dodge += v;
+      else if (stat === "hit") hit += v;
+    };
     d.EQUIPMENT_SLOTS.forEach((sl) => {
       const it = itemByUid(hs.equip[sl.id]);
       if (!it) return;
-      const v = d.itemStatValue(sl.id, it.rarity, it.tier, it.enhance, it.stars);
-      if (sl.stat === "atk") atk += v;
-      else if (sl.stat === "maxHp") maxHp += v;
-      else if (sl.stat === "def") def_ += v;
-      else if (sl.stat === "critDmg") critDmg += v;
-      else if (sl.stat === "dodge") dodge += v;
-      else if (sl.stat === "hit") hit += v;
+      addStat(sl.stat, d.itemStatValue(sl.id, it.rarity, it.tier, it.enhance, it.stars));
+      // 具名裝固定副屬性（由 套裝+欄位 決定）
+      const set = it.setId && d.SET_BY_ID[it.setId];
+      const subs = set && set.sub && set.sub[sl.id];
+      if (subs) subs.forEach((st) => addStat(st, d.itemSubValue(st, it.rarity, it.tier, it.enhance, it.stars)));
     });
 
     // 技能（被動）
@@ -144,6 +171,21 @@
     // 套裝：同稀有度（≥4 件且全部同稀有度）→ 攻擊/生命/防禦 ×倍率
     const set = heroSetBonus(heroId);
     if (set) { atk *= set.mult; maxHp *= set.mult; def_ *= set.mult; }
+
+    // 具名套裝（2/4/6 階段）：mods 加總後套用，special 機制累加
+    const mech = { multi: 0, explode: 0, execute: 0, reflect: 0, regen: 0 };
+    const nm = { atkMul: 0, hpMul: 0, defMul: 0, critAdd: 0, critDmgAdd: 0, atkSpeedMul: 0, lifestealAdd: 0, dodgeAdd: 0, hitAdd: 0 };
+    heroNamedSets(heroId).forEach((ns) => {
+      ns.stages.forEach((b) => {
+        const m = b.mods || {};
+        Object.keys(nm).forEach((k) => { if (m[k]) nm[k] += m[k]; });
+        (b.special || []).forEach((sp) => { if (mech[sp.k] != null) mech[sp.k] += sp.v; });
+      });
+    });
+    atk *= 1 + nm.atkMul; maxHp *= 1 + nm.hpMul; def_ *= 1 + nm.defMul;
+    crit += nm.critAdd; critDmg += nm.critDmgAdd;
+    atkInterval *= 1 - Math.min(0.7, nm.atkSpeedMul);
+    lifesteal += nm.lifestealAdd; dodge += nm.dodgeAdd; hit += nm.hitAdd;
 
     // 全域倍率
     atk *= 1 + mods.atkMul;
@@ -162,6 +204,7 @@
     const out = {
       atk: Math.round(atk), maxHp: Math.round(maxHp), def: Math.round(def_),
       crit, critDmg, atkInterval, lifesteal, hit: Math.round(hit), dodge: Math.round(dodge),
+      multi: mech.multi, explode: mech.explode, execute: mech.execute, reflect: mech.reflect, regen: mech.regen,
     };
     out.power = Math.round((out.atk / out.atkInterval) * 12 + out.maxHp / 4 + out.def * 3 + out.crit * 200);
     return out;
@@ -213,6 +256,18 @@
       State.stats.bossKills++;
       State.daily.counters.bossToday++;
     }
+    // 具名套裝掉落（101 關後）
+    const d = D();
+    const stage = State.stage;
+    if (d.regionOf(stage) >= d.DROP.minRegion) {
+      const kind = enemy.isChest ? "chest" : enemy.isBoss ? "boss" : "normal";
+      const rate = kind === "chest" ? d.DROP.chest : kind === "boss" ? d.DROP.boss : d.DROP.base;
+      if (Math.random() < rate) {
+        const item = rollDropItem(stage, kind);
+        if (item) { State.inventory.push(item); return item; }
+      }
+    }
+    return null;
   }
 
   // ---- 關卡 ----
@@ -292,7 +347,26 @@
     const rarity = rollRarity(box.weightKey);
     const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
     const tier = d.itemTierForStage(stage);
-    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0 };
+    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: null };
+  }
+  function rollRarityWeighted(weights) {
+    let total = 0;
+    for (const k in weights) total += weights[k];
+    let x = Math.random() * total;
+    for (const k in weights) { x -= weights[k]; if (x <= 0) return k; }
+    return Object.keys(weights)[0];
+  }
+  // 怪物掉落具名裝（區域套裝、固定副屬、可參與具名+稀有度套裝）
+  function rollDropItem(stage, kind) {
+    const d = D();
+    const setIds = d.SETS_BY_REGION[d.regionOf(stage)];
+    if (!setIds || !setIds.length) return null;
+    const setId = setIds[Math.floor(Math.random() * setIds.length)];
+    const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
+    const chest = kind === "chest";
+    const rarity = rollRarityWeighted(chest ? d.DROP.chestRarityWeights : d.DROP.rarityWeights);
+    const tier = d.itemTierForStage(stage) + (chest ? d.DROP.chestTierBonus : 0);
+    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId };
   }
   function openBox(boxType, count) {
     count = count || 1;
@@ -615,10 +689,10 @@
 
   Game.Systems = {
     defaultState, setState, todayStr,
-    globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus,
+    globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
     addGold, addGems, spend, tickSecond, onKill, noteStage,
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
-    rollItem, openBox, gachaCost, doGacha,
+    rollItem, rollDropItem, openBox, gachaCost, doGacha,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
     enhanceItem, buyScroll, starUp, upgradeToMythic, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,

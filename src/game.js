@@ -87,11 +87,15 @@
       const pool = Game.Sprites.smallForRegion(r);
       sprite = pool[Math.floor(Math.random() * pool.length)];
     }
+    // 寶箱怪：region>=1、非魔王關，低機率出現；脆但肉、掉裝率高
+    const chest = !boss && r >= D().DROP.minRegion && Math.random() < D().DROP.chestSpawnChance;
+    let maxHp = stx.maxHp, atk = stx.atk, gold = stx.gold;
+    if (chest) { maxHp = Math.floor(maxHp * 2.5); atk = Math.floor(atk * 0.6); gold = Math.floor(gold * 4); }
     battle.enemies.push({
-      maxHp: stx.maxHp, hp: stx.maxHp, atk: stx.atk, def: stx.def,
-      gold: stx.gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
+      maxHp: maxHp, hp: maxHp, atk: atk, def: stx.def,
+      gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
-      atkTimer: stx.atkInterval * 0.7, isBoss: boss, sprite,
+      atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, sprite,
       x: Game.view.w + 14, targetX: 0, hitFlash: 0, shake: 0, lunge: 0,
     });
   }
@@ -146,13 +150,37 @@
     if (opts.lifesteal && opts.src && !opts.src.dead) {
       opts.src.hp = Math.min(opts.src.maxHp, opts.src.hp + Math.max(1, Math.round(dmg * opts.lifesteal)));
     }
+    // 套裝特殊機制（僅主要命中觸發，noProc 防遞迴）
+    const st = opts.src && opts.src.stats;
+    if (st && !opts.noProc) {
+      // 斬殺：低血直接擊殺（魔王免疫）
+      if (st.execute && !target.isBoss && target.hp > 0 && target.hp <= target.maxHp * st.execute) {
+        target.hp = 0;
+        addFloat(target.x, Game.view.ground - 42, "斬殺", "#ff4d4d", true);
+      }
+      // 爆炸濺射：對場上其他敵人造成本次傷害 × 比例
+      if (st.explode) {
+        const splash = Math.max(1, Math.round(dmg * st.explode));
+        battle.enemies.slice().forEach((e) => {
+          if (e !== target && e.hp > 0) damageEnemy(e, splash, { src: opts.src, noProc: true, color: "#ff9a3d" });
+        });
+      }
+    }
     if (target.hp <= 0) killEnemy(target);
   }
 
   function killEnemy(target) {
     const i = battle.enemies.indexOf(target);
     if (i < 0) return;
-    S().onKill(target);
+    const drop = S().onKill(target);
+    if (drop) {
+      const set = D().SET_BY_ID[drop.setId];
+      const ra = D().RARITY_BY_ID[drop.rarity];
+      const slotName = D().SLOT_BY_ID[drop.slot].name;
+      addFloat(target.x, Game.view.ground - 46, "★裝備", set ? set.color : "#ffd23f", true);
+      if (Game.UI && Game.UI.toast && set)
+        Game.UI.toast(`獲得【${set.name}·${slotName}】(${ra.name})`);
+    }
     // 掉落金幣/鑽石飛出特效
     const n = target.isBoss ? 9 : 3;
     for (let k = 0; k < n; k++)
@@ -314,6 +342,8 @@
     // 英雄攻擊 + 技能
     battle.field.forEach((h) => {
       if (h.dead) return;
+      // 套裝：每秒回復生命
+      if (h.stats.regen) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.stats.regen * dt);
       updateHeroSkills(h, dt);
       h.atkTimer -= dt;
       if (h.atkTimer <= 0) {
@@ -330,6 +360,15 @@
           } else {
             const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
             damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
+            // 套裝：連擊（再打一次最前方敵人，二擊不再觸發連擊）
+            if (h.stats.multi && Math.random() < h.stats.multi) {
+              const t2 = frontEnemy();
+              if (t2) {
+                addFloat(t2.x, v.ground - 44, "連擊", "#ffe45a");
+                const r2 = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, t2.def);
+                damageEnemy(t2, r2.dmg, { crit: r2.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
+              }
+            }
           }
         }
         h.atkTimer = h.stats.atkInterval;
@@ -352,6 +391,10 @@
             target.hitFlash = 0.12;
             target.shake = 0.16;
             addFloat(target.x + 4, v.ground - 36 - target.lift, "" + dmg, "#ff6b6b");
+            // 套裝：反傷（對攻擊者造成承受傷害 × 比例）
+            if (target.stats.reflect && e.hp > 0) {
+              damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
+            }
             if (target.hp <= 0) {
               target.hp = 0; target.dead = true;
               addFloat(target.x, v.ground - 40, "倒下", "#ff4d4d");
