@@ -26,7 +26,7 @@
       "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage",
       "heroes", "party", "inventory", "invSeq", "pets", "activePet",
       "trainings", "talents", "talentPoints", "prestige", "achievements",
-      "daily", "stats", "shop", "speed", "goldPerSec", "gemPerSec",
+      "daily", "stats", "shop", "scrolls", "speed", "goldPerSec", "gemPerSec",
     ];
     keys.forEach((k) => {
       if (loaded[k] !== undefined && loaded[k] !== null) base[k] = loaded[k];

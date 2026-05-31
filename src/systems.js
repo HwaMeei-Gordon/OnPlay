@@ -36,6 +36,7 @@
         counters: { killsToday: 0, boxesToday: 0, bossToday: 0 } },
       stats: { totalKills: 0, bossKills: 0, boxesOpened: 0, prestiges: 0 },
       shop: { date: todayStr(), bought: {} },
+      scrolls: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       speed: 1,
       goldPerSec: 0, gemPerSec: 0,
       _goldSec: 0, _gemSec: 0, _secT: 1,
@@ -121,7 +122,7 @@
     d.EQUIPMENT_SLOTS.forEach((sl) => {
       const it = itemByUid(hs.equip[sl.id]);
       if (!it) return;
-      const v = d.itemStatValue(sl.id, it.rarity, it.tier, it.enhance);
+      const v = d.itemStatValue(sl.id, it.rarity, it.tier, it.enhance, it.stars);
       if (sl.stat === "atk") atk += v;
       else if (sl.stat === "maxHp") maxHp += v;
       else if (sl.stat === "def") def_ += v;
@@ -288,7 +289,7 @@
     const rarity = rollRarity(box.weightKey);
     const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
     const tier = d.itemTierForStage(stage);
-    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0 };
+    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0 };
   }
   function openBox(boxType, count) {
     count = count || 1;
@@ -342,7 +343,7 @@
     State.inventory.forEach((it) => {
       if (it.slot !== slot) return;
       if (isEquipped(it.uid) && State.heroes[heroId].equip[slot] !== it.uid) return;
-      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
       if (v > bestVal) { bestVal = v; best = it; }
     });
     return best;
@@ -362,6 +363,46 @@
     it.enhance++;
     return true;
   }
+  // ---- 升星 ----
+  function buyScroll(tier) {
+    const cost = D().SCROLL_COST[tier];
+    if (cost == null || State.gold < cost) return false;
+    State.gold -= cost;
+    State.scrolls[tier] = (State.scrolls[tier] || 0) + 1;
+    return true;
+  }
+  // 嘗試升星：回傳 {ok, success, destroyed, msg}
+  function starUp(uid) {
+    const d = D();
+    const it = itemByUid(uid);
+    if (!it) return { ok: false, msg: "找不到裝備" };
+    const star = it.stars || 0;
+    if (star >= d.STAR_MAX) return { ok: false, msg: "已滿星" };
+    const tier = d.scrollTierFor(star);
+    if ((State.scrolls[tier] || 0) < 1) return { ok: false, msg: tier + " 星卷不足" };
+    State.scrolls[tier]--;
+    const rule = d.STAR_RULES[star];
+    if (Math.random() < rule.s) {
+      it.stars = star + 1;
+      return { ok: true, success: true, star: it.stars };
+    }
+    // 失敗：再用 destroy 機率判定是否消失
+    if (rule.d > 0 && Math.random() < rule.d) {
+      unequipUidEverywhere(uid);
+      State.inventory = State.inventory.filter((x) => x.uid !== uid);
+      return { ok: true, success: false, destroyed: true };
+    }
+    return { ok: true, success: false, destroyed: false };
+  }
+  // 傳說滿 10 星 → 升級為神話（星歸零）
+  function upgradeToMythic(uid) {
+    const it = itemByUid(uid);
+    if (!it || it.rarity !== "legendary" || (it.stars || 0) < D().STAR_MAX) return false;
+    it.rarity = "mythic";
+    it.stars = 0;
+    return true;
+  }
+
   function salvageItem(uid) {
     const it = itemByUid(uid);
     if (!it || isEquipped(uid)) return false;
@@ -394,7 +435,7 @@
       d.EQUIPMENT_SLOTS.forEach((sl) => {
         const it = itemByUid(eq[sl.id]);
         if (it) {
-          const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+          const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
           if (v > (bestEq[sl.id] || 0)) bestEq[sl.id] = v;
         }
       });
@@ -402,7 +443,7 @@
     let total = 0, n = 0;
     State.inventory = State.inventory.filter((it) => {
       if (isEquipped(it.uid)) return true;
-      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance);
+      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
       if ((bestEq[it.slot] || 0) >= v) { total += d.salvageValue(it); n++; return false; }
       return true;
     });
@@ -575,7 +616,7 @@
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
     rollItem, openBox, gachaCost, doGacha,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
-    enhanceItem, salvageItem, salvageAllBelow, salvageWeak,
+    enhanceItem, buyScroll, starUp, upgradeToMythic, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
     canPrestige, prestigeGain, doPrestige,
     ownPet, upgradePet, setActivePet,
