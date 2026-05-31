@@ -54,7 +54,7 @@
     const d = D();
     const m = {
       atkMul: 0, hpMul: 0, defMul: 0, critAdd: 0, critDmgAdd: 0,
-      atkSpeedMul: 0, lifestealAdd: 0, dodgeAdd: 0, goldMul: 0, xpMul: 0, gemMul: 0,
+      atkSpeedMul: 0, lifestealAdd: 0, dodgeAdd: 0, hitAdd: 0, goldMul: 0, xpMul: 0, gemMul: 0,
     };
     d.TRAININGS.forEach((t) => {
       const lv = State.trainings[t.id] || 0;
@@ -116,7 +116,9 @@
     let maxHp = b.maxHp + g.maxHp * (lvl - 1);
     let def_ = b.def + g.def * (lvl - 1);
     let crit = b.crit, critDmg = b.critDmg, atkInterval = b.atkInterval;
-    let lifesteal = b.lifesteal, dodge = b.dodge;
+    let lifesteal = b.lifesteal;
+    let hit = (b.hit || 0) + 8 * (lvl - 1);   // 命中（隨等級成長）
+    let dodge = b.dodge || 0;                 // 閃避（rating）
 
     // 裝備
     d.EQUIPMENT_SLOTS.forEach((sl) => {
@@ -126,7 +128,7 @@
       if (sl.stat === "atk") atk += v;
       else if (sl.stat === "maxHp") maxHp += v;
       else if (sl.stat === "def") def_ += v;
-      else if (sl.stat === "crit") crit += v;
+      else if (sl.stat === "critDmg") critDmg += v;
       else if (sl.stat === "dodge") dodge += v;
     });
 
@@ -136,7 +138,7 @@
     if (lv("rally")) atk *= 1 + 0.04 * lv("rally");
     if (lv("guard")) { maxHp *= 1 + 0.04 * lv("guard"); def_ *= 1 + 0.05 * lv("guard"); }
     if (lv("focus")) { crit += 0.02 * lv("focus"); critDmg += 0.05 * lv("focus"); }
-    if (lv("bless")) { atkInterval *= 1 - 0.02 * lv("bless"); dodge += 0.01 * lv("bless"); }
+    if (lv("bless")) { atkInterval *= 1 - 0.02 * lv("bless"); dodge += 2 * lv("bless"); }
 
     // 套裝：同稀有度（≥4 件且全部同稀有度）→ 攻擊/生命/防禦 ×倍率
     const set = heroSetBonus(heroId);
@@ -150,15 +152,15 @@
     critDmg += mods.critDmgAdd;
     atkInterval *= 1 - Math.min(0.7, mods.atkSpeedMul);
     lifesteal += mods.lifestealAdd;
-    dodge += mods.dodgeAdd;
+    dodge += mods.dodgeAdd || 0;
+    hit += mods.hitAdd || 0;
 
-    crit = Math.min(0.9, crit);
-    dodge = Math.min(0.75, dodge);
+    crit = Math.min(0.75, crit);   // 暴擊率封頂 75%
     atkInterval = Math.max(0.25, atkInterval);
 
     const out = {
       atk: Math.round(atk), maxHp: Math.round(maxHp), def: Math.round(def_),
-      crit, critDmg, atkInterval, lifesteal, dodge,
+      crit, critDmg, atkInterval, lifesteal, hit: Math.round(hit), dodge: Math.round(dodge),
     };
     out.power = Math.round((out.atk / out.atkInterval) * 12 + out.maxHp / 4 + out.def * 3 + out.crit * 200);
     return out;
@@ -357,6 +359,7 @@
   function enhanceItem(uid) {
     const it = itemByUid(uid);
     if (!it) return false;
+    if ((it.enhance || 0) >= D().ENHANCE_MAX) return false;
     const cost = D().enhanceCost(it);
     if (State.gold < cost) return false;
     State.gold -= cost;

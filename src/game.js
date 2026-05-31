@@ -90,6 +90,7 @@
     battle.enemies.push({
       maxHp: stx.maxHp, hp: stx.maxHp, atk: stx.atk, def: stx.def,
       gold: stx.gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
+      hit: stx.hit, dodge: stx.dodge,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, sprite,
       x: Game.view.w + 14, targetX: 0, hitFlash: 0, shake: 0, lunge: 0,
     });
@@ -318,14 +319,18 @@
       if (h.atkTimer <= 0) {
         const target = frontEnemy();
         if (target) {
-          const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
           const cls = D().HERO_BY_ID[h.heroId].cls;
           const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
           h.lunge = ranged ? 2 : 6;
           if (ranged) {
             addProjectile(h.x, v.ground - 16 - h.lift, target.x, v.ground - 24, cls === "法師" ? "#b06ae0" : cls === "牧師" ? "#7adf8a" : "#ffe45a");
           }
-          damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
+          if (Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
+            addFloat(target.x, v.ground - 30, "MISS", "#cfd6e4");
+          } else {
+            const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
+            damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
+          }
         }
         h.atkTimer = h.stats.atkInterval;
       }
@@ -339,7 +344,7 @@
         const target = frontHero();
         if (target) {
           e.lunge = 6;
-          if (Math.random() < target.stats.dodge) {
+          if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
             addFloat(target.x, v.ground - 38 - target.lift, "閃避", "#9fd0f4");
           } else {
             const dmg = Math.max(1, Math.round(e.atk - target.stats.def));
