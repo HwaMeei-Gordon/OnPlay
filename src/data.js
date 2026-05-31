@@ -106,7 +106,7 @@
     const sl = SLOT_BY_ID[slot];
     const ra = RARITY_BY_ID[rarity];
     const base0 = sl.base * ra.mult * tier;
-    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 2));
+    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 5));
     return starred * (1 + (enhance || 0) * 0.12);
   }
   function itemTierForStage(stage) {
