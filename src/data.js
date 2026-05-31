@@ -74,6 +74,9 @@
   const RARITY_BY_ID = {};
   RARITIES.forEach((r) => (RARITY_BY_ID[r.id] = r));
 
+  // 套裝：身上 4 件以上同稀有度 → 攻擊/生命/防禦 倍率
+  const SET_RARITY_MULT = { uncommon: 1.5, rare: 2.0, epic: 3.0, legendary: 5.0 };
+
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
     { id: "weapon", name: "武器", icon: "sword", stat: "atk", base: 6 },
@@ -364,7 +367,7 @@
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
-    RARITIES, RARITY_BY_ID,
+    RARITIES, RARITY_BY_ID, SET_RARITY_MULT,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
     GACHA,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,

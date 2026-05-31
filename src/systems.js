@@ -82,6 +82,25 @@
     return State.inventory.find((it) => it.uid === uid) || null;
   }
 
+  // ---- 套裝：身上 ≥4 件且全部同稀有度 → 倍率（普通無效果）----
+  function heroSetBonus(heroId) {
+    const hs = State.heroes[heroId];
+    if (!hs) return null;
+    const d = D();
+    let rar = null, count = 0, ok = true;
+    d.EQUIPMENT_SLOTS.forEach((sl) => {
+      const it = itemByUid(hs.equip[sl.id]);
+      if (!it) return;
+      count++;
+      if (rar === null) rar = it.rarity;
+      else if (it.rarity !== rar) ok = false;
+    });
+    if (!ok || count < 4 || !rar) return null;
+    const mult = d.SET_RARITY_MULT[rar];
+    if (!mult) return null;
+    return { rarity: rar, mult, count };
+  }
+
   // ---- 英雄有效屬性 ----
   function heroStats(heroId, mods) {
     const d = D();
@@ -117,6 +136,10 @@
     if (lv("guard")) { maxHp *= 1 + 0.04 * lv("guard"); def_ *= 1 + 0.05 * lv("guard"); }
     if (lv("focus")) { crit += 0.02 * lv("focus"); critDmg += 0.05 * lv("focus"); }
     if (lv("bless")) { atkInterval *= 1 - 0.02 * lv("bless"); dodge += 0.01 * lv("bless"); }
+
+    // 套裝：同稀有度（≥4 件且全部同稀有度）→ 攻擊/生命/防禦 ×倍率
+    const set = heroSetBonus(heroId);
+    if (set) { atk *= set.mult; maxHp *= set.mult; def_ *= set.mult; }
 
     // 全域倍率
     atk *= 1 + mods.atkMul;
@@ -547,7 +570,7 @@
 
   Game.Systems = {
     defaultState, setState, todayStr,
-    globalMods, heroStats, heroPower, teamPower, itemByUid,
+    globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus,
     addGold, addGems, spend, tickSecond, onKill, noteStage,
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
     rollItem, openBox, gachaCost, doGacha,

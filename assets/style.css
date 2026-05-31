@@ -364,3 +364,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .gs-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(58,47,85,0.5); font-size: 13px; }
 .gs-row:last-child { border-bottom: none; } .gs-row b { color: var(--text); }
 .gs-best { font-size: 12px; text-align: center; margin-bottom: 12px; color: var(--muted); }
+
+/* ===== 套裝效果列（啟動才上色，未啟動灰色）===== */
+.set-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-left: 3px solid #44485a; border-radius: 8px; padding: 7px 9px; margin-bottom: 5px; opacity: 0.55; filter: grayscale(0.8); }
+.set-row.on { opacity: 1; filter: none; border-color: var(--rc); border-left-color: var(--rc); box-shadow: 0 0 8px -2px var(--rc); }
+.set-dot { width: 9px; height: 9px; border-radius: 50%; background: #555; flex-shrink: 0; }
+.set-row.on .set-dot { background: var(--rc); box-shadow: 0 0 5px var(--rc); }
+.set-name { font-size: 12px; font-weight: bold; color: #8a8fa0; }
+.set-row.on .set-name { color: var(--rc); }
+.set-eff { font-size: 10px; color: var(--muted); flex: 1; }
+.set-tag { font-size: 10px; font-weight: bold; color: #6f6790; }
+.set-row.on .set-tag { color: var(--rc); }
