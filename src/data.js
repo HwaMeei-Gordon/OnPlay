@@ -39,19 +39,49 @@
     return 1 + (r >= 2 ? 1 : 0) + (r >= 5 ? 1 : 0);
   }
 
-  // ---- 敵人數值縮放 ----
+  // ---- 難度核心曲線（數值平衡基準）----
+  // 每關都有一個「難度倍率」difficultyMult(stage)，敵人所有戰鬥數值都 = 基準 × 此倍率。
+  // 錨點（使用者指定，每 100 關一個量級；關卡之間以幾何內插逐級遞增，不是整段持平）：
+  //   0→0.3, 100→1, 200→10, 300→50, 400→100, 500→250,
+  //   600→750, 700→1000, 800→2500, 900→7500, 1000→20000
+  // 設計意圖：0–100 關難度倍率僅 0.3→1，玩家「純靠時間/升級、不碰裝備」即可推進；
+  //   之後倍率快速拉開，玩家需靠 裝備升星、傳說/神話裝、湊套裝、輪迴轉生、升級寵物 來補足差距。
+  //   未來調整數值平衡，一律以此曲線為核心基準對照。
+  const DIFFICULTY_ANCHORS = [
+    [0, 0.3], [100, 1], [200, 10], [300, 50], [400, 100], [500, 250],
+    [600, 750], [700, 1000], [800, 2500], [900, 7500], [1000, 20000],
+  ];
+  function difficultyMult(stage) {
+    const A = DIFFICULTY_ANCHORS;
+    if (stage <= A[0][0]) return A[0][1];
+    for (let i = 1; i < A.length; i++) {
+      if (stage <= A[i][0]) {
+        const s0 = A[i - 1][0], m0 = A[i - 1][1], s1 = A[i][0], m1 = A[i][1];
+        // 幾何（指數）內插：在 [s0,s1] 之間逐級遞增，端點對齊錨點
+        return m0 * Math.pow(m1 / m0, (stage - s0) / (s1 - s0));
+      }
+    }
+    // 1000 關之後：延續最後一段的每關成長率
+    const a = A[A.length - 2], b = A[A.length - 1];
+    const rate = Math.pow(b[1] / a[1], 1 / (b[0] - a[0]));
+    return b[1] * Math.pow(rate, stage - b[0]);
+  }
+
+  // ---- 敵人數值縮放（全部由 difficultyMult 驅動）----
   function makeEnemyStats(stage, isBoss) {
-    const s = stage;
+    const dm = difficultyMult(stage);
     const base = {
-      maxHp: Math.floor(32 * Math.pow(1.15, s - 1)),
-      atk: Math.floor(6 * Math.pow(1.12, s - 1)),
-      def: Math.floor(1 * Math.pow(1.08, s - 1)),
-      gold: Math.floor(12 * Math.pow(1.18, s - 1)),
-      xp: Math.floor(9 * Math.pow(1.15, s - 1)),
+      // 線性對應難度倍率
+      maxHp: Math.max(20, Math.floor(120 * dm)),
+      // 攻擊/金幣等用次線性指數，避免後期數字爆炸到難以閱讀
+      atk: Math.max(3, Math.floor(11 * Math.pow(dm, 0.72))),
+      def: Math.floor(1 * Math.pow(dm, 0.5)),
+      gold: Math.max(5, Math.floor(18 * Math.pow(dm, 0.92))),
+      xp: Math.max(5, Math.floor(12 * Math.pow(dm, 0.85))),
       gems: 0,
       atkInterval: 1.2,
-      hit: Math.floor(15 * Math.pow(1.05, s - 1)),
-      dodge: Math.floor(5 * Math.pow(1.04, s - 1)),
+      hit: Math.floor(15 * Math.pow(dm, 0.35)),
+      dodge: Math.floor(5 * Math.pow(dm, 0.3)),
     };
     if (isBoss) {
       base.maxHp = Math.floor(base.maxHp * 4.5);
@@ -392,6 +422,7 @@
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
+    DIFFICULTY_ANCHORS, difficultyMult,
     RARITIES, RARITY_BY_ID, SET_RARITY_MULT, STAR_MAX, STAR_RULES, scrollTierFor, starMult, SCROLL_COST,
     ENHANCE_MAX, EVADE_K, evadeChance,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
