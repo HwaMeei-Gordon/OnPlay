@@ -340,6 +340,7 @@
         <div class="gc-btns">
           ${buyBtn("gacha-open", { box: bt, count: 1 }, box.cur, box.cost, "開 1 次")}
           ${buyBtn("gacha-open", { box: bt, count: 10 }, box.cur, box.cost * 10, "開 10 次")}
+          ${bt === "gold" ? buyBtn("gacha-open", { box: bt, count: 100 }, box.cur, box.cost * 100, "開 100 次") : ""}
         </div>
       </div>`;
     });
@@ -607,18 +608,33 @@
   }
 
   function showGachaResult(items) {
-    let html = `<div class="modal-title">開箱結果 ×${items.length}</div><div class="gacha-result">`;
-    items.forEach((it, i) => {
-      html += `<div class="gr-card" style="border-color:${rarColor(it.rarity)};animation-delay:${i * 40}ms">
-        <div class="gr-icon">${ico(it.slot, 22)}</div>
-        <div class="gr-rar" style="color:${rarColor(it.rarity)}">${rarName(it.rarity)}</div>
-        <div class="gr-name">${D().SLOT_BY_ID[it.slot].name}</div>
-        <div class="gr-stat">${itemStatText(it)}</div>
-      </div>`;
-    });
-    html += `</div><button class="primary-btn" data-act="" onclick="Game.UI._close()">確定</button>`;
+    let html = `<div class="modal-title">開箱結果 ×${items.length}</div>`;
+    if (items.length > 15) {
+      // 大量開箱：顯示稀有度統計（避免一次塞上百張卡）
+      const by = {};
+      items.forEach((it) => (by[it.rarity] = (by[it.rarity] || 0) + 1));
+      let best = items[0];
+      items.forEach((it) => { if (D().RARITIES.findIndex((r) => r.id === it.rarity) > D().RARITIES.findIndex((r) => r.id === best.rarity)) best = it; });
+      html += `<div class="gacha-summary">`;
+      D().RARITIES.slice().reverse().forEach((r) => {
+        if (by[r.id]) html += `<div class="gs-row"><span style="color:${r.color}">${r.name}</span><b>×${by[r.id]}</b></div>`;
+      });
+      html += `</div><div class="gs-best">最佳：<span style="color:${rarColor(best.rarity)}">${itemName(best)}（${itemStatText(best)}）</span></div>`;
+    } else {
+      html += `<div class="gacha-result">`;
+      items.forEach((it, i) => {
+        html += `<div class="gr-card" style="border-color:${rarColor(it.rarity)};animation-delay:${i * 40}ms">
+          <div class="gr-icon">${ico(it.slot, 22)}</div>
+          <div class="gr-rar" style="color:${rarColor(it.rarity)}">${rarName(it.rarity)}</div>
+          <div class="gr-name">${D().SLOT_BY_ID[it.slot].name}</div>
+          <div class="gr-stat">${itemStatText(it)}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `<button class="primary-btn" onclick="Game.UI._close()">確定</button>`;
     openModal(html);
-    if (current === "bag") renderPanel();
+    if (current === "bag") renderPanel(true);
   }
 
   function confirmReset() {

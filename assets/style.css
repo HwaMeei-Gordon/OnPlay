@@ -358,3 +358,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .chip { min-height: 30px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel2); color: var(--muted); font-family: inherit; font-size: 11px; padding: 3px 9px; cursor: pointer; display: inline-flex; align-items: center; }
 .chip.on { background: linear-gradient(var(--gold), #e0a800); color: #2a2010; border-color: var(--gold); }
 .chip img { width: 14px; height: 14px; }
+
+/* ===== 大量開箱統計 ===== */
+.gacha-summary { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 6px 12px; margin-bottom: 8px; }
+.gs-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(58,47,85,0.5); font-size: 13px; }
+.gs-row:last-child { border-bottom: none; } .gs-row b { color: var(--text); }
+.gs-best { font-size: 12px; text-align: center; margin-bottom: 12px; color: var(--muted); }
