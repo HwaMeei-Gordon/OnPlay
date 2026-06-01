@@ -434,8 +434,7 @@
     Game.State._secT -= dt;
     if (Game.State._secT <= 0) { S().tickSecond(); Game.State._secT = 1; }
     refreshFieldStats();
-    const speed = Math.max(1, Math.min(4, Game.State.speed || 1));
-    for (let i = 0; i < speed; i++) step(dt);
+    step(dt);
   }
   function onPartyChanged() {
     if (battle) buildField();
