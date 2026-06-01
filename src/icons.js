@@ -57,7 +57,7 @@
     staff: ["....obbo....","...obBBbo...","...obBpbo...","...obBBbo...","....oMo.....","....oMo.....","....oMo.....","....oMo.....","....oMo.....","....ooo.....","............","............"],
     bow: ["...oo.......","..oEEo......",".oEEo.......",".oEo.o......",".oEo..o.....",".oEo..o.....",".oEo.o......",".oEEo.......","..oEEo......","...oo.......","............","............"],
     plus: ["....oooo....","...oeeeeo...","oooeeeeeeooo","oeeeeeeeeeeo","oeeeeeeeeeeo","oooeeeeeeooo","...oeeeeo...","...oeeeeo...","....oooo....","............","............","............"],
-    goddess: ["....oYYo....","...oYYYYo...","...owwwwo...","..owwwwwwo..","YYowwwwwwoYY","YYowowwowoYY","YYowwwwwwoYY",".oowwwwwwoo.","..owwwwwwo..","...owwwwo...","....oooo....","............"],
+    goddess: ["................","......oYYo......",".....oyYYyo.....","....oyhhhhyo....","ww..oyhhhhyo..ww","www.oychhcyo.www","wwwwowwwwwwowwww",".wwwowwYYwwowww.","..wwowwwwwwoww..","....owwYYwwo....","....owwwwwwo....","....owwwwwwo....","....oawwwwao....",".....owwwwo.....",".....oYYYYo.....","......oooo......"],
   };
 
   // 別名（多個用途共用一個圖示）
