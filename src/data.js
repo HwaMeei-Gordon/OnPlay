@@ -551,7 +551,7 @@
   // ---- 商店 ----
   const SHOP = [
     { id: "buy_scroll1", name: "1星卷軸", icon: "scroll", cur: "gems", cost: 1, give: { scroll: 0 }, desc: "升星基礎卷軸，可放入五芒星合成更高階" },
-    { id: "buy_guardian", name: "女神的守護", icon: "shield", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備損毀時，消耗 1 個抵銷，保護裝備不損毀。" },
+    { id: "buy_guardian", name: "女神的守護", icon: "goddess", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備損毀時，消耗 1 個抵銷，保護裝備不損毀。" },
     // 每日特惠
     { id: "daily_gold", name: "每日金幣包", icon: "coin", cur: "gems", cost: 10, give: { gold: 2000 }, daily: true, limit: 3 },
     { id: "daily_gem", name: "每日鑽石（看廣告免費）", icon: "gem", cur: "gold", cost: 0, give: { gems: 15 }, daily: true, limit: 2 },

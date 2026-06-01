@@ -493,7 +493,7 @@
       // 女神的守護：全域勾選開關
       html += `<div class="guard-toggle ${on ? "on" : ""} ${guard <= 0 ? "dim" : ""}" ${guard <= 0 ? "" : `onclick="Game.UI._toggleGuardian(${uid})"`}>
         <span class="gt-box">${on ? "✓" : ""}</span>
-        <span class="gt-label">${ico("shield", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
+        <span class="gt-label">${ico("goddess", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
       </div>`;
       if (guard <= 0) html += `<div class="gt-hint dim">沒有女神的守護，無法開啟（可至商店購買）</div>`;
       else if (on && !risky) html += `<div class="gt-hint">本階無損毀風險，升星不會消耗守護</div>`;
