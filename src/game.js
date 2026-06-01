@@ -89,13 +89,16 @@
     }
     // 寶箱怪：region>=1、非魔王關，低機率出現；脆但肉、掉裝率高
     const chest = !boss && r >= D().DROP.minRegion && Math.random() < D().DROP.chestSpawnChance;
+    // 精英怪：非魔王、非寶箱，出現比率隨關卡指數成長（900 關封頂 33%）；較肉、金幣較多
+    const elite = !boss && !chest && Math.random() < D().eliteRatio(stage);
     let maxHp = stx.maxHp, atk = stx.atk, gold = stx.gold;
     if (chest) { maxHp = Math.floor(maxHp * 2.5); atk = Math.floor(atk * 0.6); gold = Math.floor(gold * 4); }
+    else if (elite) { const E = D().ELITE; maxHp = Math.floor(maxHp * E.hpMul); atk = Math.floor(atk * E.atkMul); gold = Math.floor(gold * E.goldMul); }
     battle.enemies.push({
       maxHp: maxHp, hp: maxHp, atk: atk, def: stx.def,
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
-      atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, sprite,
+      atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
       x: Game.view.w + 14, targetX: 0, hitFlash: 0, shake: 0, lunge: 0,
     });
   }
@@ -175,8 +178,9 @@
     const drop = S().onKill(target);
     if (drop) {
       if (drop.scroll) {
+        const sName = D().scrollTierName(drop.tier || 0);
         addFloat(target.x, Game.view.ground - 46, "卷軸", "#c79bff", true);
-        if (Game.UI && Game.UI.toast) Game.UI.toast("獲得 0-1 星卷");
+        if (Game.UI && Game.UI.toast) Game.UI.toast("獲得 " + sName);
       } else {
         const set = D().SET_BY_ID[drop.setId];
         const ra = D().RARITY_BY_ID[drop.rarity];
@@ -186,12 +190,12 @@
           Game.UI.toast(set ? `獲得【${set.name}·${slotName}】(${ra.name})` : `獲得 ${ra.name}${slotName}`);
       }
     }
-    // 掉落金幣/鑽石飛出特效
+    // 掉落金幣飛出特效（打怪不掉鑽石）
     const n = target.isBoss ? 9 : 3;
     for (let k = 0; k < n; k++)
       addParticle("coin", target.x, Game.view.ground - 14,
         (Math.random() - 0.5) * 36, -45 - Math.random() * 35, 0.7 + Math.random() * 0.3,
-        target.isBoss && k % 3 === 0 ? "#67d6ff" : "#ffd23f");
+        "#ffd23f");
     battle.enemies.splice(i, 1);
     battle.killedThisStage++;
   }

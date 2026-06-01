@@ -251,7 +251,7 @@
   // ---- 擊殺結算 ----
   function onKill(enemy) {
     addGold(enemy.gold);
-    if (enemy.gems) addGems(enemy.gems);
+    // 打怪不掉鑽石（鑽石只來自鑽石寶箱與任務）
     State.stats.totalKills++;
     State.daily.counters.killsToday++;
     if (enemy.isBoss) {
@@ -263,22 +263,23 @@
     const stage = State.stage;
     if (d.regionOf(stage) < d.DROP.minRegion) return null;
     if (enemy.isChest) {
-      // 寶箱怪：100% 掉落，多為裝備
+      // 寶箱怪：100% 掉落，全裝備
       return grantDrop(d.DROP.chestTable, stage, true);
     }
-    // 一般怪/魔王：超低機率，多為卷軸
-    if (Math.random() < d.DROP.normal) {
-      return grantDrop(d.DROP.normalTable, stage, false);
+    const rate = enemy.isBoss ? d.DROP.bossRate : enemy.isElite ? d.DROP.eliteRate : d.DROP.normalRate;
+    if (Math.random() < rate) {
+      return grantDrop(d.DROP.dropTable, stage, false);
     }
     return null;
   }
 
-  // 依掉落權重表給予：卷軸→scrolls[0]++（回傳 {scroll:true}）；裝備→push 並回傳物件
+  // 依掉落權重表給予：卷軸（scrollN）→scrolls[N]++（回傳 {scroll:true,tier:N}）；裝備→push 並回傳物件
   function grantDrop(table, stage, isChest) {
     const outcome = rollRarityWeighted(table);
-    if (outcome === "scroll0") {
-      State.scrolls[0] = (State.scrolls[0] || 0) + 1;
-      return { scroll: true };
+    if (outcome.indexOf("scroll") === 0) {
+      const idx = +outcome.slice(6);
+      State.scrolls[idx] = (State.scrolls[idx] || 0) + 1;
+      return { scroll: true, tier: idx };
     }
     const item = rollGear(outcome, stage, isChest);
     State.inventory.push(item);
@@ -309,7 +310,7 @@
     if (stage > State.bestStage) {
       const crossed = Math.floor(stage / 5) > Math.floor(State.bestStage / 5);
       State.bestStage = stage;
-      if (crossed) { State.talentPoints += 1; State.gems += 6 + Math.floor(stage / 6); } // 里程碑給才能點 + 鑽石
+      if (crossed) { State.talentPoints += 1; } // 里程碑給才能點（鑽石只來自鑽石寶箱與任務）
     }
   }
 
