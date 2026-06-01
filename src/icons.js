@@ -26,8 +26,8 @@
     soul: [".....o......","....opo.....","...oppPo....","..oppPPuo...",".oppPPPuuo..",".opPPPPPuo..",".opPPPPPuo..",".oupPPPuuo..","..ouuPuuo...","...ouuuo....","....ooo.....","............"],
     sword: ["........ooo.",".......oaso.","......oasoo.",".....oaso...","....oaso....","...oaso.....","..oaso......","o.oao.......","ooyo........",".oMMo.......","..ooo.......","............"],
     shield: [".oooooooo...",".oaSSSSSSo..",".oaSwSSSSo..",".oaSSkkSSo..",".oaSSkkSSo..",".oaSSSSSSo..","..oaSSSSo...","...oaSSo....","....oao.....",".....o......","............","............"],
-    helmet: ["...oooooo...","..owwwwwwo..",".owwaaaawwo.",".oaaaaaaaao.",".okkkkkkkko.",".oaaaaaaaao.",".oaaaaaaaao.",".oakaaaakao.",".oakaaaakao.",".oaaaaaaaao.","..oaaaaaao..","...oooooo..."],
-    chestplate: ["..oo....oo..",".oaaoooaaao.","oaaawwwaaaao","oaaawawaaaao","oaaaawaaaaao","oaaaawaaaaao",".oaaawaaaao.",".oaaaaaaaao.",".oaaaaaaaao.",".oaYYYYYYao.","..oaaaaaao..","...oooooo..."],
+    helmet: ["...oooooo...","..owwwwwwo..",".owaaaaaawo.",".oaaaaaaaao.",".oakkkkkkao.",".oaaakkaaao.",".oaaakkaaao.",".oaaakkaaao.",".oaaakkaaao.",".oaaaaaaaao.","..oaaaaaao..","...oooooo..."],
+    chestplate: ["...oooooo...","..owwwwwwo..",".owwaaaawwo.",".oaaaaaaaao.",".okkkkkkkko.",".oaaaaaaaao.",".oaaaaaaaao.",".oakaaaakao.",".oakaaaakao.",".oaaaaaaaao.","..oaaaaaao..","...oooooo..."],
     legs: ["..oooooooo..",".oawwwwwwao.",".oassssssao.",".oaaaoooaao.",".oaao.oaao..",".oaao.oaao..",".oaso.osao..",".oao...oao..",".oo.....oo..","............","............","............"],
     boots: ["............","............","..oaaooaao..","..oaaooaao..","..oaaooaao..","..oaaooaao..",".oaaaooaaao.",".okkkookkko.",".oooooooooo.","............","............","............"],
     ring: [".....oo.....","....obbo....","....oBdo....","...o..o.....","..oaao......",".oassao.....",".oassso.....",".oassao.....",".oaaao......","..ooo.......","............","............"],
@@ -64,8 +64,8 @@
 
   // 別名（多個用途共用一個圖示）
   const ALIAS = {
-    atk: "sword", weapon: "sword", might: "sword", slash: "sword", p_atk: "sword", killAch: "sword",
-    def: "shield", armor: "shield", guard: "shield",
+    atk: "sword", weapon: "weapons", might: "sword", slash: "sword", p_atk: "sword", killAch: "sword",
+    def: "shield", armor: "chestplate", guard: "shield",
     maxHp: "heart", hp: "heart", vigor: "heart", p_hp: "heart",
     crit: "target", focus: "target", precision: "target",
     critDmg: "burst", ferocity: "burst", fireball: "burst",
