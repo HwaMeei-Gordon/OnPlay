@@ -72,6 +72,21 @@
     });
     return txt;
   }
+  // 詳情視窗：主/副屬性垂直列，每行附「水準」標籤
+  function itemStatRowsHtml(it) {
+    const d = D(), sl = d.SLOT_BY_ID[it.slot];
+    const row = (stat, val) => {
+      const q = d.attrQuality(it, stat);
+      return `<div class="im-row"><span class="ir-name">${STAT_NAMES[stat]}</span>`
+        + `<span class="ir-val">${statVal(stat, val)}</span>`
+        + `<span class="ir-q" style="color:${q.color}">${q.name}</span></div>`;
+    };
+    let html = row(sl.stat, d.itemMainStat(it));
+    const sdef = it.setId && d.SET_BY_ID[it.setId];
+    const subs = sdef && sdef.sub && sdef.sub[it.slot];
+    if (subs) subs.forEach((st) => { html += row(st, d.itemSubStat(it, st)); });
+    return html;
+  }
   function itemName(it) {
     const sl = D().SLOT_BY_ID[it.slot];
     const sdef = it.setId && D().SET_BY_ID[it.setId];
@@ -452,8 +467,7 @@
         <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
         <div class="im-info">
           <div>${rarName(it.rarity)}・${D().SLOT_BY_ID[it.slot].name}${it.setId && d.SET_BY_ID[it.setId] ? `　<b style="color:${d.SET_BY_ID[it.setId].color}">${d.SET_BY_ID[it.setId].name}</b>` : ""}</div>
-          <div class="im-stat">${itemStatText(it)}</div>
-          <div class="im-sub">階級 ${it.tier}　強化 +${it.enhance}　星 ${star}★/${d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX}</div>
+          ${itemStatRowsHtml(it)}
           ${equipped ? `<div class="badge">裝備中</div>` : ""}
         </div>
       </div>`;
@@ -491,7 +505,6 @@
     } else {
       html += `<div class="star-info"><div><b style="color:${rarColor(it.rarity)}">已達頂級神話滿星</b></div></div>`;
     }
-    html += `<div class="scroll-bag">卷軸：${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((t) => `${d.scrollTierName(t)}×${St().scrolls[t] || 0}`).join("　")}</div>`;
     // 強化 / 分解 / 關閉
     html += `<div class="row-btns" style="margin-top:8px">
         <button class="buy-btn" ${St().gold < eCost ? "disabled" : ""} onclick="Game.UI._itemEnhance(${uid})"><span class="cost">${ico("coin", 13)}${fmt(eCost)}</span><span class="lbl">強化</span></button>
