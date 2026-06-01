@@ -844,7 +844,11 @@
         if (!unlocked.length) { toast("至少要保留一個未鎖定的屬性才能洗鍊"); rerender = false; break; }
         const cost = 100 * Math.pow(2, all.length - unlocked.length);
         if (!Sy().spend("gems", cost)) { toast("鑽石不足"); rerender = false; break; }
-        Sy().reforgeAttrs(forgeUid, unlocked); toast("洗鍊完成！"); // 保留鎖定狀態，可連抽
+        Sy().reforgeAttrs(forgeUid, unlocked); // 保留鎖定狀態，可連抽
+        // 提醒：未鎖定卻洗出 完美 / 最完美
+        const hot = unlocked.filter((st) => D().attrQuality(it, st).pct >= 0.9);
+        if (hot.length) toast("【提醒】洗出 " + hot.map((st) => STAT_NAMES[st] + " " + D().attrQuality(it, st).name).join("、") + "（未鎖定）！記得鎖定保留");
+        else toast("洗鍊完成！");
         break;
       }
       case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; craftBatch = 1; break; }
