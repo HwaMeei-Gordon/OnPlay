@@ -414,3 +414,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .craft-info { flex: 0 0 auto; text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
 .craft-btns { flex: 0 0 auto; display: flex; gap: 9px; justify-content: center; margin-top: 8px; }
 .craft-btns .mini-btn { flex: 0 0 auto; min-width: 96px; border-radius: 3px; }
+.craft-batch { flex: 0 0 auto; width: 100%; max-width: 340px; margin: 14px auto 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.craft-batch .cb-title { text-align: center; font-size: 12px; font-weight: bold; color: var(--muted); margin-bottom: 7px; }
+.craft-batch .cb-row { display: flex; gap: 7px; justify-content: center; align-items: center; }
+.craft-batch .cb-row .mini-btn { flex: 0 0 auto; min-width: 52px; }
+.craft-batch .cb-num { min-width: 56px; text-align: center; font-weight: bold; font-size: 18px; color: var(--text); }
+.craft-batch .cb-info { text-align: center; font-size: 12px; color: var(--text); margin: 9px 0 2px; }

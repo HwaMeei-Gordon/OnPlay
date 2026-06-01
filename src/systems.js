@@ -459,14 +459,17 @@
     return true;
   }
   // ---- 升星卷軸合成（5 張合成上一階 1 張）----
-  function craftScroll(i) {
+  function craftScroll(i, qty) {
     const d = D();
     i = +i;
-    if (isNaN(i) || i < 0 || i >= d.SCROLL_TIERS - 1) return false; // 9-10 為頂不可再合
-    if ((State.scrolls[i] || 0) < d.CRAFT_RATIO) return false;
-    State.scrolls[i] -= d.CRAFT_RATIO;
-    State.scrolls[i + 1] = (State.scrolls[i + 1] || 0) + 1;
-    return true;
+    if (isNaN(i) || i < 0 || i >= d.SCROLL_TIERS - 1) return 0; // 9-10 為頂不可再合
+    qty = Math.max(1, Math.floor(qty || 1));
+    const max = Math.floor((State.scrolls[i] || 0) / d.CRAFT_RATIO);
+    if (max < 1) return 0;
+    qty = Math.min(qty, max);
+    State.scrolls[i] -= d.CRAFT_RATIO * qty;
+    State.scrolls[i + 1] = (State.scrolls[i + 1] || 0) + qty;
+    return qty; // 回傳實際產出張數（>0 為成功）
   }
   // 嘗試升星：回傳 {ok, success, destroyed, protected, guardUsed, msg}
   // 星 X→X+1 需用「X-(X+1)」卷（scrolls[X]）；星上限依稀有度
