@@ -16,6 +16,7 @@
   let bagFilter = "all"; // 背包部位篩選
   let craftSel = 1;      // 合成目標卷軸 index（1..9）
   let craftPlaced = 0;   // 五芒星已放入的卷軸數（0..5）
+  let craftBatch = 1;    // 批次合成：要產出的目標卷軸張數
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
@@ -370,6 +371,8 @@
     if (craftPlaced > Math.min(need, have)) craftPlaced = Math.min(need, have);
     const targetName = d.scrollTierName(craftSel);
     const srcName = d.scrollTierName(srcIdx);
+    const maxBatch = Math.floor(have / need);   // 最多可批次合成的目標張數
+    const bq = Math.min(Math.max(1, craftBatch), Math.max(1, maxBatch));
 
     // 側欄：合成目標（拉動區塊，只顯示持有數）
     let side = `<div class="craft-side"><div class="cs-title">合成目標</div><div class="craft-list">`;
@@ -408,6 +411,18 @@
         <div class="craft-btns">
           <button class="mini-btn" data-act="craft-fill" ${have >= 1 ? "" : "disabled"}>自動放入</button>
           <button class="mini-btn" data-act="craft-clear" ${craftPlaced ? "" : "disabled"}>清空</button>
+        </div>
+        <div class="craft-batch">
+          <div class="cb-title">批次合成</div>
+          <div class="cb-row">
+            <button class="mini-btn" data-act="craft-batch-add" data-v="-1">－</button>
+            <span class="cb-num">${bq}</span>
+            <button class="mini-btn" data-act="craft-batch-add" data-v="1">＋</button>
+            <button class="mini-btn" data-act="craft-batch-add" data-v="10">+10</button>
+            <button class="mini-btn" data-act="craft-batch-add" data-v="100">+100</button>
+          </div>
+          <div class="cb-info">消耗 <b style="color:#c79bff">${need * bq}</b> × ${srcName}　→　產出 <b style="color:#ffd23f">${bq}</b> × ${targetName}</div>
+          <button class="primary-btn ${maxBatch >= 1 ? "" : "dim"}" data-act="craft-batch-do" ${maxBatch >= 1 ? "" : "disabled"}>批次合成</button>
         </div>
       </div></div>`;
     return html;
@@ -717,11 +732,13 @@
       case "shop-qty-buy": { const r = Sy().shopBuy(shopQtyId, shopQty); toast(r.ok ? "購買成功 ×" + r.qty : r.msg); closeModal(); break; }
       case "modal-close": closeModal(); rerender = false; break;
       case "buy-gear": { const it = Sy().buyCommonGear(t.dataset.slot); toast(it ? "購買 普通" + D().SLOT_BY_ID[t.dataset.slot].name : "金幣不足"); break; }
-      case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; break; }
+      case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; craftBatch = 1; break; }
       case "craft-place": { const have = St().scrolls[craftSel - 1] || 0; if (craftPlaced < Math.min(D().CRAFT_RATIO, have)) craftPlaced++; else toast("沒有更多 " + D().scrollTierName(craftSel - 1)); break; }
       case "craft-unplace": { if (craftPlaced > 0) craftPlaced--; break; }
       case "craft-fill": { craftPlaced = Math.min(D().CRAFT_RATIO, St().scrolls[craftSel - 1] || 0); break; }
       case "craft-clear": { craftPlaced = 0; break; }
+      case "craft-batch-add": { const max = Math.max(1, Math.floor((St().scrolls[craftSel - 1] || 0) / D().CRAFT_RATIO)); craftBatch = Math.min(max, Math.max(1, (craftBatch || 1) + (+t.dataset.v))); break; }
+      case "craft-batch-do": { const n = Sy().craftScroll(craftSel - 1, craftBatch || 1); if (n) { toast("批次合成成功！獲得 " + n + " × " + D().scrollTierName(craftSel)); craftBatch = 1; craftPlaced = 0; } else toast(D().scrollTierName(craftSel - 1) + " 不足"); break; }
       case "craft-do": {
         if (craftPlaced < D().CRAFT_RATIO) { toast("需放滿 " + D().CRAFT_RATIO + " 張"); break; }
         if (Sy().craftScroll(craftSel - 1)) { toast("合成成功！獲得 1 × " + D().scrollTierName(craftSel)); craftPlaced = 0; }
