@@ -77,11 +77,18 @@
   }
 
   // 回傳合併好的 state 物件（main 會 setState）
+  // 確保所有裝備都有「每屬性 aBands」（舊存檔缺漏 → 重建＝全部重抽）
+  function migrateItemBands(state) {
+    if (state && Array.isArray(state.inventory)) {
+      state.inventory.forEach((it) => Game.Systems.ensureItemAttrBands(it));
+    }
+    return state;
+  }
   function loadState() {
     const v2 = rawLoad(SAVE_KEY);
-    if (v2) return { state: mergeIntoDefault(v2), loaded: v2 };
+    if (v2) return { state: migrateItemBands(mergeIntoDefault(v2)), loaded: v2 };
     const v1 = rawLoad(OLD_KEY);
-    if (v1) return { state: migrateV1(v1), loaded: null, migrated: true };
+    if (v1) return { state: migrateItemBands(migrateV1(v1)), loaded: null, migrated: true };
     return { state: Game.Systems.defaultState(), loaded: null };
   }
 

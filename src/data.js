@@ -175,12 +175,42 @@
     const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 10));
     return starred * (1 + 0.1 * Math.min(enhance || 0, 500));
   }
+  // 每屬性係數：aBands[stat] 存在 → 該屬性各階浮動和；否則 fallback 舊單一係數
+  function attrFactor(it, stat) {
+    const ab = it && it.aBands && it.aBands[stat];
+    if (Array.isArray(ab) && ab.length) {
+      let s = 0; for (let i = 0; i < ab.length; i++) s += ab[i];
+      return s;
+    }
+    return itemValueFactor(it);
+  }
+  // 屬性「水準」：依該屬性浮動落點（占 [Σmin, Σmax] 的百分位）分 5 級
+  const QUALITY = [
+    { name: "不良", color: "#9aa0b0" },
+    { name: "普通", color: "#c9d1e0" },
+    { name: "優秀", color: "#5ec46b" },
+    { name: "完美", color: "#b06ae0" },
+    { name: "最完美", color: "#ffb43d" },
+  ];
+  function attrQuality(it, stat) {
+    const ab = it && it.aBands && it.aBands[stat];
+    if (!Array.isArray(ab) || !ab.length) return { pct: 0.5, name: QUALITY[1].name, color: QUALITY[1].color };
+    let sum = 0, lo = 0, hi = 0;
+    for (let i = 0; i < ab.length; i++) {
+      const b = RARITY_BANDS[RARITY_ORDER[i]];
+      if (!b) continue;
+      sum += ab[i]; lo += b[0]; hi += b[1];
+    }
+    const pct = hi > lo ? Math.max(0, Math.min(1, (sum - lo) / (hi - lo))) : 0.5;
+    const idx = pct >= 1 ? 4 : pct >= 0.75 ? 3 : pct >= 0.5 ? 2 : pct >= 0.25 ? 1 : 0;
+    return { pct, name: QUALITY[idx].name, color: QUALITY[idx].color };
+  }
   // 便利包裝：直接吃 item 物件（呼叫端統一改用這兩個）
   function itemMainStat(it) {
-    return itemStatValue(it.slot, itemValueFactor(it), it.tier, it.enhance, it.stars);
+    return itemStatValue(it.slot, attrFactor(it, SLOT_BY_ID[it.slot].stat), it.tier, it.enhance, it.stars);
   }
   function itemSubStat(it, stat) {
-    const base0 = (SUB_BASE[stat] || 0) * 0.5 * itemValueFactor(it) * it.tier;
+    const base0 = (SUB_BASE[stat] || 0) * 0.5 * attrFactor(it, stat) * it.tier;
     const starred = Math.max(base0, Math.pow(base0, 1 + (it.stars || 0) / 10));
     return starred * (1 + 0.1 * Math.min(it.enhance || 0, 500));
   }
@@ -628,6 +658,7 @@
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
     RARITIES, RARITY_BY_ID, RARITY_ORDER, nextRarity, RARITY_BANDS, bandMid, itemValueFactor,
+    attrFactor, QUALITY, attrQuality,
     SET_RARITY_MULT, STAR_MAX, STAR_RULES, starMult,
     RARITY_STAR_CAP, SCROLL_TIERS, CRAFT_RATIO, scrollTierName,
     ENHANCE_MAX, EVADE_K, evadeChance,

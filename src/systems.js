@@ -369,11 +369,11 @@
     for (const k in weights) { x -= weights[k]; if (x <= 0) return k; }
     return Object.keys(weights)[0];
   }
-  // 擲一段稀有度帶
+  // 擲一段稀有度帶（量化為整數百分位，讓「100% = 最完美」抽得到）
   function rollBand(rarity) {
     const b = D().RARITY_BANDS[rarity];
     if (!b) return 0;
-    return b[0] + Math.random() * (b[1] - b[0]);
+    return b[0] + (b[1] - b[0]) * (Math.floor(Math.random() * 101) / 100);
   }
   // 擲 common..rarity 各一段，回傳 bands 陣列
   function rollBands(rarity) {
@@ -383,9 +383,32 @@
     for (let i = 0; i <= idx; i++) arr.push(rollBand(d.RARITY_ORDER[i]));
     return arr;
   }
-  // 建立裝備物件（含鎖定 bands）
+  // 此裝備擁有的屬性清單（主屬性 + 套裝固定副屬性）
+  function itemAttrStats(it) {
+    const d = D();
+    const stats = [d.SLOT_BY_ID[it.slot].stat];
+    const set = it.setId && d.SET_BY_ID[it.setId];
+    const subs = set && set.sub && set.sub[it.slot];
+    if (subs) subs.forEach((st) => { if (stats.indexOf(st) < 0) stats.push(st); });
+    return stats;
+  }
+  // 每屬性各自一組 bands（分開浮動）
+  function rollAttrBands(rarity, stats) {
+    const ab = {};
+    stats.forEach((st) => { ab[st] = rollBands(rarity); });
+    return ab;
+  }
+  // 確保 item 有 aBands；缺漏則重建（舊存檔遷移＝全部重抽）
+  function ensureItemAttrBands(it) {
+    if (it && it.aBands && typeof it.aBands === "object") return it;
+    it.aBands = rollAttrBands(it.rarity, itemAttrStats(it));
+    return it;
+  }
+  // 建立裝備物件（含鎖定 bands、每屬性 aBands）
   function makeItem(slot, rarity, tier, setId) {
-    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: setId || null, bands: rollBands(rarity) };
+    const it = { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: setId || null, bands: rollBands(rarity) };
+    it.aBands = rollAttrBands(rarity, itemAttrStats(it));
+    return it;
   }
   // 怪物掉落具名裝（區域套裝、固定副屬、可參與具名+稀有度套裝）
   function rollGear(rarity, stage, isChest) {
@@ -514,6 +537,14 @@
     while (it.bands.length < nrIdx) it.bands.push(d.bandMid(d.RARITY_ORDER[it.bands.length]));
     it.bands = it.bands.slice(0, nrIdx);
     it.bands.push(rollBand(nr));
+    // 每屬性各自再給一筆新稀有度浮動（與打怪掉落同規則）
+    ensureItemAttrBands(it);
+    itemAttrStats(it).forEach((st) => {
+      if (!Array.isArray(it.aBands[st])) it.aBands[st] = [];
+      while (it.aBands[st].length < nrIdx) it.aBands[st].push(d.bandMid(d.RARITY_ORDER[it.aBands[st].length]));
+      it.aBands[st] = it.aBands[st].slice(0, nrIdx);
+      it.aBands[st].push(rollBand(nr));
+    });
     it.rarity = nr;
     it.stars = 0;
     return true;
@@ -733,7 +764,7 @@
     globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
     addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
-    rollBands, rollBand, makeItem, rollGear, buyCommonGear,
+    rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
     enhanceItem, craftScroll, starUp, upgradeRarity, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
