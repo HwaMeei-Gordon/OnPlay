@@ -498,11 +498,10 @@
           <span class="cost">${curIco("gold")}${fmt(gearCost)}</span></button>
       </div>`;
     });
-    // 道具 / 招募 / 寵物 / 每日
+    // 卷軸 / 道具 / 每日
     const groups = [
+      { t: "卷軸", f: (s) => s.give.scroll !== undefined },
       { t: "道具", f: (s) => s.give.guardian },
-      { t: "招募英雄", f: (s) => s.give.hero },
-      { t: "寵物", f: (s) => s.give.pet },
       { t: "每日特惠", f: (s) => s.daily },
     ];
     groups.forEach((grp) => {
@@ -513,8 +512,9 @@
         const stt = Sy().shopState(s.id);
         const label = s.cost === 0 ? "免費" : curIco(s.cur) + fmt(s.cost);
         const dis = stt.soldOut ? "disabled" : (St()[s.cur] < s.cost ? "disabled" : "");
-        const shopIco = s.give.hero ? heroPortrait(s.give.hero, 26) : s.give.pet ? petPortrait(D().PET_BY_ID[s.give.pet], 26) : ico(s.icon, 26);
-        const sub = s.give.guardian ? (s.desc + "（持有 " + (St().guardians || 0) + "）")
+        const shopIco = ico(s.icon, 26);
+        const sub = s.give.scroll !== undefined ? (s.desc + "（持有 " + (St().scrolls[s.give.scroll] || 0) + "）")
+          : s.give.guardian ? (s.desc + "（持有 " + (St().guardians || 0) + "）")
           : (stt.remain != null ? "今日剩 " + stt.remain : s.once ? (stt.soldOut ? "已擁有" : "限購 1") : "");
         html += `<div class="shop-item">
           <div class="si-icon">${shopIco}</div>

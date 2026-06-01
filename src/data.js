@@ -520,15 +520,8 @@
 
   // ---- 商店 ----
   const SHOP = [
+    { id: "buy_scroll1", name: "1星卷軸", icon: "scroll", cur: "gems", cost: 1, give: { scroll: 0 }, desc: "升星基礎卷軸，可放入五芒星合成更高階" },
     { id: "buy_guardian", name: "女神的守護", icon: "shield", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備損毀時，消耗 1 個抵銷，保護裝備不損毀。" },
-    { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 50, give: { hero: "mage" }, once: true },
-    { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 90, give: { hero: "archer" }, once: true },
-    { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 180, give: { hero: "priest" }, once: true },
-    { id: "buy_hero_rogue", name: "招募：盜賊", icon: "dagger", cur: "gems", cost: 260, give: { hero: "rogue" }, once: true },
-    { id: "buy_hero_zerk", name: "招募：狂戰士", icon: "axe", cur: "gems", cost: 380, give: { hero: "berserker" }, once: true },
-    { id: "buy_pet_wolf", name: "寵物：幼狼", icon: "paw", cur: "gems", cost: 300, give: { pet: "wolf" }, once: true },
-    { id: "buy_pet_owl", name: "寵物：貓頭鷹", icon: "paw", cur: "gems", cost: 600, give: { pet: "owl" }, once: true },
-    { id: "buy_pet_drake", name: "寵物：幼龍", icon: "paw", cur: "gems", cost: 1200, give: { pet: "drake" }, once: true },
     // 每日特惠
     { id: "daily_gold", name: "每日金幣包", icon: "coin", cur: "gems", cost: 10, give: { gold: 2000 }, daily: true, limit: 3 },
     { id: "daily_gem", name: "每日鑽石（看廣告免費）", icon: "gem", cur: "gold", cost: 0, give: { gems: 15 }, daily: true, limit: 2 },
