@@ -380,16 +380,16 @@
     const targetName = d.scrollTierName(craftSel);
     const srcName = d.scrollTierName(srcIdx);
 
-    // 側欄：選擇要合成的目標（2星卷軸 … 10星卷軸）
-    let side = `<div class="craft-side"><div class="cs-title">合成目標</div>`;
+    // 側欄：合成目標（拉動區塊，只顯示持有數）
+    let side = `<div class="craft-side"><div class="cs-title">合成目標</div><div class="craft-list">`;
     for (let t = 1; t < d.SCROLL_TIERS; t++) {
-      const own = sc[t] || 0, srcOwn = sc[t - 1] || 0;
+      const own = sc[t] || 0;
       side += `<div class="craft-target ${t === craftSel ? "on" : ""}" data-act="craft-select" data-t="${t}">
         <span class="ct-name">${d.scrollTierName(t)}</span>
-        <span class="ct-sub">持有 ${own}　需 ${need}×${d.scrollTierName(t - 1)}（有 ${srcOwn}）</span>
+        <span class="ct-sub">持有 ${own}</span>
       </div>`;
     }
-    side += `</div>`;
+    side += `</div></div>`;
 
     // 五芒星：5 個支點 + 中心合成鈕（裝飾星線用 SVG）
     const pts = [[50, 8], [85, 35], [71, 80], [29, 80], [15, 35]]; // 五頂點 %（上、右上、右下、左下、左上）
@@ -404,18 +404,17 @@
     }
     const canCraft = craftPlaced >= need;
     const center = `<div class="penta-center ${canCraft ? "" : "dim"}" data-act="${canCraft ? "craft-do" : ""}">
-      <span>${ico("scroll", 22)}</span><span class="pc-label">合成</span></div>`;
+      <span class="pc-label">合成</span></div>`;
 
-    let html = `<div class="sec-title">卷軸合成　<span style="font-size:11px;color:#9a90b5">${need} × ${srcName} → 1 × ${targetName}</span></div>`;
-    html += `<div class="craft-wrap">${side}
+    let html = `<div class="craft-wrap">${side}
       <div class="craft-main">
-        <div class="craft-need">將 5 張 <b style="color:#c79bff">${srcName}</b> 放入五芒星合成 1 張 <b style="color:#ffd23f">${targetName}</b></div>
+        <div class="craft-need">需要 <b>${need}</b> 個 <b style="color:#c79bff">${srcName}</b><div class="cn-target">合成 → <b style="color:#ffd23f">${targetName}</b></div></div>
         <div class="pentagram">
           <svg viewBox="0 0 100 100" class="penta-svg" preserveAspectRatio="none"><polygon points="${starPoly}"/></svg>
           ${points}${center}
         </div>
-        <div class="craft-foot">
-          <span>已放入 <b>${craftPlaced}</b>/${need}　持有 ${srcName}：<b style="color:${have ? "#ffd23f" : "#9a90b5"}">${have}</b></span>
+        <div class="craft-info">已放入 <b>${craftPlaced}</b>/${need}　持有 ${srcName}：<b style="color:${have ? "#ffd23f" : "#9a90b5"}">${have}</b></div>
+        <div class="craft-btns">
           <button class="mini-btn" data-act="craft-fill" ${have >= 1 ? "" : "disabled"}>自動放入</button>
           <button class="mini-btn" data-act="craft-clear" ${craftPlaced ? "" : "disabled"}>清空</button>
         </div>
