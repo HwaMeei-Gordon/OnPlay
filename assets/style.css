@@ -160,7 +160,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 /* ===== Modal ===== */
 .modal-layer { position: fixed; inset: 0; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
 .modal-layer.hidden { display: none; }
-.modal-content { background: var(--panel); border: 2px solid var(--gold); border-radius: 2px; padding: 18px; max-width: 360px; width: 100%; max-height: 82vh; overflow-y: auto; }
+.modal-content { position: relative; background: var(--panel); border: 2px solid var(--gold); border-radius: 2px; padding: 18px; max-width: 360px; width: 100%; max-height: 82vh; overflow-y: auto; }
+.modal-x { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel2); color: var(--muted); font-size: 15px; font-weight: bold; line-height: 1; cursor: pointer; z-index: 1; }
+.modal-x:active { transform: translateY(1px); }
 .modal-title { color: var(--gold); font-size: 17px; font-weight: bold; text-align: center; margin-bottom: 12px; }
 .modal-content p { font-size: 13px; line-height: 1.8; text-align: center; margin-bottom: 14px; }
 .pick-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }

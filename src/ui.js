@@ -114,9 +114,9 @@
     $("panel-content").addEventListener("click", onPanelClick);
     // modal 內按鈕也用同一套委派（裝備選擇/卸下等）
     $("modal-content").addEventListener("click", onPanelClick);
-    // modal 點背景關閉
+    // modal 點背景關閉（鎖定的彈窗除外，需按確定／✕）
     $("modal-layer").addEventListener("click", (e) => {
-      if (e.target.id === "modal-layer") closeModal();
+      if (e.target.id === "modal-layer" && !modalLocked) closeModal();
     });
     $("offline-close") && $("offline-close").addEventListener("click", () => $("offline-modal").classList.add("hidden"));
 
@@ -889,11 +889,13 @@
   }
 
   // ============ Modal ============
+  let modalLocked = false; // 鎖定的彈窗：點背景不關，需按確定／✕
   function openModal(html) {
+    modalLocked = false;
     $("modal-content").innerHTML = html;
     $("modal-layer").classList.remove("hidden");
   }
-  function closeModal() { $("modal-layer").classList.add("hidden"); }
+  function closeModal() { modalLocked = false; $("modal-layer").classList.add("hidden"); }
 
   let equipPickHero = null;
   function openEquipPicker(heroId, slot) {
@@ -954,10 +956,12 @@
   // 洗鍊出現未鎖定的 完美/最完美 → 彈窗提醒，需按確定
   function openReforgeAlert(names) {
     const list = names.map((n) => `<div style="font-size:15px;font-weight:bold;color:#ffd23f;margin:2px 0">${n}</div>`).join("");
-    openModal(`<div class="modal-title" style="color:#ffd23f">${ico("star", 18)} 洗出高品質詞條！</div>
+    openModal(`<button class="modal-x" onclick="Game.UI._close()">✕</button>
+      <div class="modal-title" style="color:#ffd23f">${ico("star", 18)} 洗出高品質詞條！</div>
       <div class="empty" style="padding:10px">${list}
         <div style="font-size:12px;color:#9a90b5;margin-top:8px">這些詞條<b>未鎖定</b>，下次洗鍊會被重抽掉。<br>記得先「鎖定」再洗其餘屬性！</div></div>
       <div class="row-btns"><button class="primary-btn" onclick="Game.UI._close()">確定</button></div>`);
+    modalLocked = true; // 點背景不關，必須按確定／✕
   }
   // 有損毀風險但未開啟守護 → 確認框
   function openGuardConfirm(uid, dchance) {
