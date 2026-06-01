@@ -155,10 +155,8 @@
       const it = itemByUid(hs.equip[sl.id]);
       if (!it) return;
       addStat(sl.stat, d.itemMainStat(it));
-      // 具名裝固定副屬性（由 套裝+欄位 決定）
-      const set = it.setId && d.SET_BY_ID[it.setId];
-      const subs = set && set.sub && set.sub[sl.id];
-      if (subs) subs.forEach((st) => addStat(st, d.itemSubStat(it, st)));
+      // 裝備自帶副詞條
+      (it.subs || []).forEach((st) => addStat(st, d.itemSubStat(it, st)));
     });
 
     // 技能（被動）
@@ -383,14 +381,20 @@
     for (let i = 0; i <= idx; i++) arr.push(rollBand(d.RARITY_ORDER[i]));
     return arr;
   }
-  // 此裝備擁有的屬性清單（主屬性 + 套裝固定副屬性）
+  // 此裝備擁有的屬性清單（主屬性 + 自帶副詞條 it.subs）
   function itemAttrStats(it) {
-    const d = D();
-    const stats = [d.SLOT_BY_ID[it.slot].stat];
-    const set = it.setId && d.SET_BY_ID[it.setId];
-    const subs = set && set.sub && set.sub[it.slot];
-    if (subs) subs.forEach((st) => { if (stats.indexOf(st) < 0) stats.push(st); });
+    const stats = [D().SLOT_BY_ID[it.slot].stat];
+    (it.subs || []).forEach((st) => { if (stats.indexOf(st) < 0) stats.push(st); });
     return stats;
+  }
+  // 隨機抽副詞條（六核心去掉主詞條，數量依 tier）
+  function rollSubs(slot, tier) {
+    const d = D();
+    const primary = d.SLOT_BY_ID[slot].stat;
+    const n = d.subCountForTier(tier);
+    const pool = d.SUB_STAT_POOL.filter((s) => s !== primary);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+    return pool.slice(0, n);
   }
   // 每屬性各自一組 bands（分開浮動）
   function rollAttrBands(rarity, stats) {
@@ -398,15 +402,18 @@
     stats.forEach((st) => { ab[st] = rollBands(rarity); });
     return ab;
   }
-  // 確保 item 有 aBands；缺漏則重建（舊存檔遷移＝全部重抽）
+  // 確保 item 有 subs 與 aBands（兼舊存檔遷移：缺 subs 依 tier 補抽、缺的 aBands 才補）
   function ensureItemAttrBands(it) {
-    if (it && it.aBands && typeof it.aBands === "object") return it;
-    it.aBands = rollAttrBands(it.rarity, itemAttrStats(it));
+    if (!it) return it;
+    if (!Array.isArray(it.subs)) it.subs = rollSubs(it.slot, it.tier);
+    if (!it.aBands || typeof it.aBands !== "object") it.aBands = {};
+    itemAttrStats(it).forEach((st) => { if (!Array.isArray(it.aBands[st])) it.aBands[st] = rollBands(it.rarity); });
     return it;
   }
-  // 建立裝備物件（含鎖定 bands、每屬性 aBands）
+  // 建立裝備物件（含鎖定 bands、自帶副詞條、每屬性 aBands）
   function makeItem(slot, rarity, tier, setId) {
     const it = { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: setId || null, bands: rollBands(rarity) };
+    it.subs = rollSubs(slot, tier);
     it.aBands = rollAttrBands(rarity, itemAttrStats(it));
     return it;
   }
