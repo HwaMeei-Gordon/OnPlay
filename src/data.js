@@ -91,7 +91,7 @@
       base.dodge = Math.floor(base.dodge * 1.4);
       base.gold = Math.floor(base.gold * 16);
       base.xp = Math.floor(base.xp * 10);
-      base.gems = 6 + Math.floor(stage / 3); // 魔王掉鑽石
+      base.gems = 0; // 打怪不掉鑽石（鑽石只來自鑽石寶箱與任務）
       base.atkInterval = 1.5;
     }
     return base;
@@ -153,7 +153,7 @@
   // 升星卷軸：區間制 0-1 … 9-10 共 10 階（index = 起始星）；只能合成、無金幣購買
   const SCROLL_TIERS = 10;
   const CRAFT_RATIO = 5;          // 5 張合成上一階 1 張；index 9(9-10) 為頂不可再合
-  function scrollTierName(i) { return i + "-" + (i + 1); }
+  function scrollTierName(i) { return (i + 1) + "星卷軸"; }
 
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
@@ -344,28 +344,38 @@
   });
 
   // ---- 掉寶率參數（全可調）----
-  // 裝備/卷軸「只從怪物掉落」，超低掉率、一次 1 張。傳說/神話永不掉落（只能升稀有度取得）。
+  // 裝備/卷軸只從怪物掉落、一次 1 張。傳說/神話永不掉落（只能升稀有度取得）。
   const DROP = {
     minRegion: 1,            // 僅 101 關後（region>=1）才掉裝/卷
-    normal: 0.00015,         // 一般怪掉寶率（約 1 萬隻 1-2 次）
-    chestSpawnChance: 0.00015, // 一般怪 → 寶箱怪 出現率（約 1 萬隻 1-2 隻）；出現即 100% 掉
+    normalRate: 0.01,        // 普通怪掉寶率
+    eliteRate: 0.04,         // 精英怪掉寶率
+    bossRate: 0.15,          // 關卡王（魔王）掉寶率
+    chestSpawnChance: 0.00015, // 一般怪 → 寶箱怪 出現率（約 5000-10000 隻出 1 隻）；出現即 100% 掉
     chestTierBonus: 2,       // 寶箱怪掉裝 tier +2
-    // 一般怪：多為卷軸，少量低階裝（不出史詩）
-    normalTable: { scroll0: 88, common: 9, uncommon: 2.5, rare: 0.5 },
-    // 寶箱怪：多為裝備，高稀有度大幅減少（史詩僅 3%、無傳說/神話）
-    chestTable: { scroll0: 15, common: 45, uncommon: 27, rare: 10, epic: 3 },
+    // 打怪掉落內容（普通/精英/關卡王共用）：普通裝/優秀/稀有 + 1/2/3 星卷軸
+    dropTable: { common: 40, uncommon: 10, rare: 5, scroll0: 30, scroll1: 10, scroll2: 5 },
+    // 寶箱怪：100% 掉裝、不掉卷（無傳說/神話）
+    chestTable: { common: 50, uncommon: 35, rare: 10, epic: 5 },
   };
 
-  // ---- 過關掉寶箱（只給貨幣，取代原 gacha）----
+  // ---- 精英怪：出現比率由 0 關起指數成長，900 關封頂固定 33% ----
+  const ELITE = { capRatio: 0.33, capStage: 900, exp: 2.2, hpMul: 2.2, atkMul: 1.15, goldMul: 2.5 };
+  function eliteRatio(stage) {
+    const t = Math.min(1, Math.max(0, stage) / ELITE.capStage);
+    return Math.min(ELITE.capRatio, ELITE.capRatio * Math.pow(t, ELITE.exp));
+  }
+
+  // ---- 過關掉寶箱（只給貨幣）----
   // 每次關卡通過後低機率掉一個寶箱：90% 金幣寶箱（大量金幣）/ 10% 鑽石寶箱（1-5 鑽）
   const STAGE_BOX = { chance: 0.04, goldShare: 0.9, gemMin: 1, gemMax: 5, goldMult: 60 };
   // 金幣寶箱金幣量 = 當前關卡每隻怪金幣 × goldMult
   function stageBoxGold(stage) {
     return Math.max(50, Math.floor(makeEnemyStats(stage, false).gold * STAGE_BOX.goldMult));
   }
-  // 商店購買普通裝的金幣價（隨進度 tier 成長，維持相對價值）
-  function commonGearCost(stage) {
-    return Math.floor(150 * Math.pow(1.25, itemTierForStage(stage) - 1));
+  // 商店購買普通裝的金幣價：固定最便宜（不隨關卡漲）
+  const COMMON_GEAR_COST = 100;
+  function commonGearCost() {
+    return COMMON_GEAR_COST;
   }
   const GODDESS_GUARD_COST = 1000; // 女神的守護：1000 鑽/個
 
@@ -510,7 +520,7 @@
 
   // ---- 商店 ----
   const SHOP = [
-    { id: "buy_guardian", name: "女神的守護", icon: "shield", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備消失時，自動消耗 1 個抵銷，保護裝備不消失。" },
+    { id: "buy_guardian", name: "女神的守護", icon: "shield", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備損毀時，消耗 1 個抵銷，保護裝備不損毀。" },
     { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 50, give: { hero: "mage" }, once: true },
     { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 90, give: { hero: "archer" }, once: true },
     { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 180, give: { hero: "priest" }, once: true },
@@ -629,8 +639,8 @@
     RARITY_STAR_CAP, SCROLL_TIERS, CRAFT_RATIO, scrollTierName,
     ENHANCE_MAX, EVADE_K, evadeChance,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemMainStat, itemSubStat, itemTierForStage, enhanceCost, salvageValue,
-    SUB_BASE, SETS, SET_BY_ID, SETS_BY_REGION, DROP,
-    STAGE_BOX, stageBoxGold, commonGearCost, GODDESS_GUARD_COST,
+    SUB_BASE, SETS, SET_BY_ID, SETS_BY_REGION, DROP, ELITE, eliteRatio,
+    STAGE_BOX, stageBoxGold, commonGearCost, COMMON_GEAR_COST, GODDESS_GUARD_COST,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,
     HERO_SKILLS, TRAININGS, TALENTS, PRESTIGE,
     PETS, PET_BY_ID, petUpgradeCost,

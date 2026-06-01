@@ -14,10 +14,13 @@
   let current = "heroes";
   let heroDetail = null; // 選中的英雄 id
   let bagFilter = "all"; // 背包部位篩選
+  let craftSel = 1;      // 合成目標卷軸 index（1..9）
+  let craftPlaced = 0;   // 五芒星已放入的卷軸數（0..5）
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
     { id: "bag", label: "背包", icon: "bag" },
+    { id: "craft", label: "合成", icon: "scroll" },
     { id: "shop", label: "商店", icon: "cart" },
     { id: "pets", label: "寵物", icon: "paw" },
     { id: "training", label: "訓練", icon: "dumbbell" },
@@ -157,6 +160,7 @@
     let html = "";
     if (current === "heroes") html = heroDetail ? renderHeroDetail(heroDetail) : renderHeroList();
     else if (current === "bag") html = renderBag();
+    else if (current === "craft") html = renderCraft();
     else if (current === "shop") html = renderShop();
     else if (current === "pets") html = renderPets();
     else if (current === "training") html = renderTraining();
@@ -360,25 +364,62 @@
       </div>`;
     });
     html += `</div>`;
-    html += renderCraftSection();
     return html;
   }
 
-  // ---- 卷軸合成（5 張合成上一階 1 張）----
-  function renderCraftSection() {
-    const sc = St().scrolls || {};
-    let html = `<div class="sec-title">升星卷軸合成　<span style="font-size:11px;color:#9a90b5">${D().CRAFT_RATIO} 張 → 上一階 1 張</span></div>`;
-    for (let i = 0; i < D().SCROLL_TIERS; i++) {
-      const own = sc[i] || 0;
-      const top = i >= D().SCROLL_TIERS - 1;
-      const canCraft = !top && own >= D().CRAFT_RATIO;
-      html += `<div class="shop-item">
-        <div class="si-icon">${ico("scroll", 24)}</div>
-        <div class="si-main"><div class="si-name">${D().scrollTierName(i)} 星卷</div><div class="si-sub">持有 ${own}</div></div>
-        ${top ? `<button class="buy-btn" disabled><span class="lbl">頂級</span></button>`
-          : `<button class="buy-btn" data-act="craft-scroll" data-i="${i}" ${canCraft ? "" : "disabled"}><span class="lbl">合成 ${D().CRAFT_RATIO}→1</span></button>`}
+  // ---- 卷軸合成（五芒星）----
+  // 目標卷軸 index = craftSel（1..9）；五個支點各放 1 張「來源卷軸」(index craftSel-1)，5 張 → 1 張目標
+  function renderCraft() {
+    const d = D(), sc = St().scrolls || {};
+    const need = d.CRAFT_RATIO;                 // 5
+    if (craftSel < 1) craftSel = 1;
+    if (craftSel > d.SCROLL_TIERS - 1) craftSel = d.SCROLL_TIERS - 1;
+    const srcIdx = craftSel - 1;                // 來源卷軸 index
+    const have = sc[srcIdx] || 0;
+    if (craftPlaced > Math.min(need, have)) craftPlaced = Math.min(need, have);
+    const targetName = d.scrollTierName(craftSel);
+    const srcName = d.scrollTierName(srcIdx);
+
+    // 側欄：選擇要合成的目標（2星卷軸 … 10星卷軸）
+    let side = `<div class="craft-side"><div class="cs-title">合成目標</div>`;
+    for (let t = 1; t < d.SCROLL_TIERS; t++) {
+      const own = sc[t] || 0, srcOwn = sc[t - 1] || 0;
+      side += `<div class="craft-target ${t === craftSel ? "on" : ""}" data-act="craft-select" data-t="${t}">
+        <span class="ct-name">${d.scrollTierName(t)}</span>
+        <span class="ct-sub">持有 ${own}　需 ${need}×${d.scrollTierName(t - 1)}（有 ${srcOwn}）</span>
       </div>`;
     }
+    side += `</div>`;
+
+    // 五芒星：5 個支點 + 中心合成鈕（裝飾星線用 SVG）
+    const pts = [[50, 8], [85, 35], [71, 80], [29, 80], [15, 35]]; // 五頂點 %（上、右上、右下、左下、左上）
+    const starPoly = "50,8 71,80 15,35 85,35 29,80"; // 連線成五芒星
+    let points = "";
+    for (let k = 0; k < 5; k++) {
+      const filled = k < craftPlaced;
+      points += `<div class="penta-point ${filled ? "filled" : ""}" style="left:${pts[k][0]}%;top:${pts[k][1]}%"
+        data-act="${filled ? "craft-unplace" : "craft-place"}">
+        ${filled ? ico("scroll", 20) : "<span class='pp-plus'>＋</span>"}
+      </div>`;
+    }
+    const canCraft = craftPlaced >= need;
+    const center = `<div class="penta-center ${canCraft ? "" : "dim"}" data-act="${canCraft ? "craft-do" : ""}">
+      <span>${ico("scroll", 22)}</span><span class="pc-label">合成</span></div>`;
+
+    let html = `<div class="sec-title">卷軸合成　<span style="font-size:11px;color:#9a90b5">${need} × ${srcName} → 1 × ${targetName}</span></div>`;
+    html += `<div class="craft-wrap">${side}
+      <div class="craft-main">
+        <div class="craft-need">將 5 張 <b style="color:#c79bff">${srcName}</b> 放入五芒星合成 1 張 <b style="color:#ffd23f">${targetName}</b></div>
+        <div class="pentagram">
+          <svg viewBox="0 0 100 100" class="penta-svg" preserveAspectRatio="none"><polygon points="${starPoly}"/></svg>
+          ${points}${center}
+        </div>
+        <div class="craft-foot">
+          <span>已放入 <b>${craftPlaced}</b>/${need}　持有 ${srcName}：<b style="color:${have ? "#ffd23f" : "#9a90b5"}">${have}</b></span>
+          <button class="mini-btn" data-act="craft-fill" ${have >= 1 ? "" : "disabled"}>自動放入</button>
+          <button class="mini-btn" data-act="craft-clear" ${craftPlaced ? "" : "disabled"}>清空</button>
+        </div>
+      </div></div>`;
     return html;
   }
 
@@ -415,7 +456,7 @@
       const risky = rule.d > 0, on = !!St().useGuardian && guard > 0;
       html += `<div class="star-info">
         <div>需要 <b>${d.scrollTierName(star)} 星卷</b>（持有 ${own}）　成功率 <b style="color:${rule.s >= 0.85 ? "#5ec46b" : rule.s >= 0.6 ? "#ffd23f" : "#e84141"}">${Math.round(rule.s * 100)}%</b></div>
-        <div>失敗時消失機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
+        <div>失敗時損毀機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
       </div>`;
       // 女神的守護：全域勾選開關
       html += `<div class="guard-toggle ${on ? "on" : ""} ${guard <= 0 ? "dim" : ""}" ${guard <= 0 ? "" : `onclick="Game.UI._toggleGuardian(${uid})"`}>
@@ -423,8 +464,8 @@
         <span class="gt-label">${ico("shield", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
       </div>`;
       if (guard <= 0) html += `<div class="gt-hint dim">沒有女神的守護，無法開啟（可至商店購買）</div>`;
-      else if (on && !risky) html += `<div class="gt-hint">本階無消失風險，升星不會消耗守護</div>`;
-      else if (on) html += `<div class="gt-hint">升星不論成敗將消耗 1 顆守護，失敗時保護不消失</div>`;
+      else if (on && !risky) html += `<div class="gt-hint">本階無損毀風險，升星不會消耗守護</div>`;
+      else if (on) html += `<div class="gt-hint">升星不論成敗將消耗 1 顆守護，失敗時保護不損毀</div>`;
       html += `<button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${d.scrollTierName(star)} 星卷）</button>`;
     } else if (nr) {
       html += `<div class="star-info"><div>已達 <b>${cap}★</b> 上限，可升級為 <b style="color:${rarColor(nr)}">${rarName(nr)}</b>（星歸零、數值累加）</div></div>
@@ -661,7 +702,17 @@
       case "auto-equip-party": { St().party.forEach((h) => Sy().autoEquipBest(h)); toast("全隊已換上最強裝備"); break; }
       case "shop-buy": { const r = Sy().shopBuy(id); toast(r.ok ? "購買成功！" : r.msg); break; }
       case "buy-gear": { const it = Sy().buyCommonGear(t.dataset.slot); toast(it ? "購買 普通" + D().SLOT_BY_ID[t.dataset.slot].name : "金幣不足"); break; }
-      case "craft-scroll": { if (Sy().craftScroll(+t.dataset.i)) toast("合成 " + D().scrollTierName((+t.dataset.i) + 1) + " 星卷"); else toast("卷軸不足"); break; }
+      case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; break; }
+      case "craft-place": { const have = St().scrolls[craftSel - 1] || 0; if (craftPlaced < Math.min(D().CRAFT_RATIO, have)) craftPlaced++; else toast("沒有更多 " + D().scrollTierName(craftSel - 1)); break; }
+      case "craft-unplace": { if (craftPlaced > 0) craftPlaced--; break; }
+      case "craft-fill": { craftPlaced = Math.min(D().CRAFT_RATIO, St().scrolls[craftSel - 1] || 0); break; }
+      case "craft-clear": { craftPlaced = 0; break; }
+      case "craft-do": {
+        if (craftPlaced < D().CRAFT_RATIO) { toast("需放滿 " + D().CRAFT_RATIO + " 張"); break; }
+        if (Sy().craftScroll(craftSel - 1)) { toast("合成成功！獲得 1 × " + D().scrollTierName(craftSel)); craftPlaced = 0; }
+        else toast(D().scrollTierName(craftSel - 1) + " 不足");
+        break;
+      }
       case "pet-up": Sy().upgradePet(id); break;
       case "pet-active": Sy().setActivePet(id); break;
       case "train-buy": Sy().buyTraining(id); break;
@@ -743,18 +794,18 @@
     const r = Sy().starUp(uid, useGuardian);
     if (!r.ok) { toast(r.msg); return; }
     const used = r.guardUsed ? "（消耗守護 1）" : "";
-    if (r.destroyed) { toast("升星失敗…裝備消失了！"); closeModal(); }
-    else if (r.protected) { toast("升星失敗…女神的守護抵銷了消失！（消耗 1）"); openItemModal(uid); }
+    if (r.destroyed) { toast("升星失敗…裝備損毀了！"); closeModal(); }
+    else if (r.protected) { toast("升星失敗…女神的守護抵銷了損毀！（消耗 1）"); openItemModal(uid); }
     else if (r.success) { toast("升星成功！ ★" + r.star + used); openItemModal(uid); }
     else { toast("升星失敗" + (r.guardUsed ? used : "（卷軸消耗）")); openItemModal(uid); }
     renderPanel(true); sync();
   }
-  // 有消失風險但未開啟守護 → 確認框
+  // 有損毀風險但未開啟守護 → 確認框
   function openGuardConfirm(uid, dchance) {
     const pct = Math.round(dchance * 100);
     const guard = St().guardians || 0;
-    openModal(`<div class="modal-title">升星消失風險</div>
-      <div class="empty">本次升星失敗有 <b style="color:#e84141">${pct}%</b> 機率裝備消失。<br>是否開啟「女神的守護」防止消失？<br>
+    openModal(`<div class="modal-title">升星損毀風險</div>
+      <div class="empty">本次升星失敗有 <b style="color:#e84141">${pct}%</b> 機率裝備損毀。<br>是否開啟「女神的守護」防止損毀？<br>
       <span style="font-size:11px;color:#9a90b5">開啟後無論成功或失敗都會消耗 1 顆守護（持有 ${guard}）</span></div>
       <div class="row-btns">
         <button class="primary-btn" onclick="Game.UI._starConfirm(${uid},1)">開啟並升星</button>
