@@ -471,7 +471,7 @@
   }
   // 嘗試升星：回傳 {ok, success, destroyed, protected, guardUsed, msg}
   // 星 X→X+1 需用「X-(X+1)」卷（scrolls[X]）；星上限依稀有度
-  // useGuardian（全域勾選）：當次有消失風險（d>0）且持有守護時，不論成敗都消耗 1 顆、失敗不消失
+  // useGuardian（全域勾選）：當次有損毀風險（d>0）且持有守護時，不論成敗都消耗 1 顆、失敗不損毀
   function starUp(uid, useGuardian) {
     const d = D();
     const it = itemByUid(uid);
@@ -489,7 +489,7 @@
       it.stars = star + 1;
       return { ok: true, success: true, star: it.stars, guardUsed: guardActive };
     }
-    // 失敗：再用 destroy 機率判定是否消失
+    // 失敗：再用 destroy 機率判定是否損毀
     if (risky && Math.random() < rule.d) {
       if (guardActive) return { ok: true, success: false, destroyed: false, protected: true, guardUsed: true };
       unequipUidEverywhere(uid);
