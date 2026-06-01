@@ -159,7 +159,7 @@
   const EQUIPMENT_SLOTS = [
     { id: "weapon", name: "武器", icon: "weapons", stat: "atk", base: 6 },
     { id: "helmet", name: "頭盔", icon: "helmet", stat: "hit", base: 1.5 },
-    { id: "armor", name: "鎧甲", icon: "shield", stat: "def", base: 3 },
+    { id: "armor", name: "鎧甲", icon: "chestplate", stat: "def", base: 3 },
     { id: "legs", name: "護腿", icon: "legs", stat: "maxHp", base: 22 },
     { id: "boots", name: "靴子", icon: "boots", stat: "dodge", base: 1.2 },
     { id: "trinket", name: "飾品", icon: "ring", stat: "critDmg", base: 0.05 },
