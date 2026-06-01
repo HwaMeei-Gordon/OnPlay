@@ -102,11 +102,6 @@
     $("modal-layer").addEventListener("click", (e) => {
       if (e.target.id === "modal-layer") closeModal();
     });
-    // HUD 加速鈕
-    $("speed-btn").addEventListener("click", () => {
-      const s = St().speed || 1;
-      St().speed = s === 1 ? 2 : s === 2 ? 4 : 1;
-    });
     $("offline-close") && $("offline-close").addEventListener("click", () => $("offline-modal").classList.add("hidden"));
 
     openTab("heroes");
@@ -120,7 +115,7 @@
   }
 
   // ============ HUD 同步（節流到 ~10/秒，避免每幀 DOM churn）============
-  let hudT = 0, lastSpeed = -1;
+  let hudT = 0;
   function sync(dt) {
     hudT -= dt || 0.033;
     if (hudT > 0) return;
@@ -132,10 +127,6 @@
     $("gem-val").textContent = fmt(s.gems);
     $("soul-val").textContent = fmt(s.souls);
     $("power-val").textContent = fmt(Sy().teamPower());
-    if (s.speed !== lastSpeed) {
-      $("speed-btn").innerHTML = ico("bolt", 12) + " " + (s.speed || 1) + "×";
-      lastSpeed = s.speed;
-    }
   }
 
   // 每秒刷新「可負擔」狀態（不重建 DOM，避免捲動跳動）
@@ -487,7 +478,7 @@
     let html = `<div class="sec-title">商店</div>`;
     // 購買普通裝備（金幣，隨進度漲價）
     const gearCost = D().commonGearCost(St().stage);
-    html += `<div class="shop-group">購買普通裝備　<span style="font-size:11px;color:#9a90b5">撿低階裝→升星→升稀有度</span></div>`;
+    html += `<div class="shop-group">裝備</div>`;
     D().EQUIPMENT_SLOTS.forEach((sl) => {
       const dis = St().gold < gearCost ? "disabled" : "";
       html += `<div class="shop-item">
@@ -516,16 +507,43 @@
         const sub = s.give.scroll !== undefined ? (s.desc + "（持有 " + (St().scrolls[s.give.scroll] || 0) + "）")
           : s.give.guardian ? (s.desc + "（持有 " + (St().guardians || 0) + "）")
           : (stt.remain != null ? "今日剩 " + stt.remain : s.once ? (stt.soldOut ? "已擁有" : "限購 1") : "");
+        const buyAct = (s.give.scroll !== undefined || s.give.guardian) ? "shop-buy-qty" : "shop-buy";
         html += `<div class="shop-item">
           <div class="si-icon">${shopIco}</div>
           <div class="si-main"><div class="si-name">${s.name}</div>
           <div class="si-sub">${sub}</div></div>
-          <button class="buy-btn" data-act="shop-buy" data-id="${s.id}" data-cur="${s.cur}" data-cost="${s.cost}" ${dis}>
+          <button class="buy-btn" data-act="${buyAct}" data-id="${s.id}" data-cur="${s.cur}" data-cost="${s.cost}" ${dis}>
             <span class="cost">${stt.soldOut ? "已售完" : label}</span></button>
         </div>`;
       });
     });
     return html;
+  }
+
+  // 商店：選購買數量的彈窗（一星卷軸 / 女神的守護）
+  let shopQtyId = null, shopQty = 1;
+  function shopMaxAfford(s) { return Math.max(1, Math.floor((St()[s.cur] || 0) / s.cost)); }
+  function openShopQtyModal(id) { shopQtyId = id; shopQty = 1; renderShopQtyModal(); }
+  function renderShopQtyModal() {
+    const s = D().SHOP.find((x) => x.id === shopQtyId);
+    if (!s) return;
+    const bulk = s.give.scroll !== undefined ? [10, 100, 1000] : [10];
+    const total = s.cost * shopQty;
+    const can = (St()[s.cur] || 0) >= total;
+    const bulkBtns = bulk.map((b) => `<button class="mini-btn" data-act="shop-qty-add" data-v="${b}">+${b}</button>`).join("");
+    openModal(`<div class="modal-title">${s.name}</div>
+      <div class="empty" style="padding:6px 10px">${s.desc || ""}</div>
+      <div class="row-btns" style="justify-content:center;align-items:center">
+        <button class="mini-btn" data-act="shop-qty-add" data-v="-1">－</button>
+        <span style="min-width:70px;text-align:center;font-weight:bold;font-size:18px">${fmt(shopQty)}</span>
+        <button class="mini-btn" data-act="shop-qty-add" data-v="1">＋</button>
+        ${bulkBtns}
+      </div>
+      <div style="text-align:center;margin:8px 0 12px">總計 <b style="color:${can ? "var(--text)" : "var(--red)"}">${curIco(s.cur)}${fmt(total)}</b></div>
+      <div class="row-btns" style="justify-content:center">
+        <button class="act-btn on" data-act="shop-qty-buy" ${can ? "" : "disabled"}>購買</button>
+        <button class="act-btn" data-act="modal-close">取消</button>
+      </div>`);
   }
 
   // ---- 寵物 ----
@@ -655,12 +673,6 @@
   function renderSettings() {
     const s = St();
     return `<div class="sec-title">設定</div>
-      <div class="item"><div class="item-main"><div class="item-name">戰鬥速度</div><div class="item-bonus">目前 ${s.speed}×</div></div>
-        <div class="row-btns mini">
-          <button class="mini-btn ${s.speed === 1 ? "on" : ""}" data-act="set-speed" data-v="1">1×</button>
-          <button class="mini-btn ${s.speed === 2 ? "on" : ""}" data-act="set-speed" data-v="2">2×</button>
-          <button class="mini-btn ${s.speed === 4 ? "on" : ""}" data-act="set-speed" data-v="4">4×</button>
-        </div></div>
       <div class="stat-box">
         ${statLine("最高關卡", s.bestStage)}
         ${statLine("總擊殺", fmt(s.stats.totalKills))}
@@ -700,6 +712,10 @@
       case "salvage-weak": { const r = Sy().salvageWeak(); toast(r.count ? `分解 ${r.count} 件多餘裝備，獲得金幣 ${fmt(r.gold)}` : "沒有可清理的多餘裝備"); break; }
       case "auto-equip-party": { St().party.forEach((h) => Sy().autoEquipBest(h)); toast("全隊已換上最強裝備"); break; }
       case "shop-buy": { const r = Sy().shopBuy(id); toast(r.ok ? "購買成功！" : r.msg); break; }
+      case "shop-buy-qty": openShopQtyModal(id); rerender = false; break;
+      case "shop-qty-add": { const s = D().SHOP.find((x) => x.id === shopQtyId); if (s) { shopQty = Math.min(shopMaxAfford(s), Math.max(1, shopQty + (+t.dataset.v))); } renderShopQtyModal(); rerender = false; break; }
+      case "shop-qty-buy": { const r = Sy().shopBuy(shopQtyId, shopQty); toast(r.ok ? "購買成功 ×" + r.qty : r.msg); closeModal(); break; }
+      case "modal-close": closeModal(); rerender = false; break;
       case "buy-gear": { const it = Sy().buyCommonGear(t.dataset.slot); toast(it ? "購買 普通" + D().SLOT_BY_ID[t.dataset.slot].name : "金幣不足"); break; }
       case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; break; }
       case "craft-place": { const have = St().scrolls[craftSel - 1] || 0; if (craftPlaced < Math.min(D().CRAFT_RATIO, have)) craftPlaced++; else toast("沒有更多 " + D().scrollTierName(craftSel - 1)); break; }
@@ -721,7 +737,6 @@
       case "daily-login": Sy().claimDailyLogin(); toast("獲得每日登入獎勵 鑽石 20"); break;
       case "daily-claim": Sy().claimDaily(id); break;
       case "ach-claim": Sy().claimAchievement(id); break;
-      case "set-speed": St().speed = +t.dataset.v; break;
       case "reset-game": confirmReset(); rerender = false; break;
     }
     if (rerender) renderPanel(act !== "hero-open" && act !== "hero-back");

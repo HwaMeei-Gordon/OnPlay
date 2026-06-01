@@ -39,7 +39,6 @@
       scrolls: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
       guardians: 0,
       useGuardian: false,
-      speed: 1,
       goldPerSec: 0, gemPerSec: 0,
       _goldSec: 0, _gemSec: 0, _secT: 1,
     };
@@ -651,25 +650,27 @@
       D().SHOP.forEach((s) => { if (s.daily) delete State.shop.bought[s.id]; });
     }
   }
-  function shopBuy(id) {
+  function shopBuy(id, qty) {
     refreshShopDate();
     const s = D().SHOP.find((x) => x.id === id);
     if (!s) return { ok: false, msg: "找不到商品" };
+    qty = Math.max(1, Math.floor(qty || 1));
     const bought = State.shop.bought[id] || 0;
     if (s.once && bought >= 1) return { ok: false, msg: "已購買" };
-    if (s.limit && bought >= s.limit) return { ok: false, msg: "今日已達上限" };
-    if ((State[s.cur] || 0) < s.cost) return { ok: false, msg: "貨幣不足" };
-    State[s.cur] -= s.cost;
-    State.shop.bought[id] = bought + 1;
+    if (s.limit) { const room = s.limit - bought; if (room <= 0) return { ok: false, msg: "今日已達上限" }; qty = Math.min(qty, room); }
+    const total = s.cost * qty;
+    if ((State[s.cur] || 0) < total) return { ok: false, msg: "貨幣不足" };
+    State[s.cur] -= total;
+    State.shop.bought[id] = bought + qty;
     const g = s.give;
     let result = {};
-    if (g.guardian) State.guardians = (State.guardians || 0) + g.guardian;
-    if (g.scroll !== undefined) State.scrolls[g.scroll] = (State.scrolls[g.scroll] || 0) + 1;
+    if (g.guardian) State.guardians = (State.guardians || 0) + g.guardian * qty;
+    if (g.scroll !== undefined) State.scrolls[g.scroll] = (State.scrolls[g.scroll] || 0) + qty;
     if (g.hero) ownHero(g.hero);
     if (g.pet) ownPet(g.pet);
-    if (g.gold) addGold(g.gold, true);
-    if (g.gems) addGems(g.gems, true);
-    return { ok: true, give: g, result };
+    if (g.gold) addGold(g.gold * qty, true);
+    if (g.gems) addGems(g.gems * qty, true);
+    return { ok: true, qty, give: g, result };
   }
   function shopState(id) {
     refreshShopDate();
