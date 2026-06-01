@@ -59,6 +59,7 @@
     bow: ["...oo.......","..oEEo......",".oEEo.......",".oEo.o......",".oEo..o.....",".oEo..o.....",".oEo.o......",".oEEo.......","..oEEo......","...oo.......","............","............"],
     plus: ["....oooo....","...oeeeeo...","oooeeeeeeooo","oeeeeeeeeeeo","oeeeeeeeeeeo","oooeeeeeeooo","...oeeeeo...","...oeeeeo...","....oooo....","............","............","............"],
     goddess: ["....oYYo....","....owwo....","....owwo....","..ooYYYYoo..",".oYwwwwwwYo.",".oYwwwwwwYo.","..ooYYYYoo..","....owwo....","....owwo....","....owwo....","....oYYo....","....oooo...."],
+    lock: ["............","...oooo.....","..o.aa.o....","..o.aa.o....",".oooooooo...",".oYYYYYYo...",".oYYooYYo...",".oYYooYYo...",".oYYYYYYo...",".oooooooo...","............","............"],
     weapons: ["................","................",".......ww.HHM...","..bB...wa..gHM..","..BbH..wa..aHM..","....MH.Ba..aHHM.",".....MHwa..a.HM.","......Mwa..a.HM.","......Mwa..a.HM.",".....gYYYg.a.HM.",".......MHH.a.HM.",".......MHMHaHHM.",".......MH.gaHM..",".......YY..gHM..","..........HHM...","................"],
   };
 

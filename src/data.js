@@ -188,7 +188,7 @@
   const QUALITY = [
     { name: "不良", color: "#9aa0b0" },
     { name: "普通", color: "#c9d1e0" },
-    { name: "優秀", color: "#5ec46b" },
+    { name: "優良", color: "#5ec46b" },
     { name: "完美", color: "#b06ae0" },
     { name: "最完美", color: "#ffb43d" },
   ];
@@ -202,8 +202,18 @@
       sum += ab[i]; lo += b[0]; hi += b[1];
     }
     const pct = hi > lo ? Math.max(0, Math.min(1, (sum - lo) / (hi - lo))) : 0.5;
-    const idx = pct >= 1 ? 4 : pct >= 0.75 ? 3 : pct >= 0.5 ? 2 : pct >= 0.25 ? 1 : 0;
+    // 不良 0–29% / 普通 30–59% / 優良 60–89% / 完美 90–99% / 最完美 100%（+epsilon 避免量化邊界浮點誤差）
+    const e = pct + 1e-9;
+    const idx = pct >= 1 ? 4 : e >= 0.9 ? 3 : e >= 0.6 ? 2 : e >= 0.3 ? 1 : 0;
     return { pct, name: QUALITY[idx].name, color: QUALITY[idx].color };
+  }
+  // 副詞條池（六核心屬性）＋ 詞條數量隨關卡進度（tier=1+floor(stage/8)）
+  const SUB_STAT_POOL = ["atk", "maxHp", "def", "critDmg", "dodge", "hit"];
+  function subCountForTier(tier) {
+    tier = tier || 1;
+    if (tier >= 101) return 2; // stage ≥ 800 → 3 詞條
+    if (tier >= 38) return 1;  // stage ≥ 300 → 2 詞條
+    return 0;                  // 前期 → 1 詞條
   }
   // 便利包裝：直接吃 item 物件（呼叫端統一改用這兩個）
   function itemMainStat(it) {
@@ -658,7 +668,7 @@
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
     RARITIES, RARITY_BY_ID, RARITY_ORDER, nextRarity, RARITY_BANDS, bandMid, itemValueFactor,
-    attrFactor, QUALITY, attrQuality,
+    attrFactor, QUALITY, attrQuality, SUB_STAT_POOL, subCountForTier,
     SET_RARITY_MULT, STAR_MAX, STAR_RULES, starMult,
     RARITY_STAR_CAP, SCROLL_TIERS, CRAFT_RATIO, scrollTierName,
     ENHANCE_MAX, EVADE_K, evadeChance,

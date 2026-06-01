@@ -19,7 +19,7 @@
   let craftBatch = 1;    // 批次合成：要產出的目標卷軸張數
   let forgeUid = null;       // 鍛造坊：選中的裝備 uid
   let forgeMode = "enhance"; // 鍛造坊模式：star / enhance / reforge
-  let reforgeChecks = {};    // 洗鍊：勾選的屬性 { stat: true }
+  let reforgeLocks = {};     // 洗鍊：鎖定（保留）的屬性 { stat: true }
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
@@ -68,10 +68,8 @@
     const sl = D().SLOT_BY_ID[it.slot];
     const v = D().itemMainStat(it);
     let txt = STAT_NAMES[sl.stat] + " " + statVal(sl.stat, v);
-    // 具名裝固定副屬性
-    const sdef = it.setId && D().SET_BY_ID[it.setId];
-    const subs = sdef && sdef.sub && sdef.sub[it.slot];
-    if (subs) subs.forEach((st) => {
+    // 裝備自帶副詞條
+    (it.subs || []).forEach((st) => {
       txt += "　" + STAT_NAMES[st] + " " + statVal(st, D().itemSubStat(it, st));
     });
     return txt;
@@ -86,9 +84,7 @@
         + `<span class="ir-q" style="color:${q.color}">${q.name}</span></div>`;
     };
     let html = row(sl.stat, d.itemMainStat(it));
-    const sdef = it.setId && d.SET_BY_ID[it.setId];
-    const subs = sdef && sdef.sub && sdef.sub[it.slot];
-    if (subs) subs.forEach((st) => { html += row(st, d.itemSubStat(it, st)); });
+    (it.subs || []).forEach((st) => { html += row(st, d.itemSubStat(it, st)); });
     return html;
   }
   function itemName(it) {
@@ -436,16 +432,18 @@
     const rows = stats.map((st) => {
       const q = d.attrQuality(it, st);
       const v = st === mainStat ? d.itemMainStat(it) : d.itemSubStat(it, st);
-      const on = !!reforgeChecks[st];
-      return `<div class="reforge-row ${on ? "on" : ""}" data-act="forge-check" data-st="${st}">
-        <span class="rf-box">${on ? "✓" : ""}</span>
+      const locked = !!reforgeLocks[st];
+      return `<div class="reforge-row ${locked ? "on" : ""}" data-act="forge-lock" data-st="${st}">
+        <span class="rf-box">${locked ? ico("lock", 13) : ""}</span>
         <span class="ir-name">${STAT_NAMES[st]}</span>
         <span class="ir-val">${statVal(st, v)}</span>
         <span class="ir-q" style="color:${q.color}">${q.name}</span></div>`;
     }).join("");
-    const anyChecked = stats.some((st) => reforgeChecks[st]);
-    const cost = 100, dis = !anyChecked || St().gems < cost;
-    return `<div class="sec-title">洗鍊　<span style="font-size:11px;color:#9a90b5">勾選屬性重抽，直接取代（可能變好或變差）</span></div>
+    const lockCount = stats.filter((st) => reforgeLocks[st]).length;
+    const cost = 100 * Math.pow(2, lockCount);
+    const hasUnlocked = stats.some((st) => !reforgeLocks[st]);
+    const dis = !hasUnlocked || St().gems < cost;
+    return `<div class="sec-title">洗鍊　<span style="font-size:11px;color:#9a90b5">鎖定要保留的屬性，點洗鍊重抽其餘；每鎖定一個價格翻倍</span></div>
       ${rows}
       <button class="primary-btn ${dis ? "dim" : ""}" ${dis ? "disabled" : ""} data-act="forge-reforge">洗鍊　${curIco("gems")}${cost}</button>`;
   }
@@ -835,16 +833,18 @@
       case "shop-qty-buy": { const r = Sy().shopBuy(shopQtyId, shopQty); toast(r.ok ? "購買成功 ×" + r.qty : r.msg); closeModal(); break; }
       case "modal-close": closeModal(); rerender = false; break;
       case "buy-gear": { const it = Sy().buyCommonGear(t.dataset.slot); toast(it ? "購買 普通" + D().SLOT_BY_ID[t.dataset.slot].name : "金幣不足"); break; }
-      case "forge-mode": forgeMode = t.dataset.m; reforgeChecks = {}; break;
-      case "forge-pick": forgeUid = uid; reforgeChecks = {}; break;
-      case "forge-check": { const st = t.dataset.st; reforgeChecks[st] = !reforgeChecks[st]; break; }
+      case "forge-mode": forgeMode = t.dataset.m; reforgeLocks = {}; break;
+      case "forge-pick": forgeUid = uid; reforgeLocks = {}; break;
+      case "forge-lock": { const st = t.dataset.st; reforgeLocks[st] = !reforgeLocks[st]; break; }
       case "forge-reforge": {
         const it = Sy().itemByUid(forgeUid);
         if (!it) { rerender = false; break; }
-        const stats = Sy().itemAttrStats(it).filter((st) => reforgeChecks[st]);
-        if (!stats.length) { toast("請先勾選要洗鍊的屬性"); rerender = false; break; }
-        if (!Sy().spend("gems", 100)) { toast("鑽石不足"); rerender = false; break; }
-        Sy().reforgeAttrs(forgeUid, stats); reforgeChecks = {}; toast("洗鍊完成！");
+        const all = Sy().itemAttrStats(it);
+        const unlocked = all.filter((st) => !reforgeLocks[st]);
+        if (!unlocked.length) { toast("至少要保留一個未鎖定的屬性才能洗鍊"); rerender = false; break; }
+        const cost = 100 * Math.pow(2, all.length - unlocked.length);
+        if (!Sy().spend("gems", cost)) { toast("鑽石不足"); rerender = false; break; }
+        Sy().reforgeAttrs(forgeUid, unlocked); toast("洗鍊完成！"); // 保留鎖定狀態，可連抽
         break;
       }
       case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; craftBatch = 1; break; }
@@ -967,7 +967,7 @@
     _reset: () => { Game.Save.reset(); location.reload(); },
     _itemEnhance: (uid) => { Sy().enhanceItem(uid); renderPanel(true); sync(); },
     _itemSalvage: (uid) => { Sy().salvageItem(uid); if (forgeUid === uid) forgeUid = null; closeModal(); renderPanel(true); sync(); },
-    _toForge: (uid, mode) => { forgeUid = uid; forgeMode = mode; reforgeChecks = {}; closeModal(); openTab("forge"); },
+    _toForge: (uid, mode) => { forgeUid = uid; forgeMode = mode; reforgeLocks = {}; closeModal(); openTab("forge"); },
     _itemStar: (uid) => {
       const it = Sy().itemByUid(uid);
       if (!it) return;
