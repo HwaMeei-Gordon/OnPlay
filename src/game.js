@@ -174,12 +174,17 @@
     if (i < 0) return;
     const drop = S().onKill(target);
     if (drop) {
-      const set = D().SET_BY_ID[drop.setId];
-      const ra = D().RARITY_BY_ID[drop.rarity];
-      const slotName = D().SLOT_BY_ID[drop.slot].name;
-      addFloat(target.x, Game.view.ground - 46, "★裝備", set ? set.color : "#ffd23f", true);
-      if (Game.UI && Game.UI.toast && set)
-        Game.UI.toast(`獲得【${set.name}·${slotName}】(${ra.name})`);
+      if (drop.scroll) {
+        addFloat(target.x, Game.view.ground - 46, "卷軸", "#c79bff", true);
+        if (Game.UI && Game.UI.toast) Game.UI.toast("獲得 0-1 星卷");
+      } else {
+        const set = D().SET_BY_ID[drop.setId];
+        const ra = D().RARITY_BY_ID[drop.rarity];
+        const slotName = D().SLOT_BY_ID[drop.slot].name;
+        addFloat(target.x, Game.view.ground - 46, "★裝備", set ? set.color : "#ffd23f", true);
+        if (Game.UI && Game.UI.toast)
+          Game.UI.toast(set ? `獲得【${set.name}·${slotName}】(${ra.name})` : `獲得 ${ra.name}${slotName}`);
+      }
     }
     // 掉落金幣/鑽石飛出特效
     const n = target.isBoss ? 9 : 3;
@@ -294,6 +299,12 @@
 
     // 關卡清除 → 下一層
     if (battle.toSpawn === 0 && battle.enemies.length === 0 && battle.killedThisStage >= battle.killsNeeded) {
+      // 過關掉寶箱（只給貨幣）
+      const box = S().onStageClear(Game.State.stage);
+      if (box && Game.UI && Game.UI.toast) {
+        if (box.box === "gold") Game.UI.toast("金幣寶箱！+" + box.gold + " 金幣");
+        else Game.UI.toast("鑽石寶箱！+" + box.gems + " 鑽");
+      }
       setupStage(Game.State.stage + 1);
       battle.worldScroll += d.WALK_SPEED * dt;
       battle.walkPhase += dt * 6;

@@ -36,7 +36,8 @@
         counters: { killsToday: 0, boxesToday: 0, bossToday: 0 } },
       stats: { totalKills: 0, bossKills: 0, boxesOpened: 0, prestiges: 0 },
       shop: { date: todayStr(), bought: {} },
-      scrolls: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      scrolls: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
+      guardians: 0,
       speed: 1,
       goldPerSec: 0, gemPerSec: 0,
       _goldSec: 0, _gemSec: 0, _secT: 1,
@@ -153,11 +154,11 @@
     d.EQUIPMENT_SLOTS.forEach((sl) => {
       const it = itemByUid(hs.equip[sl.id]);
       if (!it) return;
-      addStat(sl.stat, d.itemStatValue(sl.id, it.rarity, it.tier, it.enhance, it.stars));
+      addStat(sl.stat, d.itemMainStat(it));
       // 具名裝固定副屬性（由 套裝+欄位 決定）
       const set = it.setId && d.SET_BY_ID[it.setId];
       const subs = set && set.sub && set.sub[sl.id];
-      if (subs) subs.forEach((st) => addStat(st, d.itemSubValue(st, it.rarity, it.tier, it.enhance, it.stars)));
+      if (subs) subs.forEach((st) => addStat(st, d.itemSubStat(it, st)));
     });
 
     // 技能（被動）
@@ -256,18 +257,48 @@
       State.stats.bossKills++;
       State.daily.counters.bossToday++;
     }
-    // 具名套裝掉落（101 關後）
+    // 裝備/卷軸只從怪物掉落（101 關後）；一次 1 件，傳說/神話不掉
     const d = D();
     const stage = State.stage;
-    if (d.regionOf(stage) >= d.DROP.minRegion) {
-      const kind = enemy.isChest ? "chest" : enemy.isBoss ? "boss" : "normal";
-      const rate = kind === "chest" ? d.DROP.chest : kind === "boss" ? d.DROP.boss : d.DROP.base;
-      if (Math.random() < rate) {
-        const item = rollDropItem(stage, kind);
-        if (item) { State.inventory.push(item); return item; }
-      }
+    if (d.regionOf(stage) < d.DROP.minRegion) return null;
+    if (enemy.isChest) {
+      // 寶箱怪：100% 掉落，多為裝備
+      return grantDrop(d.DROP.chestTable, stage, true);
+    }
+    // 一般怪/魔王：超低機率，多為卷軸
+    if (Math.random() < d.DROP.normal) {
+      return grantDrop(d.DROP.normalTable, stage, false);
     }
     return null;
+  }
+
+  // 依掉落權重表給予：卷軸→scrolls[0]++（回傳 {scroll:true}）；裝備→push 並回傳物件
+  function grantDrop(table, stage, isChest) {
+    const outcome = rollRarityWeighted(table);
+    if (outcome === "scroll0") {
+      State.scrolls[0] = (State.scrolls[0] || 0) + 1;
+      return { scroll: true };
+    }
+    const item = rollGear(outcome, stage, isChest);
+    State.inventory.push(item);
+    return item;
+  }
+
+  // ---- 過關掉寶箱（只給貨幣）----
+  function onStageClear(stage) {
+    const d = D();
+    if (Math.random() >= d.STAGE_BOX.chance) return null;
+    State.stats.boxesOpened++;
+    State.daily.counters.boxesToday++;
+    if (Math.random() < d.STAGE_BOX.goldShare) {
+      const g = d.stageBoxGold(stage);
+      addGold(g, true);
+      return { box: "gold", gold: g };
+    }
+    const span = d.STAGE_BOX.gemMax - d.STAGE_BOX.gemMin + 1;
+    const n = d.STAGE_BOX.gemMin + Math.floor(Math.random() * span);
+    addGems(n, true);
+    return { box: "gem", gems: n };
   }
 
   // ---- 關卡 ----
@@ -329,26 +360,7 @@
     }
   }
 
-  // ---- 裝備 / 開箱 ----
-  function rollRarity(weightKey) {
-    const list = D().RARITIES;
-    let total = 0;
-    list.forEach((r) => (total += r[weightKey]));
-    let x = Math.random() * total;
-    for (const r of list) {
-      x -= r[weightKey];
-      if (x <= 0) return r.id;
-    }
-    return list[0].id;
-  }
-  function rollItem(boxType, stage) {
-    const d = D();
-    const box = d.GACHA[boxType] || d.GACHA.gold;
-    const rarity = rollRarity(box.weightKey);
-    const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
-    const tier = d.itemTierForStage(stage);
-    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: null };
-  }
+  // ---- 裝備 / 浮動數值帶 ----
   function rollRarityWeighted(weights) {
     let total = 0;
     for (const k in weights) total += weights[k];
@@ -356,39 +368,43 @@
     for (const k in weights) { x -= weights[k]; if (x <= 0) return k; }
     return Object.keys(weights)[0];
   }
+  // 擲一段稀有度帶
+  function rollBand(rarity) {
+    const b = D().RARITY_BANDS[rarity];
+    if (!b) return 0;
+    return b[0] + Math.random() * (b[1] - b[0]);
+  }
+  // 擲 common..rarity 各一段，回傳 bands 陣列
+  function rollBands(rarity) {
+    const d = D();
+    const idx = d.RARITY_ORDER.indexOf(rarity);
+    const arr = [];
+    for (let i = 0; i <= idx; i++) arr.push(rollBand(d.RARITY_ORDER[i]));
+    return arr;
+  }
+  // 建立裝備物件（含鎖定 bands）
+  function makeItem(slot, rarity, tier, setId) {
+    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId: setId || null, bands: rollBands(rarity) };
+  }
   // 怪物掉落具名裝（區域套裝、固定副屬、可參與具名+稀有度套裝）
-  function rollDropItem(stage, kind) {
+  function rollGear(rarity, stage, isChest) {
     const d = D();
     const setIds = d.SETS_BY_REGION[d.regionOf(stage)];
-    if (!setIds || !setIds.length) return null;
-    const setId = setIds[Math.floor(Math.random() * setIds.length)];
+    const setId = setIds && setIds.length ? setIds[Math.floor(Math.random() * setIds.length)] : null;
     const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
-    const chest = kind === "chest";
-    const rarity = rollRarityWeighted(chest ? d.DROP.chestRarityWeights : d.DROP.rarityWeights);
-    const tier = d.itemTierForStage(stage) + (chest ? d.DROP.chestTierBonus : 0);
-    return { uid: State.invSeq++, slot, rarity, tier, enhance: 0, stars: 0, setId };
+    const tier = d.itemTierForStage(stage) + (isChest ? d.DROP.chestTierBonus : 0);
+    return makeItem(slot, rarity, tier, setId);
   }
-  function openBox(boxType, count) {
-    count = count || 1;
-    const out = [];
-    for (let i = 0; i < count; i++) {
-      const it = rollItem(boxType, State.stage);
-      State.inventory.push(it);
-      out.push(it);
-      State.stats.boxesOpened++;
-      State.daily.counters.boxesToday++;
-    }
-    return out;
-  }
-  function gachaCost(boxType, count) {
-    const box = D().GACHA[boxType];
-    return box.cost * count;
-  }
-  function doGacha(boxType, count) {
-    const box = D().GACHA[boxType];
-    const cost = gachaCost(boxType, count);
-    if (!spend(box.cur, cost)) return null;
-    return openBox(boxType, count);
+  // 商店：購買普通（不具名）裝備
+  function buyCommonGear(slot) {
+    const d = D();
+    if (!d.SLOT_BY_ID[slot]) return null;
+    const cost = d.commonGearCost(State.stage);
+    if (State.gold < cost) return null;
+    State.gold -= cost;
+    const it = makeItem(slot, "common", d.itemTierForStage(State.stage), null);
+    State.inventory.push(it);
+    return it;
   }
   function isEquipped(uid) {
     return Object.keys(State.heroes).some((hid) => {
@@ -420,7 +436,7 @@
     State.inventory.forEach((it) => {
       if (it.slot !== slot) return;
       if (isEquipped(it.uid) && State.heroes[heroId].equip[slot] !== it.uid) return;
-      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
+      const v = d.itemMainStat(it);
       if (v > bestVal) { bestVal = v; best = it; }
     });
     return best;
@@ -441,42 +457,59 @@
     it.enhance++;
     return true;
   }
-  // ---- 升星 ----
-  function buyScroll(tier) {
-    const cost = D().SCROLL_COST[tier];
-    if (cost == null || State.gold < cost) return false;
-    State.gold -= cost;
-    State.scrolls[tier] = (State.scrolls[tier] || 0) + 1;
+  // ---- 升星卷軸合成（5 張合成上一階 1 張）----
+  function craftScroll(i) {
+    const d = D();
+    i = +i;
+    if (isNaN(i) || i < 0 || i >= d.SCROLL_TIERS - 1) return false; // 9-10 為頂不可再合
+    if ((State.scrolls[i] || 0) < d.CRAFT_RATIO) return false;
+    State.scrolls[i] -= d.CRAFT_RATIO;
+    State.scrolls[i + 1] = (State.scrolls[i + 1] || 0) + 1;
     return true;
   }
-  // 嘗試升星：回傳 {ok, success, destroyed, msg}
+  // 嘗試升星：回傳 {ok, success, destroyed, protected, msg}
+  // 星 X→X+1 需用「X-(X+1)」卷（scrolls[X]）；星上限依稀有度
   function starUp(uid) {
     const d = D();
     const it = itemByUid(uid);
     if (!it) return { ok: false, msg: "找不到裝備" };
     const star = it.stars || 0;
-    if (star >= d.STAR_MAX) return { ok: false, msg: "已滿星" };
-    const tier = d.scrollTierFor(star);
-    if ((State.scrolls[tier] || 0) < 1) return { ok: false, msg: tier + " 星卷不足" };
-    State.scrolls[tier]--;
+    const cap = d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX;
+    if (star >= cap) return { ok: false, msg: "已達此稀有度星上限" };
+    if ((State.scrolls[star] || 0) < 1) return { ok: false, msg: d.scrollTierName(star) + " 星卷不足" };
+    State.scrolls[star]--;
     const rule = d.STAR_RULES[star];
     if (Math.random() < rule.s) {
       it.stars = star + 1;
       return { ok: true, success: true, star: it.stars };
     }
-    // 失敗：再用 destroy 機率判定是否消失
+    // 失敗：再用 destroy 機率判定是否消失（女神的守護可抵銷）
     if (rule.d > 0 && Math.random() < rule.d) {
+      if ((State.guardians || 0) > 0) {
+        State.guardians--;
+        return { ok: true, success: false, destroyed: false, protected: true };
+      }
       unequipUidEverywhere(uid);
       State.inventory = State.inventory.filter((x) => x.uid !== uid);
       return { ok: true, success: false, destroyed: true };
     }
     return { ok: true, success: false, destroyed: false };
   }
-  // 傳說滿 10 星 → 升級為神話（星歸零）
-  function upgradeToMythic(uid) {
+  // 滿星 → 升級至下一稀有度（星歸零、累加新階浮動帶）
+  function upgradeRarity(uid) {
+    const d = D();
     const it = itemByUid(uid);
-    if (!it || it.rarity !== "legendary" || (it.stars || 0) < D().STAR_MAX) return false;
-    it.rarity = "mythic";
+    if (!it) return false;
+    const cap = d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX;
+    const nr = d.nextRarity(it.rarity);
+    if ((it.stars || 0) < cap || !nr) return false;
+    const nrIdx = d.RARITY_ORDER.indexOf(nr);
+    if (!Array.isArray(it.bands)) it.bands = [];
+    // 補齊舊存檔缺漏的低階帶（以各階中點），確保長度 = 原稀有度階數
+    while (it.bands.length < nrIdx) it.bands.push(d.bandMid(d.RARITY_ORDER[it.bands.length]));
+    it.bands = it.bands.slice(0, nrIdx);
+    it.bands.push(rollBand(nr));
+    it.rarity = nr;
     it.stars = 0;
     return true;
   }
@@ -513,7 +546,7 @@
       d.EQUIPMENT_SLOTS.forEach((sl) => {
         const it = itemByUid(eq[sl.id]);
         if (it) {
-          const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
+          const v = d.itemMainStat(it);
           if (v > (bestEq[sl.id] || 0)) bestEq[sl.id] = v;
         }
       });
@@ -521,7 +554,7 @@
     let total = 0, n = 0;
     State.inventory = State.inventory.filter((it) => {
       if (isEquipped(it.uid)) return true;
-      const v = d.itemStatValue(it.slot, it.rarity, it.tier, it.enhance, it.stars);
+      const v = d.itemMainStat(it);
       if ((bestEq[it.slot] || 0) >= v) { total += d.salvageValue(it); n++; return false; }
       return true;
     });
@@ -627,7 +660,7 @@
     State.shop.bought[id] = bought + 1;
     const g = s.give;
     let result = {};
-    if (g.box) result.items = openBox(g.box, 1);
+    if (g.guardian) State.guardians = (State.guardians || 0) + g.guardian;
     if (g.hero) ownHero(g.hero);
     if (g.pet) ownPet(g.pet);
     if (g.gold) addGold(g.gold, true);
@@ -690,11 +723,11 @@
   Game.Systems = {
     defaultState, setState, todayStr,
     globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
-    addGold, addGems, spend, tickSecond, onKill, noteStage,
+    addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
-    rollItem, rollDropItem, openBox, gachaCost, doGacha,
+    rollBands, rollBand, makeItem, rollGear, buyCommonGear,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
-    enhanceItem, buyScroll, starUp, upgradeToMythic, salvageItem, salvageAllBelow, salvageWeak,
+    enhanceItem, craftScroll, starUp, upgradeRarity, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
     canPrestige, prestigeGain, doPrestige,
     ownPet, upgradePet, setActivePet,

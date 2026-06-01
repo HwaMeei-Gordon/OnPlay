@@ -108,6 +108,34 @@
   ];
   const RARITY_BY_ID = {};
   RARITIES.forEach((r) => (RARITY_BY_ID[r.id] = r));
+  const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  function nextRarity(r) {
+    const i = RARITY_ORDER.indexOf(r);
+    return i >= 0 && i < RARITY_ORDER.length - 1 ? RARITY_ORDER[i + 1] : null;
+  }
+  // 浮動數值「累加帶」[min,max]：取得/升稀有度時各擲一次並鎖定，factor = 各階帶擲值總和。
+  // 均值總和對齊現行 mult（1.0/1.5/2.3/3.6/5.5/9.0）→ 平衡不破，僅加入浮動與運氣空間。
+  const RARITY_BANDS = {
+    common: [0.85, 1.15],   // 均值 1.00
+    uncommon: [0.35, 0.65], // +0.50 → 累計均值 1.50
+    rare: [0.55, 1.05],     // +0.80 → 2.30
+    epic: [0.90, 1.70],     // +1.30 → 3.60
+    legendary: [1.30, 2.50],// +1.90 → 5.50
+    mythic: [2.40, 4.60],   // +3.50 → 9.00（範圍 6.35–11.65，明顯 > 傳說）
+  };
+  function bandMid(r) { const b = RARITY_BANDS[r]; return b ? (b[0] + b[1]) / 2 : 0; }
+  // 物件浮動係數：bands 之和；無 bands（舊存檔）以各階帶「中點和」回退（= 現行 mult，數值不變）
+  function itemValueFactor(it) {
+    if (it && Array.isArray(it.bands) && it.bands.length) {
+      let s = 0; for (let i = 0; i < it.bands.length; i++) s += it.bands[i];
+      return s;
+    }
+    const r = it ? it.rarity : "common";
+    const idx = RARITY_ORDER.indexOf(r);
+    let s = 0;
+    for (let i = 0; i <= idx; i++) s += bandMid(RARITY_ORDER[i]);
+    return s || 1;
+  }
 
   // 套裝：身上 4 件以上同稀有度 → 攻擊/生命/防禦 倍率
   const SET_RARITY_MULT = { uncommon: 1.5, rare: 2.0, epic: 3.0, legendary: 5.0, mythic: 10.0 };
@@ -119,9 +147,13 @@
     { s: 1.0, d: 0 }, { s: 1.0, d: 0 }, { s: 0.95, d: 0 }, { s: 0.9, d: 0 }, { s: 0.85, d: 0.1 },
     { s: 0.8, d: 0.15 }, { s: 0.75, d: 0.2 }, { s: 0.7, d: 0.33 }, { s: 0.6, d: 0.5 }, { s: 0.45, d: 1.0 },
   ];
-  function scrollTierFor(star) { return Math.min(5, star + 1); } // 5 星以上都用 5 星卷
   function starMult(stars) { return 1 + 0.25 * (stars || 0); }   // 每星 +25% 基礎數值
-  const SCROLL_COST = { 1: 1500, 2: 6000, 3: 24000, 4: 90000, 5: 320000 }; // 金幣
+  // 每稀有度星上限：滿星後可「升稀有度」（星歸零、在新階重爬）
+  const RARITY_STAR_CAP = { common: 5, uncommon: 5, rare: 7, epic: 7, legendary: 10, mythic: 10 };
+  // 升星卷軸：區間制 0-1 … 9-10 共 10 階（index = 起始星）；只能合成、無金幣購買
+  const SCROLL_TIERS = 10;
+  const CRAFT_RATIO = 5;          // 5 張合成上一階 1 張；index 9(9-10) 為頂不可再合
+  function scrollTierName(i) { return i + "-" + (i + 1); }
 
   // ---- 裝備欄位（每欄主屬性）----
   const EQUIPMENT_SLOTS = [
@@ -136,12 +168,21 @@
   EQUIPMENT_SLOTS.forEach((s) => (SLOT_BY_ID[s.id] = s));
 
   // 裝備數值：base0^(1+星/10) × (1 + 0.10×強化)，強化封頂 500
-  function itemStatValue(slot, rarity, tier, enhance, stars) {
+  // factor 為物件浮動係數（itemValueFactor），取代舊的 rarity.mult
+  function itemStatValue(slot, factor, tier, enhance, stars) {
     const sl = SLOT_BY_ID[slot];
-    const ra = RARITY_BY_ID[rarity];
-    const base0 = sl.base * ra.mult * tier;
+    const base0 = sl.base * factor * tier;
     const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 10));
     return starred * (1 + 0.1 * Math.min(enhance || 0, 500));
+  }
+  // 便利包裝：直接吃 item 物件（呼叫端統一改用這兩個）
+  function itemMainStat(it) {
+    return itemStatValue(it.slot, itemValueFactor(it), it.tier, it.enhance, it.stars);
+  }
+  function itemSubStat(it, stat) {
+    const base0 = (SUB_BASE[stat] || 0) * 0.5 * itemValueFactor(it) * it.tier;
+    const starred = Math.max(base0, Math.pow(base0, 1 + (it.stars || 0) / 10));
+    return starred * (1 + 0.1 * Math.min(it.enhance || 0, 500));
   }
   const ENHANCE_MAX = 500;
   // 命中 vs 閃避 → 實際閃避機率（飽和曲線，上限 90%）
@@ -164,13 +205,7 @@
   // ---- 具名套裝（區域掉落，101 關後）----
   // 副屬性基礎值（= 各欄位主屬 base）。副屬只能是這 6 個欄位屬性，比率類（吸血/暴擊…）只走套裝 mod。
   const SUB_BASE = { atk: 6, hit: 1.5, def: 3, maxHp: 22, dodge: 1.2, critDmg: 0.05 };
-  // 副屬數值：與 itemStatValue 相同的星/強化縮放，但 base0 為主屬的一半
-  function itemSubValue(stat, rarity, tier, enhance, stars) {
-    const ra = RARITY_BY_ID[rarity];
-    const base0 = (SUB_BASE[stat] || 0) * 0.5 * ra.mult * tier;
-    const starred = Math.max(base0, Math.pow(base0, 1 + (stars || 0) / 10));
-    return starred * (1 + 0.1 * Math.min(enhance || 0, 500));
-  }
+  // （副屬數值改用 itemSubStat(it, stat)，定義於上方；base0 為主屬的一半）
 
   // 18 套具名套裝；mods 沿用 globalMods 詞彙；special 為 [{k,v}] 特殊機制
   const SETS = {
@@ -309,22 +344,30 @@
   });
 
   // ---- 掉寶率參數（全可調）----
+  // 裝備/卷軸「只從怪物掉落」，超低掉率、一次 1 張。傳說/神話永不掉落（只能升稀有度取得）。
   const DROP = {
-    minRegion: 1,            // 僅 101 關後（region>=1）才掉具名裝
-    base: 0.004,             // 一般怪基礎掉率 ≈ 每 250 隻一件
-    boss: 0.06,              // 魔王 6%
-    chest: 0.85,             // 寶箱怪 85%
-    chestSpawnChance: 0.02,  // 每次生怪 2% 機率改生成寶箱怪（僅 region>=1，非魔王關）
+    minRegion: 1,            // 僅 101 關後（region>=1）才掉裝/卷
+    normal: 0.00015,         // 一般怪掉寶率（約 1 萬隻 1-2 次）
+    chestSpawnChance: 0.00015, // 一般怪 → 寶箱怪 出現率（約 1 萬隻 1-2 隻）；出現即 100% 掉
     chestTierBonus: 2,       // 寶箱怪掉裝 tier +2
-    rarityWeights: { uncommon: 45, rare: 35, epic: 14, legendary: 5, mythic: 1 },
-    chestRarityWeights: { uncommon: 8, rare: 30, epic: 37, legendary: 20, mythic: 5 },
+    // 一般怪：多為卷軸，少量低階裝（不出史詩）
+    normalTable: { scroll0: 88, common: 9, uncommon: 2.5, rare: 0.5 },
+    // 寶箱怪：多為裝備，高稀有度大幅減少（史詩僅 3%、無傳說/神話）
+    chestTable: { scroll0: 15, common: 45, uncommon: 27, rare: 10, epic: 3 },
   };
 
-  // ---- 開箱 ----
-  const GACHA = {
-    gold: { id: "gold", name: "金幣寶箱", cur: "gold", cost: 80, costMul: 1.0, weightKey: "weightGold", icon: "box" },
-    gem: { id: "gem", name: "鑽石寶箱", cur: "gems", cost: 30, costMul: 1.0, weightKey: "weightGem", icon: "box" },
-  };
+  // ---- 過關掉寶箱（只給貨幣，取代原 gacha）----
+  // 每次關卡通過後低機率掉一個寶箱：90% 金幣寶箱（大量金幣）/ 10% 鑽石寶箱（1-5 鑽）
+  const STAGE_BOX = { chance: 0.04, goldShare: 0.9, gemMin: 1, gemMax: 5, goldMult: 60 };
+  // 金幣寶箱金幣量 = 當前關卡每隻怪金幣 × goldMult
+  function stageBoxGold(stage) {
+    return Math.max(50, Math.floor(makeEnemyStats(stage, false).gold * STAGE_BOX.goldMult));
+  }
+  // 商店購買普通裝的金幣價（隨進度 tier 成長，維持相對價值）
+  function commonGearCost(stage) {
+    return Math.floor(150 * Math.pow(1.25, itemTierForStage(stage) - 1));
+  }
+  const GODDESS_GUARD_COST = 1000; // 女神的守護：1000 鑽/個
 
   // ---- 英雄 ----
   // base 為 1 級屬性；growth 為每級成長；skills 為可用技能 id
@@ -467,8 +510,7 @@
 
   // ---- 商店 ----
   const SHOP = [
-    { id: "box_gold", name: "金幣寶箱", icon: "box", cur: "gold", cost: 150, give: { box: "gold" }, daily: false },
-    { id: "box_gem", name: "鑽石寶箱", icon: "box", cur: "gems", cost: 30, give: { box: "gem" }, daily: false },
+    { id: "buy_guardian", name: "女神的守護", icon: "shield", cur: "gems", cost: GODDESS_GUARD_COST, give: { guardian: 1 }, desc: "升星失敗導致裝備消失時，自動消耗 1 個抵銷，保護裝備不消失。" },
     { id: "buy_hero_mage", name: "招募：法師", icon: "staff", cur: "gems", cost: 50, give: { hero: "mage" }, once: true },
     { id: "buy_hero_archer", name: "招募：弓手", icon: "bow", cur: "gems", cost: 90, give: { hero: "archer" }, once: true },
     { id: "buy_hero_priest", name: "招募：牧師", icon: "plus", cur: "gems", cost: 180, give: { hero: "priest" }, once: true },
@@ -489,8 +531,8 @@
     { id: "kill10000", name: "千軍辟易", icon: "sword", stat: "totalKills", goal: 10000, reward: { gems: 120 } },
     { id: "boss10", name: "屠魔者", icon: "skull", stat: "bossKills", goal: 10, reward: { gems: 40 } },
     { id: "boss50", name: "魔王剋星", icon: "skull", stat: "bossKills", goal: 50, reward: { gems: 100 } },
-    { id: "box50", name: "開箱新手", icon: "box", stat: "boxesOpened", goal: 50, reward: { gems: 30 } },
-    { id: "box500", name: "開箱狂人", icon: "box", stat: "boxesOpened", goal: 500, reward: { gems: 150 } },
+    { id: "box50", name: "尋寶新手", icon: "box", stat: "boxesOpened", goal: 50, reward: { gems: 30 } },
+    { id: "box500", name: "尋寶大師", icon: "box", stat: "boxesOpened", goal: 500, reward: { gems: 150 } },
     { id: "stage50", name: "深入險境", icon: "flag", stat: "bestStage", goal: 50, reward: { gems: 50 } },
     { id: "stage200", name: "勢如破竹", icon: "flag", stat: "bestStage", goal: 200, reward: { gems: 150 } },
     { id: "prestige1", name: "輪迴", icon: "soul", stat: "prestiges", goal: 1, reward: { gems: 100 } },
@@ -499,7 +541,7 @@
   // ---- 每日任務 ----
   const DAILY_QUESTS = [
     { id: "d_kill", name: "擊殺 200 敵人", stat: "killsToday", goal: 200, reward: { gold: 1500 } },
-    { id: "d_box", name: "開箱 10 次", stat: "boxesToday", goal: 10, reward: { gems: 20 } },
+    { id: "d_box", name: "獲得寶箱 5 次", stat: "boxesToday", goal: 5, reward: { gems: 20 } },
     { id: "d_boss", name: "擊敗 3 隻魔王", stat: "bossToday", goal: 3, reward: { gems: 25 } },
   ];
 
@@ -582,11 +624,13 @@
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
-    RARITIES, RARITY_BY_ID, SET_RARITY_MULT, STAR_MAX, STAR_RULES, scrollTierFor, starMult, SCROLL_COST,
+    RARITIES, RARITY_BY_ID, RARITY_ORDER, nextRarity, RARITY_BANDS, bandMid, itemValueFactor,
+    SET_RARITY_MULT, STAR_MAX, STAR_RULES, starMult,
+    RARITY_STAR_CAP, SCROLL_TIERS, CRAFT_RATIO, scrollTierName,
     ENHANCE_MAX, EVADE_K, evadeChance,
-    EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemTierForStage, enhanceCost, salvageValue,
-    SUB_BASE, itemSubValue, SETS, SET_BY_ID, SETS_BY_REGION, DROP,
-    GACHA,
+    EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemMainStat, itemSubStat, itemTierForStage, enhanceCost, salvageValue,
+    SUB_BASE, SETS, SET_BY_ID, SETS_BY_REGION, DROP,
+    STAGE_BOX, stageBoxGold, commonGearCost, GODDESS_GUARD_COST,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,
     HERO_SKILLS, TRAININGS, TALENTS, PRESTIGE,
     PETS, PET_BY_ID, petUpgradeCost,

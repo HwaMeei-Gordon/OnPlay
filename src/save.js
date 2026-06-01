@@ -26,11 +26,24 @@
       "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage",
       "heroes", "party", "inventory", "invSeq", "pets", "activePet",
       "trainings", "talents", "talentPoints", "prestige", "achievements",
-      "daily", "stats", "shop", "scrolls", "speed", "goldPerSec", "gemPerSec",
+      "daily", "stats", "shop", "scrolls", "guardians", "speed", "goldPerSec", "gemPerSec",
     ];
     keys.forEach((k) => {
       if (loaded[k] !== undefined && loaded[k] !== null) base[k] = loaded[k];
     });
+    // 卷軸：舊 {1..5}（依星卷）→ 新 {0..9}（區間卷，index=起始星）。舊 t 星卷 ≈ 新 (t-1)。
+    {
+      const def = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 };
+      const sc = loaded.scrolls || {};
+      const isOld = sc[0] === undefined && (sc[1] !== undefined || sc[2] !== undefined || sc[5] !== undefined);
+      if (isOld) {
+        for (let t = 1; t <= 5; t++) def[t - 1] = sc[t] || 0;
+      } else {
+        for (let i = 0; i < 10; i++) def[i] = sc[i] || 0;
+      }
+      base.scrolls = def;
+    }
+    if (typeof base.guardians !== "number") base.guardians = 0;
     // 安全檢查
     if (!base.heroes || !base.heroes.knight) {
       base.heroes = base.heroes || {};
