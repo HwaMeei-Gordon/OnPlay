@@ -23,6 +23,7 @@
       version: 2,
       gold: 0, gems: 0, souls: 0,
       stage: 1, bestStage: 1, runBestStage: 1,
+      battleMode: "push",
       heroes: {
         knight: { owned: true, level: 1, stars: 1, equip: emptyEquip(), skills: {} },
       },

@@ -23,7 +23,7 @@
     const base = Game.Systems.defaultState();
     if (!loaded) return base;
     const keys = [
-      "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage",
+      "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage", "battleMode",
       "heroes", "party", "inventory", "invSeq", "pets", "activePet",
       "trainings", "talents", "talentPoints", "prestige", "achievements",
       "daily", "stats", "shop", "scrolls", "guardians", "useGuardian", "goldPerSec", "gemPerSec",
