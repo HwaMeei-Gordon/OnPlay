@@ -664,6 +664,7 @@
     const g = s.give;
     let result = {};
     if (g.guardian) State.guardians = (State.guardians || 0) + g.guardian;
+    if (g.scroll !== undefined) State.scrolls[g.scroll] = (State.scrolls[g.scroll] || 0) + 1;
     if (g.hero) ownHero(g.hero);
     if (g.pet) ownPet(g.pet);
     if (g.gold) addGold(g.gold, true);
