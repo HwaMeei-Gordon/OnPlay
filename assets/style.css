@@ -191,6 +191,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .bag-cell { position: relative; aspect-ratio: 1 / 1; border: 2px solid var(--rc); border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer;
   background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--rc) 30%, #1a1430), #14101f 80%); }
 .bag-cell:active { transform: scale(0.94); }
+.bag-cell.sel { box-shadow: 0 0 0 2px var(--gold), inset 0 0 0 1px var(--gold); }
+.forge-tabs { display: flex; gap: 7px; margin-bottom: 10px; }
+.forge-tab { flex: 1 1 0; min-height: 42px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel2); color: var(--text); font-family: inherit; font-weight: bold; font-size: 14px; cursor: pointer; }
+.forge-tab:active { transform: translateY(1px); }
+.forge-tab.on { background: linear-gradient(var(--gold), #e0a800); color: #2a2010; border-color: var(--gold); }
+.reforge-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 2px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font-size: 13px; }
+.reforge-row.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px #ffd23f55; }
+.reforge-row .rf-box { width: 18px; height: 18px; flex: none; border: 2px solid var(--line); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: var(--gold); }
+.reforge-row.on .rf-box { border-color: var(--gold); background: #ffd23f22; }
+.reforge-row .ir-name { color: var(--muted); flex: 0 0 auto; }
+.reforge-row .ir-val { color: var(--text); font-weight: bold; flex: 1 1 auto; }
+.reforge-row .ir-q { font-weight: bold; flex: 0 0 auto; }
 .bc-badge { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: var(--gold); font-weight: bold; text-shadow: 0 1px 0 #000; }
 .bc-eq { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 2px; background: var(--green); box-shadow: 0 0 0 1px #000; }
 
