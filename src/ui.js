@@ -412,11 +412,20 @@
     html += `<div class="sec-title">升星　<span style="font-size:11px;color:#9a90b5">${it.rarity === "mythic" ? "神話" : rarName(it.rarity)}上限 ${cap}★</span></div>`;
     if (star < cap) {
       const rule = d.STAR_RULES[star], own = St().scrolls[star] || 0, guard = St().guardians || 0;
+      const risky = rule.d > 0, on = !!St().useGuardian && guard > 0;
       html += `<div class="star-info">
         <div>需要 <b>${d.scrollTierName(star)} 星卷</b>（持有 ${own}）　成功率 <b style="color:${rule.s >= 0.85 ? "#5ec46b" : rule.s >= 0.6 ? "#ffd23f" : "#e84141"}">${Math.round(rule.s * 100)}%</b></div>
-        <div>失敗時消失機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b>${rule.d ? `　女神的守護 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">×${guard}</b>` : ""}</div>
-      </div>
-      <button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${d.scrollTierName(star)} 星卷）</button>`;
+        <div>失敗時消失機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
+      </div>`;
+      // 女神的守護：全域勾選開關
+      html += `<div class="guard-toggle ${on ? "on" : ""} ${guard <= 0 ? "dim" : ""}" ${guard <= 0 ? "" : `onclick="Game.UI._toggleGuardian(${uid})"`}>
+        <span class="gt-box">${on ? "✓" : ""}</span>
+        <span class="gt-label">${ico("shield", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
+      </div>`;
+      if (guard <= 0) html += `<div class="gt-hint dim">沒有女神的守護，無法開啟（可至商店購買）</div>`;
+      else if (on && !risky) html += `<div class="gt-hint">本階無消失風險，升星不會消耗守護</div>`;
+      else if (on) html += `<div class="gt-hint">升星不論成敗將消耗 1 顆守護，失敗時保護不消失</div>`;
+      html += `<button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${d.scrollTierName(star)} 星卷）</button>`;
     } else if (nr) {
       html += `<div class="star-info"><div>已達 <b>${cap}★</b> 上限，可升級為 <b style="color:${rarColor(nr)}">${rarName(nr)}</b>（星歸零、數值累加）</div></div>
       <button class="primary-btn" style="background:linear-gradient(${rarColor(nr)},#7a141c);box-shadow:0 3px 0 #5a1018;color:#fff" onclick="Game.UI._itemUpgrade(${uid})">升級為${rarName(nr)}（星歸零）</button>`;
@@ -729,6 +738,31 @@
     $("offline-modal").classList.remove("hidden");
   }
 
+  // 執行升星並結算 toast / 重繪
+  function performStar(uid, useGuardian) {
+    const r = Sy().starUp(uid, useGuardian);
+    if (!r.ok) { toast(r.msg); return; }
+    const used = r.guardUsed ? "（消耗守護 1）" : "";
+    if (r.destroyed) { toast("升星失敗…裝備消失了！"); closeModal(); }
+    else if (r.protected) { toast("升星失敗…女神的守護抵銷了消失！（消耗 1）"); openItemModal(uid); }
+    else if (r.success) { toast("升星成功！ ★" + r.star + used); openItemModal(uid); }
+    else { toast("升星失敗" + (r.guardUsed ? used : "（卷軸消耗）")); openItemModal(uid); }
+    renderPanel(true); sync();
+  }
+  // 有消失風險但未開啟守護 → 確認框
+  function openGuardConfirm(uid, dchance) {
+    const pct = Math.round(dchance * 100);
+    const guard = St().guardians || 0;
+    openModal(`<div class="modal-title">升星消失風險</div>
+      <div class="empty">本次升星失敗有 <b style="color:#e84141">${pct}%</b> 機率裝備消失。<br>是否開啟「女神的守護」防止消失？<br>
+      <span style="font-size:11px;color:#9a90b5">開啟後無論成功或失敗都會消耗 1 顆守護（持有 ${guard}）</span></div>
+      <div class="row-btns">
+        <button class="primary-btn" onclick="Game.UI._starConfirm(${uid},1)">開啟並升星</button>
+        <button class="act-btn" onclick="Game.UI._starConfirm(${uid},0)">直接升星</button>
+        <button class="act-btn" onclick="Game.UI._close()">取消</button>
+      </div>`);
+  }
+
   Game.UI = {
     init, sync, tickAfford, showOffline, openTab, refresh, toast,
     _close: closeModal,
@@ -736,13 +770,25 @@
     _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(true); sync(); },
     _itemSalvage: (uid) => { Sy().salvageItem(uid); closeModal(); renderPanel(true); sync(); },
     _itemStar: (uid) => {
-      const r = Sy().starUp(uid);
-      if (!r.ok) { toast(r.msg); return; }
-      if (r.destroyed) { toast("升星失敗…裝備消失了！"); closeModal(); }
-      else if (r.protected) { toast("升星失敗…女神的守護抵銷了消失！"); openItemModal(uid); }
-      else if (r.success) { toast("升星成功！ ★" + r.star); openItemModal(uid); }
-      else { toast("升星失敗（卷軸消耗）"); openItemModal(uid); }
-      renderPanel(true); sync();
+      const it = Sy().itemByUid(uid);
+      if (!it) return;
+      const rule = D().STAR_RULES[it.stars || 0];
+      const risky = rule && rule.d > 0;
+      const guard = St().guardians || 0;
+      const on = !!St().useGuardian && guard > 0;
+      // 有風險、未開啟、且背包有守護 → 跳確認框
+      if (risky && !on && guard > 0) { openGuardConfirm(uid, rule.d); return; }
+      performStar(uid, on);
+    },
+    _toggleGuardian: (uid) => {
+      if ((St().guardians || 0) <= 0) { toast("沒有女神的守護"); return; }
+      St().useGuardian = !St().useGuardian;
+      openItemModal(uid);
+    },
+    _starConfirm: (uid, enable) => {
+      let use = false;
+      if (enable && (St().guardians || 0) > 0) { St().useGuardian = true; use = true; }
+      performStar(uid, use);
     },
     _itemUpgrade: (uid) => {
       const it = Sy().itemByUid(uid);

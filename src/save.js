@@ -26,7 +26,7 @@
       "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage",
       "heroes", "party", "inventory", "invSeq", "pets", "activePet",
       "trainings", "talents", "talentPoints", "prestige", "achievements",
-      "daily", "stats", "shop", "scrolls", "guardians", "speed", "goldPerSec", "gemPerSec",
+      "daily", "stats", "shop", "scrolls", "guardians", "useGuardian", "speed", "goldPerSec", "gemPerSec",
     ];
     keys.forEach((k) => {
       if (loaded[k] !== undefined && loaded[k] !== null) base[k] = loaded[k];
@@ -44,6 +44,7 @@
       base.scrolls = def;
     }
     if (typeof base.guardians !== "number") base.guardians = 0;
+    if (typeof base.useGuardian !== "boolean") base.useGuardian = false;
     // 安全檢查
     if (!base.heroes || !base.heroes.knight) {
       base.heroes = base.heroes || {};

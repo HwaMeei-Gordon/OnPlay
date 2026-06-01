@@ -38,6 +38,7 @@
       shop: { date: todayStr(), bought: {} },
       scrolls: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
       guardians: 0,
+      useGuardian: false,
       speed: 1,
       goldPerSec: 0, gemPerSec: 0,
       _goldSec: 0, _gemSec: 0, _secT: 1,
@@ -467,9 +468,10 @@
     State.scrolls[i + 1] = (State.scrolls[i + 1] || 0) + 1;
     return true;
   }
-  // 嘗試升星：回傳 {ok, success, destroyed, protected, msg}
+  // 嘗試升星：回傳 {ok, success, destroyed, protected, guardUsed, msg}
   // 星 X→X+1 需用「X-(X+1)」卷（scrolls[X]）；星上限依稀有度
-  function starUp(uid) {
+  // useGuardian（全域勾選）：當次有消失風險（d>0）且持有守護時，不論成敗都消耗 1 顆、失敗不消失
+  function starUp(uid, useGuardian) {
     const d = D();
     const it = itemByUid(uid);
     if (!it) return { ok: false, msg: "找不到裝備" };
@@ -477,23 +479,23 @@
     const cap = d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX;
     if (star >= cap) return { ok: false, msg: "已達此稀有度星上限" };
     if ((State.scrolls[star] || 0) < 1) return { ok: false, msg: d.scrollTierName(star) + " 星卷不足" };
-    State.scrolls[star]--;
     const rule = d.STAR_RULES[star];
+    const risky = rule.d > 0;
+    const guardActive = !!useGuardian && risky && (State.guardians || 0) > 0;
+    State.scrolls[star]--;
+    if (guardActive) State.guardians--; // 有風險且開啟 → 不論成敗都消耗
     if (Math.random() < rule.s) {
       it.stars = star + 1;
-      return { ok: true, success: true, star: it.stars };
+      return { ok: true, success: true, star: it.stars, guardUsed: guardActive };
     }
-    // 失敗：再用 destroy 機率判定是否消失（女神的守護可抵銷）
-    if (rule.d > 0 && Math.random() < rule.d) {
-      if ((State.guardians || 0) > 0) {
-        State.guardians--;
-        return { ok: true, success: false, destroyed: false, protected: true };
-      }
+    // 失敗：再用 destroy 機率判定是否消失
+    if (risky && Math.random() < rule.d) {
+      if (guardActive) return { ok: true, success: false, destroyed: false, protected: true, guardUsed: true };
       unequipUidEverywhere(uid);
       State.inventory = State.inventory.filter((x) => x.uid !== uid);
       return { ok: true, success: false, destroyed: true };
     }
-    return { ok: true, success: false, destroyed: false };
+    return { ok: true, success: false, destroyed: false, guardUsed: guardActive };
   }
   // 滿星 → 升級至下一稀有度（星歸零、累加新階浮動帶）
   function upgradeRarity(uid) {
