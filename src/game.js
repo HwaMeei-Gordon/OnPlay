@@ -18,7 +18,7 @@
       field: [], enemies: [], floats: [], projectiles: [], particles: [],
       phase: "walking", worldScroll: 0, walkPhase: 0,
       killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
-      allDeadTimer: 0,
+      allDeadTimer: 0, reviveTimer: D().IDLE_REVIVE_INTERVAL,
     };
   }
 
@@ -280,29 +280,49 @@
     battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); });
     battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); });
 
-    // 全隊陣亡 → 回本段起點重來
+    const idle = Game.State.battleMode === "idle";
+
+    // 全隊陣亡 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
     const anyAlive = battle.field.some((h) => !h.dead);
     if (!anyAlive) {
       battle.allDeadTimer -= dt;
       battle.worldScroll += d.WALK_SPEED * 0.2 * dt;
       if (battle.allDeadTimer <= 0) {
-        const seg = d.segmentStart(Game.State.stage);
-        Game.State.stage = seg;
+        const back = d.segmentStart(Math.max(1, Game.State.stage - d.DEATH_RETREAT));
+        Game.State.stage = back;
+        Game.State.battleMode = "idle";
         buildField();
-        setupStage(seg);
+        setupStage(back);
+        battle.reviveTimer = d.IDLE_REVIVE_INTERVAL;
       }
       return;
     }
 
-    // 生成敵人
+    // 掛機：每隔一段時間自動復活全隊並回滿血
+    if (idle) {
+      battle.reviveTimer -= dt;
+      if (battle.reviveTimer <= 0) {
+        let revived = false;
+        battle.field.forEach((h) => { if (h.dead) { h.dead = false; revived = true; } h.hp = h.maxHp; });
+        battle.reviveTimer = d.IDLE_REVIVE_INTERVAL;
+        if (revived) addFloat(d.PARTY_X, Game.view.ground - 44, "復活", "#ffd23f");
+      }
+    }
+
+    // 生成敵人（掛機：持續生不停；推進：依 toSpawn）
     const concurrency = d.isBossStage(Game.State.stage) ? 1 : d.concurrentEnemies(Game.State.stage);
-    if (battle.toSpawn > 0 && battle.enemies.length < concurrency) {
+    if (idle) {
+      if (battle.enemies.length < concurrency) {
+        battle.spawnCD -= dt;
+        if (battle.spawnCD <= 0) { spawnEnemy(); battle.spawnCD = 0.3; }
+      }
+    } else if (battle.toSpawn > 0 && battle.enemies.length < concurrency) {
       battle.spawnCD -= dt;
       if (battle.spawnCD <= 0) { spawnEnemy(); battle.toSpawn--; battle.spawnCD = 0.3; }
     }
 
-    // 關卡清除 → 下一層
-    if (battle.toSpawn === 0 && battle.enemies.length === 0 && battle.killedThisStage >= battle.killsNeeded) {
+    // 關卡清除 → 下一層（掛機不前進）
+    if (!idle && battle.toSpawn === 0 && battle.enemies.length === 0 && battle.killedThisStage >= battle.killsNeeded) {
       // 過關掉寶箱（只給貨幣）
       const box = S().onStageClear(Game.State.stage);
       if (box && Game.UI && Game.UI.toast) {
@@ -324,13 +344,11 @@
 
     if (!fe) {
       battle.phase = "walking";
-      battle.worldScroll += d.WALK_SPEED * dt;
-      battle.walkPhase += dt * 6;
+      if (!idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
     } else if (!engaged) {
-      // 接近中：捲動 + 敵人左移
+      // 接近中：推進時捲動；掛機時背景與英雄不動，僅敵人左移
       battle.phase = "walking";
-      battle.worldScroll += d.WALK_SPEED * dt;
-      battle.walkPhase += dt * 6;
+      if (!idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
       battle.enemies.forEach((e) => {
         if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
       });
@@ -342,8 +360,8 @@
       });
     }
 
-    // 走路塵土（前進時腳後揚塵）
-    if (battle.phase === "walking") {
+    // 走路塵土（前進時腳後揚塵；掛機不揚塵）
+    if (battle.phase === "walking" && !idle) {
       battle.dustT = (battle.dustT || 0) - dt;
       if (battle.dustT <= 0) {
         const fh = frontHero();
@@ -442,9 +460,19 @@
   function resetBattle() {
     init();
   }
+  // 切換戰鬥模式：進入掛機時無條件對齊到段起點（XX1、非魔王）並重整關卡
+  function onModeChange() {
+    if (!battle) return;
+    if (Game.State.battleMode === "idle") {
+      Game.State.stage = D().segmentStart(Game.State.stage);
+      buildField();
+      setupStage(Game.State.stage);
+      battle.reviveTimer = D().IDLE_REVIVE_INTERVAL;
+    }
+  }
 
   Game.Engine = {
-    init, update, onPartyChanged, resetBattle,
+    init, update, onPartyChanged, resetBattle, onModeChange,
     get battle() { return battle; },
   };
 })();

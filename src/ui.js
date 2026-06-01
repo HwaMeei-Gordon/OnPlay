@@ -119,6 +119,12 @@
       if (e.target.id === "modal-layer" && !modalLocked) closeModal();
     });
     $("offline-close") && $("offline-close").addEventListener("click", () => $("offline-modal").classList.add("hidden"));
+    // 戰鬥模式切換（掛機 / 推進）
+    $("mode-toggle") && $("mode-toggle").addEventListener("click", () => {
+      St().battleMode = St().battleMode === "idle" ? "push" : "idle";
+      Game.Engine && Game.Engine.onModeChange && Game.Engine.onModeChange();
+      updateModeBtn();
+    });
 
     openTab("heroes");
   }
@@ -131,6 +137,13 @@
   }
 
   // ============ HUD 同步（節流到 ~10/秒，避免每幀 DOM churn）============
+  function updateModeBtn() {
+    const mb = $("mode-toggle");
+    if (!mb) return;
+    const m = St().battleMode || "push";
+    mb.textContent = m === "idle" ? "掛機中" : "推進中";
+    mb.classList.toggle("on", m === "push");
+  }
   let hudT = 0;
   function sync(dt) {
     hudT -= dt || 0.033;
@@ -143,6 +156,7 @@
     $("gem-val").textContent = fmt(s.gems);
     $("soul-val").textContent = fmt(s.souls);
     $("power-val").textContent = fmt(Sy().teamPower());
+    updateModeBtn();
   }
 
   // 每秒刷新「可負擔」狀態（不重建 DOM，避免捲動跳動）
