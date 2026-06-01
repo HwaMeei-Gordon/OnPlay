@@ -845,9 +845,9 @@
         const cost = 100 * Math.pow(2, all.length - unlocked.length);
         if (!Sy().spend("gems", cost)) { toast("鑽石不足"); rerender = false; break; }
         Sy().reforgeAttrs(forgeUid, unlocked); // 保留鎖定狀態，可連抽
-        // 提醒：未鎖定卻洗出 完美 / 最完美
+        // 提醒：未鎖定卻洗出 完美 / 最完美 → 彈窗，需按確定
         const hot = unlocked.filter((st) => D().attrQuality(it, st).pct >= 0.9);
-        if (hot.length) toast("【提醒】洗出 " + hot.map((st) => STAT_NAMES[st] + " " + D().attrQuality(it, st).name).join("、") + "（未鎖定）！記得鎖定保留");
+        if (hot.length) openReforgeAlert(hot.map((st) => STAT_NAMES[st] + " " + D().attrQuality(it, st).name));
         else toast("洗鍊完成！");
         break;
       }
@@ -950,6 +950,14 @@
     else if (r.success) toast("升星成功！ ★" + r.star + used);
     else toast("升星失敗" + (r.guardUsed ? used : "（卷軸消耗）"));
     closeModal(); renderPanel(true); sync();
+  }
+  // 洗鍊出現未鎖定的 完美/最完美 → 彈窗提醒，需按確定
+  function openReforgeAlert(names) {
+    const list = names.map((n) => `<div style="font-size:15px;font-weight:bold;color:#ffd23f;margin:2px 0">${n}</div>`).join("");
+    openModal(`<div class="modal-title" style="color:#ffd23f">${ico("star", 18)} 洗出高品質詞條！</div>
+      <div class="empty" style="padding:10px">${list}
+        <div style="font-size:12px;color:#9a90b5;margin-top:8px">這些詞條<b>未鎖定</b>，下次洗鍊會被重抽掉。<br>記得先「鎖定」再洗其餘屬性！</div></div>
+      <div class="row-btns"><button class="primary-btn" onclick="Game.UI._close()">確定</button></div>`);
   }
   // 有損毀風險但未開啟守護 → 確認框
   function openGuardConfirm(uid, dchance) {
