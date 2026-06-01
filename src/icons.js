@@ -57,7 +57,8 @@
     staff: ["....obbo....","...obBBbo...","...obBpbo...","...obBBbo...","....oMo.....","....oMo.....","....oMo.....","....oMo.....","....oMo.....","....ooo.....","............","............"],
     bow: ["...oo.......","..oEEo......",".oEEo.......",".oEo.o......",".oEo..o.....",".oEo..o.....",".oEo.o......",".oEEo.......","..oEEo......","...oo.......","............","............"],
     plus: ["....oooo....","...oeeeeo...","oooeeeeeeooo","oeeeeeeeeeeo","oeeeeeeeeeeo","oooeeeeeeooo","...oeeeeo...","...oeeeeo...","....oooo....","............","............","............"],
-    goddess: ["................","......oYYo......",".....oyYYyo.....","....oyhhhhyo....","ww..oyhhhhyo..ww","www.oychhcyo.www","wwwwowwwwwwowwww",".wwwowwYYwwowww.","..wwowwwwwwoww..","....owwYYwwo....","....owwwwwwo....","....owwwwwwo....","....oawwwwao....",".....owwwwo.....",".....oYYYYo.....","......oooo......"],
+    goddess: ["....oYYo....","....owwo....","....owwo....","..ooYYYYoo..",".oYwwwwwwYo.",".oYwwwwwwYo.","..ooYYYYoo..","....owwo....","....owwo....","....owwo....","....oYYo....","....oooo...."],
+    weapons: ["................","................",".......ww.HHM...","..bB...wa..gHM..","..BbH..wa..aHM..","....MH.Ba..aHHM.",".....MHwa..a.HM.","......Mwa..a.HM.","......Mwa..a.HM.",".....gYYYg.a.HM.",".......MHH.a.HM.",".......MHMHaHHM.",".......MH.gaHM..",".......YY..gHM..","..........HHM...","................"],
   };
 
   // 別名（多個用途共用一個圖示）
