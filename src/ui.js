@@ -17,10 +17,14 @@
   let craftSel = 1;      // 合成目標卷軸 index（1..9）
   let craftPlaced = 0;   // 五芒星已放入的卷軸數（0..5）
   let craftBatch = 1;    // 批次合成：要產出的目標卷軸張數
+  let forgeUid = null;       // 鍛造坊：選中的裝備 uid
+  let forgeMode = "enhance"; // 鍛造坊模式：star / enhance / reforge
+  let reforgeChecks = {};    // 洗鍊：勾選的屬性 { stat: true }
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
     { id: "bag", label: "背包", icon: "bag" },
+    { id: "forge", label: "鍛造坊", icon: "hammer" },
     { id: "craft", label: "合成", icon: "scroll" },
     { id: "shop", label: "商店", icon: "cart" },
     { id: "pets", label: "寵物", icon: "paw" },
@@ -167,6 +171,7 @@
     let html = "";
     if (current === "heroes") html = heroDetail ? renderHeroDetail(heroDetail) : renderHeroList();
     else if (current === "bag") html = renderBag();
+    else if (current === "forge") html = renderForge();
     else if (current === "craft") html = renderCraft();
     else if (current === "shop") html = renderShop();
     else if (current === "pets") html = renderPets();
@@ -374,6 +379,100 @@
     return html;
   }
 
+  // ---- 鍛造坊（升星 / 強化 / 洗鍊）----
+  function forgeItemGrid() {
+    const items = St().inventory.slice().sort((a, b) =>
+      D().RARITIES.findIndex((r) => r.id === b.rarity) - D().RARITIES.findIndex((r) => r.id === a.rarity)
+      || D().itemMainStat(b) - D().itemMainStat(a));
+    if (!items.length) return `<div class="empty">背包沒有裝備</div>`;
+    let html = `<div class="bag-cells">`;
+    items.forEach((it) => {
+      const eq = Sy().isEquipped(it.uid);
+      html += `<div class="bag-cell ${it.uid === forgeUid ? "sel" : ""}" data-act="forge-pick" data-uid="${it.uid}" style="--rc:${rarColor(it.rarity)}">
+        ${ico(it.slot, 26)}
+        ${it.stars ? `<span class="bc-star">${it.stars}★</span>` : ""}
+        ${it.enhance ? `<span class="bc-badge">+${it.enhance}</span>` : ""}
+        ${eq ? `<span class="bc-eq"></span>` : ""}
+      </div>`;
+    });
+    return html + `</div>`;
+  }
+  // 升星區塊（鍛造坊與其他處共用）
+  function starSectionHtml(it, uid) {
+    const d = D(), star = it.stars || 0;
+    const cap = d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX, nr = d.nextRarity(it.rarity);
+    let html = `<div class="sec-title">升星　<span style="font-size:11px;color:#9a90b5">${it.rarity === "mythic" ? "神話" : rarName(it.rarity)}上限 ${cap}★</span></div>`;
+    if (star < cap) {
+      const rule = d.STAR_RULES[star], own = St().scrolls[star] || 0, guard = St().guardians || 0;
+      const risky = rule.d > 0, on = !!St().useGuardian && guard > 0;
+      html += `<div class="star-info">
+        <div>需要 <b>${d.scrollTierName(star)} 星卷</b>（持有 ${own}）　成功率 <b style="color:${rule.s >= 0.85 ? "#5ec46b" : rule.s >= 0.6 ? "#ffd23f" : "#e84141"}">${Math.round(rule.s * 100)}%</b></div>
+        <div>失敗時損毀機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
+      </div>`;
+      html += `<div class="guard-toggle ${on ? "on" : ""} ${guard <= 0 ? "dim" : ""}" ${guard <= 0 ? "" : `onclick="Game.UI._toggleGuardian(${uid})"`}>
+        <span class="gt-box">${on ? "✓" : ""}</span>
+        <span class="gt-label">${ico("goddess", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
+      </div>`;
+      if (guard <= 0) html += `<div class="gt-hint dim">沒有女神的守護，無法開啟（可至商店購買）</div>`;
+      else if (on && !risky) html += `<div class="gt-hint">本階無損毀風險，升星不會消耗守護</div>`;
+      else if (on) html += `<div class="gt-hint">升星不論成敗將消耗 1 顆守護，失敗時保護不損毀</div>`;
+      html += `<button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${d.scrollTierName(star)} 星卷）</button>`;
+    } else if (nr) {
+      html += `<div class="star-info"><div>已達 <b>${cap}★</b> 上限，可升級為 <b style="color:${rarColor(nr)}">${rarName(nr)}</b>（星歸零、數值累加）</div></div>
+      <button class="primary-btn" style="background:linear-gradient(${rarColor(nr)},#7a141c);box-shadow:0 3px 0 #5a1018;color:#fff" onclick="Game.UI._itemUpgrade(${uid})">升級為${rarName(nr)}（星歸零）</button>`;
+    } else {
+      html += `<div class="star-info"><div><b style="color:${rarColor(it.rarity)}">已達頂級神話滿星</b></div></div>`;
+    }
+    return html;
+  }
+  function enhanceSectionHtml(it, uid) {
+    const d = D(), sl = d.SLOT_BY_ID[it.slot], eCost = d.enhanceCost(it), dis = St().gold < eCost;
+    return `<div class="sec-title">強化　<span style="font-size:11px;color:#9a90b5">目前 +${it.enhance}（每級提升數值）</span></div>
+      <div class="star-info"><div>主屬性 ${STAT_NAMES[sl.stat]}　<b>${statVal(sl.stat, d.itemMainStat(it))}</b></div></div>
+      <button class="primary-btn ${dis ? "dim" : ""}" ${dis ? "disabled" : ""} onclick="Game.UI._itemEnhance(${uid})">強化　${ico("coin", 13)}${fmt(eCost)}</button>`;
+  }
+  function reforgeSectionHtml(it) {
+    const d = D(), mainStat = d.SLOT_BY_ID[it.slot].stat, stats = Sy().itemAttrStats(it);
+    const rows = stats.map((st) => {
+      const q = d.attrQuality(it, st);
+      const v = st === mainStat ? d.itemMainStat(it) : d.itemSubStat(it, st);
+      const on = !!reforgeChecks[st];
+      return `<div class="reforge-row ${on ? "on" : ""}" data-act="forge-check" data-st="${st}">
+        <span class="rf-box">${on ? "✓" : ""}</span>
+        <span class="ir-name">${STAT_NAMES[st]}</span>
+        <span class="ir-val">${statVal(st, v)}</span>
+        <span class="ir-q" style="color:${q.color}">${q.name}</span></div>`;
+    }).join("");
+    const anyChecked = stats.some((st) => reforgeChecks[st]);
+    const cost = 100, dis = !anyChecked || St().gems < cost;
+    return `<div class="sec-title">洗鍊　<span style="font-size:11px;color:#9a90b5">勾選屬性重抽，直接取代（可能變好或變差）</span></div>
+      ${rows}
+      <button class="primary-btn ${dis ? "dim" : ""}" ${dis ? "disabled" : ""} data-act="forge-reforge">洗鍊　${curIco("gems")}${cost}</button>`;
+  }
+  function renderForge() {
+    const d = D();
+    let html = `<div class="sec-title">鍛造坊</div>`;
+    const modes = [["enhance", "強化"], ["star", "升星"], ["reforge", "洗鍊"]];
+    html += `<div class="forge-tabs">` + modes.map(([m, l]) => `<button class="forge-tab ${forgeMode === m ? "on" : ""}" data-act="forge-mode" data-m="${m}">${l}</button>`).join("") + `</div>`;
+    const it = forgeUid != null ? Sy().itemByUid(forgeUid) : null;
+    if (!it) {
+      forgeUid = null;
+      return html + `<div class="empty">選擇下方裝備開始鍛造</div>` + forgeItemGrid();
+    }
+    const sdef = it.setId && d.SET_BY_ID[it.setId];
+    html += `<div class="item-modal">
+      <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
+      <div class="im-info">
+        <div>${rarName(it.rarity)}・${d.SLOT_BY_ID[it.slot].name}${sdef ? `　<b style="color:${sdef.color}">${sdef.name}</b>` : ""}　<span style="font-size:11px;color:#9a90b5">${it.stars ? it.stars + "★ " : ""}${it.enhance ? "+" + it.enhance : ""}</span></div>
+        ${itemStatRowsHtml(it)}
+      </div></div>`;
+    if (forgeMode === "star") html += starSectionHtml(it, forgeUid);
+    else if (forgeMode === "reforge") html += reforgeSectionHtml(it);
+    else html += enhanceSectionHtml(it, forgeUid);
+    html += `<div class="sec-title">更換裝備</div>` + forgeItemGrid();
+    return html;
+  }
+
   // ---- 卷軸合成（五芒星）----
   // 目標卷軸 index = craftSel（1..9）；五個支點各放 1 張「來源卷軸」(index craftSel-1)，5 張 → 1 張目標
   function renderCraft() {
@@ -460,8 +559,7 @@
     const it = Sy().itemByUid(uid);
     if (!it) return;
     const equipped = Sy().isEquipped(uid);
-    const eCost = D().enhanceCost(it);
-    const star = it.stars || 0, d = D();
+    const d = D();
     let html = `<div class="modal-title" style="color:${rarColor(it.rarity)}">${itemName(it)}</div>
       <div class="item-modal">
         <div class="im-frame" style="--rc:${rarColor(it.rarity)}">${ico(it.slot, 40)}</div>
@@ -479,35 +577,14 @@
         html += `<div class="set-row" style="--rc:${sdef.color}"><span class="set-dot"></span><span class="set-name">${b.pieces} 件</span><span class="set-eff">${b.text}</span></div>`;
       });
     }
-    // 升星
-    const cap = d.RARITY_STAR_CAP[it.rarity] || d.STAR_MAX;
-    const nr = d.nextRarity(it.rarity);
-    html += `<div class="sec-title">升星　<span style="font-size:11px;color:#9a90b5">${it.rarity === "mythic" ? "神話" : rarName(it.rarity)}上限 ${cap}★</span></div>`;
-    if (star < cap) {
-      const rule = d.STAR_RULES[star], own = St().scrolls[star] || 0, guard = St().guardians || 0;
-      const risky = rule.d > 0, on = !!St().useGuardian && guard > 0;
-      html += `<div class="star-info">
-        <div>需要 <b>${d.scrollTierName(star)} 星卷</b>（持有 ${own}）　成功率 <b style="color:${rule.s >= 0.85 ? "#5ec46b" : rule.s >= 0.6 ? "#ffd23f" : "#e84141"}">${Math.round(rule.s * 100)}%</b></div>
-        <div>失敗時損毀機率 <b style="color:${rule.d ? "#e84141" : "#5ec46b"}">${Math.round(rule.d * 100)}%</b></div>
-      </div>`;
-      // 女神的守護：全域勾選開關
-      html += `<div class="guard-toggle ${on ? "on" : ""} ${guard <= 0 ? "dim" : ""}" ${guard <= 0 ? "" : `onclick="Game.UI._toggleGuardian(${uid})"`}>
-        <span class="gt-box">${on ? "✓" : ""}</span>
-        <span class="gt-label">${ico("goddess", 13)} 女神的守護保護　持有 <b style="color:${guard ? "#ffd23f" : "#9a90b5"}">${guard}</b></span>
-      </div>`;
-      if (guard <= 0) html += `<div class="gt-hint dim">沒有女神的守護，無法開啟（可至商店購買）</div>`;
-      else if (on && !risky) html += `<div class="gt-hint">本階無損毀風險，升星不會消耗守護</div>`;
-      else if (on) html += `<div class="gt-hint">升星不論成敗將消耗 1 顆守護，失敗時保護不損毀</div>`;
-      html += `<button class="primary-btn ${own < 1 ? "dim" : ""}" ${own < 1 ? "disabled" : ""} onclick="Game.UI._itemStar(${uid})">升星（用 ${d.scrollTierName(star)} 星卷）</button>`;
-    } else if (nr) {
-      html += `<div class="star-info"><div>已達 <b>${cap}★</b> 上限，可升級為 <b style="color:${rarColor(nr)}">${rarName(nr)}</b>（星歸零、數值累加）</div></div>
-      <button class="primary-btn" style="background:linear-gradient(${rarColor(nr)},#7a141c);box-shadow:0 3px 0 #5a1018;color:#fff" onclick="Game.UI._itemUpgrade(${uid})">升級為${rarName(nr)}（星歸零）</button>`;
-    } else {
-      html += `<div class="star-info"><div><b style="color:${rarColor(it.rarity)}">已達頂級神話滿星</b></div></div>`;
-    }
-    // 強化 / 分解 / 關閉
-    html += `<div class="row-btns" style="margin-top:8px">
-        <button class="buy-btn" ${St().gold < eCost ? "disabled" : ""} onclick="Game.UI._itemEnhance(${uid})"><span class="cost">${ico("coin", 13)}${fmt(eCost)}</span><span class="lbl">強化</span></button>
+    // 鍛造：升星 / 強化 / 洗鍊 都在鍛造坊，這裡導向過去
+    html += `<div class="sec-title">鍛造</div>
+      <div class="row-btns">
+        <button class="act-btn" onclick="Game.UI._toForge(${uid},'enhance')">強化</button>
+        <button class="act-btn" onclick="Game.UI._toForge(${uid},'star')">升星</button>
+        <button class="act-btn" onclick="Game.UI._toForge(${uid},'reforge')">洗鍊</button>
+      </div>
+      <div class="row-btns" style="margin-top:8px">
         ${equipped ? "" : `<button class="mini-btn danger" onclick="Game.UI._itemSalvage(${uid})">分解 ${ico("coin", 12)}${fmt(D().salvageValue(it))}</button>`}
         <button class="act-btn" onclick="Game.UI._close()">關閉</button>
       </div>`;
@@ -758,6 +835,18 @@
       case "shop-qty-buy": { const r = Sy().shopBuy(shopQtyId, shopQty); toast(r.ok ? "購買成功 ×" + r.qty : r.msg); closeModal(); break; }
       case "modal-close": closeModal(); rerender = false; break;
       case "buy-gear": { const it = Sy().buyCommonGear(t.dataset.slot); toast(it ? "購買 普通" + D().SLOT_BY_ID[t.dataset.slot].name : "金幣不足"); break; }
+      case "forge-mode": forgeMode = t.dataset.m; reforgeChecks = {}; break;
+      case "forge-pick": forgeUid = uid; reforgeChecks = {}; break;
+      case "forge-check": { const st = t.dataset.st; reforgeChecks[st] = !reforgeChecks[st]; break; }
+      case "forge-reforge": {
+        const it = Sy().itemByUid(forgeUid);
+        if (!it) { rerender = false; break; }
+        const stats = Sy().itemAttrStats(it).filter((st) => reforgeChecks[st]);
+        if (!stats.length) { toast("請先勾選要洗鍊的屬性"); rerender = false; break; }
+        if (!Sy().spend("gems", 100)) { toast("鑽石不足"); rerender = false; break; }
+        Sy().reforgeAttrs(forgeUid, stats); reforgeChecks = {}; toast("洗鍊完成！");
+        break;
+      }
       case "craft-select": { craftSel = +t.dataset.t; craftPlaced = 0; craftBatch = 1; break; }
       case "craft-place": { const have = St().scrolls[craftSel - 1] || 0; if (craftPlaced < Math.min(D().CRAFT_RATIO, have)) craftPlaced++; else toast("沒有更多 " + D().scrollTierName(craftSel - 1)); break; }
       case "craft-unplace": { if (craftPlaced > 0) craftPlaced--; break; }
@@ -852,11 +941,11 @@
     const r = Sy().starUp(uid, useGuardian);
     if (!r.ok) { toast(r.msg); return; }
     const used = r.guardUsed ? "（消耗守護 1）" : "";
-    if (r.destroyed) { toast("升星失敗…裝備損毀了！"); closeModal(); }
-    else if (r.protected) { toast("升星失敗…女神的守護抵銷了損毀！（消耗 1）"); openItemModal(uid); }
-    else if (r.success) { toast("升星成功！ ★" + r.star + used); openItemModal(uid); }
-    else { toast("升星失敗" + (r.guardUsed ? used : "（卷軸消耗）")); openItemModal(uid); }
-    renderPanel(true); sync();
+    if (r.destroyed) { toast("升星失敗…裝備損毀了！"); if (forgeUid === uid) forgeUid = null; }
+    else if (r.protected) toast("升星失敗…女神的守護抵銷了損毀！（消耗 1）");
+    else if (r.success) toast("升星成功！ ★" + r.star + used);
+    else toast("升星失敗" + (r.guardUsed ? used : "（卷軸消耗）"));
+    closeModal(); renderPanel(true); sync();
   }
   // 有損毀風險但未開啟守護 → 確認框
   function openGuardConfirm(uid, dchance) {
@@ -876,8 +965,9 @@
     init, sync, tickAfford, showOffline, openTab, refresh, toast,
     _close: closeModal,
     _reset: () => { Game.Save.reset(); location.reload(); },
-    _itemEnhance: (uid) => { Sy().enhanceItem(uid); openItemModal(uid); renderPanel(true); sync(); },
-    _itemSalvage: (uid) => { Sy().salvageItem(uid); closeModal(); renderPanel(true); sync(); },
+    _itemEnhance: (uid) => { Sy().enhanceItem(uid); renderPanel(true); sync(); },
+    _itemSalvage: (uid) => { Sy().salvageItem(uid); if (forgeUid === uid) forgeUid = null; closeModal(); renderPanel(true); sync(); },
+    _toForge: (uid, mode) => { forgeUid = uid; forgeMode = mode; reforgeChecks = {}; closeModal(); openTab("forge"); },
     _itemStar: (uid) => {
       const it = Sy().itemByUid(uid);
       if (!it) return;
@@ -889,10 +979,10 @@
       if (risky && !on && guard > 0) { openGuardConfirm(uid, rule.d); return; }
       performStar(uid, on);
     },
-    _toggleGuardian: (uid) => {
+    _toggleGuardian: () => {
       if ((St().guardians || 0) <= 0) { toast("沒有女神的守護"); return; }
       St().useGuardian = !St().useGuardian;
-      openItemModal(uid);
+      renderPanel(true);
     },
     _starConfirm: (uid, enable) => {
       let use = false;
@@ -902,7 +992,7 @@
     _itemUpgrade: (uid) => {
       const it = Sy().itemByUid(uid);
       const nr = it && D().nextRarity(it.rarity);
-      if (Sy().upgradeRarity(uid)) { toast("升級為" + (nr ? rarName(nr) : "更高稀有度") + "！"); openItemModal(uid); renderPanel(true); sync(); }
+      if (Sy().upgradeRarity(uid)) { toast("升級為" + (nr ? rarName(nr) : "更高稀有度") + "！"); renderPanel(true); sync(); }
     },
   };
 })();

@@ -550,6 +550,15 @@
     return true;
   }
 
+  // 洗鍊：重抽指定屬性的浮動（aBands），直接取代（可能變好或變差）
+  function reforgeAttrs(uid, stats) {
+    const it = itemByUid(uid);
+    if (!it || !Array.isArray(stats) || !stats.length) return false;
+    ensureItemAttrBands(it);
+    const own = itemAttrStats(it);
+    stats.forEach((st) => { if (own.indexOf(st) >= 0) it.aBands[st] = rollBands(it.rarity); });
+    return true;
+  }
   function salvageItem(uid) {
     const it = itemByUid(uid);
     if (!it || isEquipped(uid)) return false;
@@ -766,7 +775,7 @@
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
     rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
-    enhanceItem, craftScroll, starUp, upgradeRarity, salvageItem, salvageAllBelow, salvageWeak,
+    enhanceItem, craftScroll, starUp, upgradeRarity, reforgeAttrs, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
     canPrestige, prestigeGain, doPrestige,
     ownPet, upgradePet, setActivePet,
