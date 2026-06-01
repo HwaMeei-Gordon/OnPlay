@@ -372,7 +372,6 @@
     const targetName = d.scrollTierName(craftSel);
     const srcName = d.scrollTierName(srcIdx);
     const maxBatch = Math.floor(have / need);   // 最多可批次合成的目標張數
-    const bq = Math.min(Math.max(1, craftBatch), Math.max(1, maxBatch));
 
     // 側欄：合成目標（拉動區塊，只顯示持有數）
     let side = `<div class="craft-side"><div class="cs-title">合成目標</div><div class="craft-list">`;
@@ -411,21 +410,35 @@
         <div class="craft-btns">
           <button class="mini-btn" data-act="craft-fill" ${have >= 1 ? "" : "disabled"}>自動放入</button>
           <button class="mini-btn" data-act="craft-clear" ${craftPlaced ? "" : "disabled"}>清空</button>
-        </div>
-        <div class="craft-batch">
-          <div class="cb-title">批次合成</div>
-          <div class="cb-row">
-            <button class="mini-btn" data-act="craft-batch-add" data-v="-1">－</button>
-            <span class="cb-num">${bq}</span>
-            <button class="mini-btn" data-act="craft-batch-add" data-v="1">＋</button>
-            <button class="mini-btn" data-act="craft-batch-add" data-v="10">+10</button>
-            <button class="mini-btn" data-act="craft-batch-add" data-v="100">+100</button>
-          </div>
-          <div class="cb-info">消耗 <b style="color:#c79bff">${need * bq}</b> × ${srcName}　→　產出 <b style="color:#ffd23f">${bq}</b> × ${targetName}</div>
-          <button class="primary-btn ${maxBatch >= 1 ? "" : "dim"}" data-act="craft-batch-do" ${maxBatch >= 1 ? "" : "disabled"}>批次合成</button>
+          <button class="mini-btn" data-act="craft-batch-open" ${maxBatch >= 1 ? "" : "disabled"}>批次合成</button>
         </div>
       </div></div>`;
     return html;
+  }
+
+  // 批次合成彈窗：選要產出幾張，顯示消耗／產出
+  function craftBatchMax() { return Math.max(1, Math.floor((St().scrolls[craftSel - 1] || 0) / D().CRAFT_RATIO)); }
+  function openCraftBatchModal() { craftBatch = 1; renderCraftBatchModal(); }
+  function renderCraftBatchModal() {
+    const d = D(), need = d.CRAFT_RATIO, srcIdx = craftSel - 1;
+    const have = St().scrolls[srcIdx] || 0;
+    const can = have >= need;
+    const bq = Math.min(Math.max(1, craftBatch), craftBatchMax());
+    const srcName = d.scrollTierName(srcIdx), targetName = d.scrollTierName(craftSel);
+    openModal(`<div class="modal-title">批次合成 — ${targetName}</div>
+      <div class="empty" style="padding:6px 10px">持有 ${srcName}：${have}（每 ${need} 張合成 1 張 ${targetName}）</div>
+      <div class="row-btns" style="justify-content:center;align-items:center">
+        <button class="mini-btn" data-act="craft-batch-add" data-v="-1">－</button>
+        <span style="min-width:70px;text-align:center;font-weight:bold;font-size:18px">${fmt(bq)}</span>
+        <button class="mini-btn" data-act="craft-batch-add" data-v="1">＋</button>
+        <button class="mini-btn" data-act="craft-batch-add" data-v="10">+10</button>
+        <button class="mini-btn" data-act="craft-batch-add" data-v="100">+100</button>
+      </div>
+      <div style="text-align:center;margin:8px 0 12px">消耗 <b style="color:#c79bff">${need * bq}</b> × ${srcName}　→　產出 <b style="color:#ffd23f">${bq}</b> × ${targetName}</div>
+      <div class="row-btns" style="justify-content:center">
+        <button class="act-btn on" data-act="craft-batch-do" ${can ? "" : "disabled"}>合成</button>
+        <button class="act-btn" data-act="modal-close">取消</button>
+      </div>`);
   }
 
   function openItemModal(uid) {
@@ -737,8 +750,9 @@
       case "craft-unplace": { if (craftPlaced > 0) craftPlaced--; break; }
       case "craft-fill": { craftPlaced = Math.min(D().CRAFT_RATIO, St().scrolls[craftSel - 1] || 0); break; }
       case "craft-clear": { craftPlaced = 0; break; }
-      case "craft-batch-add": { const max = Math.max(1, Math.floor((St().scrolls[craftSel - 1] || 0) / D().CRAFT_RATIO)); craftBatch = Math.min(max, Math.max(1, (craftBatch || 1) + (+t.dataset.v))); break; }
-      case "craft-batch-do": { const n = Sy().craftScroll(craftSel - 1, craftBatch || 1); if (n) { toast("批次合成成功！獲得 " + n + " × " + D().scrollTierName(craftSel)); craftBatch = 1; craftPlaced = 0; } else toast(D().scrollTierName(craftSel - 1) + " 不足"); break; }
+      case "craft-batch-open": openCraftBatchModal(); rerender = false; break;
+      case "craft-batch-add": { craftBatch = Math.min(craftBatchMax(), Math.max(1, (craftBatch || 1) + (+t.dataset.v))); renderCraftBatchModal(); rerender = false; break; }
+      case "craft-batch-do": { const n = Sy().craftScroll(craftSel - 1, craftBatch || 1); toast(n ? "批次合成成功！獲得 " + n + " × " + D().scrollTierName(craftSel) : D().scrollTierName(craftSel - 1) + " 不足"); craftBatch = 1; closeModal(); break; }
       case "craft-do": {
         if (craftPlaced < D().CRAFT_RATIO) { toast("需放滿 " + D().CRAFT_RATIO + " 張"); break; }
         if (Sy().craftScroll(craftSel - 1)) { toast("合成成功！獲得 1 × " + D().scrollTierName(craftSel)); craftPlaced = 0; }
