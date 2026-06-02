@@ -28,7 +28,19 @@
     const mods = S().globalMods();
     const layout = S().formationLayout();
     battle.field = layout.map((slot, i) => {
-      const heroId = slot.heroId;
+      if (slot.kind === "pet") {
+        const pdef = d.PET_BY_ID[slot.id];
+        const stats = S().petStats(slot.id) || { maxHp: 1, def: 0, dodge: 0, hit: 0, atk: 0, atkInterval: 99, crit: 0, critDmg: 1 };
+        return {
+          isPet: true, petId: slot.id, heroId: null, sprite: Game.Sprites.pets[pdef.sprite],
+          stats, maxHp: stats.maxHp, hp: stats.maxHp,
+          atkTimer: 1e9, lane: slot.lane, col: slot.col,
+          x: d.PARTY_X - slot.col * d.FORM_COL_GAP, lift: 0,
+          hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
+          actives: [], skillTimers: {},
+        };
+      }
+      const heroId = slot.id;
       const stats = S().heroStats(heroId, mods);
       const def = d.HERO_BY_ID[heroId];
       const actives = def.skills.filter(
@@ -52,6 +64,7 @@
   function refreshFieldStats() {
     const mods = S().globalMods();
     battle.field.forEach((h) => {
+      if (h.isPet) return; // 寵物數值不靠 heroStats 重算
       const ns = S().heroStats(h.heroId, mods);
       if (!ns) return;
       h.stats = ns;
@@ -307,7 +320,7 @@
     const idle = Game.State.battleMode === "idle";
 
     // 全隊陣亡 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
-    const anyAlive = battle.field.some((h) => !h.dead);
+    const anyAlive = battle.field.some((h) => !h.dead && !h.isPet);
     if (!anyAlive) {
       battle.allDeadTimer -= dt;
       battle.worldScroll += d.WALK_SPEED * 0.2 * dt;
@@ -397,7 +410,7 @@
 
     // 英雄攻擊 + 技能
     battle.field.forEach((h) => {
-      if (h.dead) return;
+      if (h.dead || h.isPet) return; // 寵物不攻擊
       // 套裝：每秒回復生命
       if (h.stats.regen) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.stats.regen * dt);
       updateHeroSkills(h, dt);
@@ -456,7 +469,7 @@
             if (target.hp <= 0) {
               target.hp = 0; target.dead = true;
               addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
-              if (!battle.field.some((hh) => !hh.dead)) battle.allDeadTimer = 1.4;
+              if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
             }
           }
         }
