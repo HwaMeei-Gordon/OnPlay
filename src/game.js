@@ -19,7 +19,8 @@
       phase: "walking", worldScroll: 0, walkPhase: 0,
       killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
       allDeadTimer: 0, reviveTimer: D().IDLE_REVIVE_INTERVAL,
-      flow: "march", marchTimer: D().MARCH_TIME, bannerTimer: 0, banner: null, heroPush: 0, holdTimer: 0,
+      flow: "march", marchTimer: D().MARCH_TIME, bannerTimer: 0, banner: null,
+      heroPush: 0, enemyPush: 0, heroPushTarget: 0, enemyPushTarget: 0, assemblyFrontX: 0, holdTimer: 0,
     };
   }
   function setBanner(text, color) { battle.banner = { text: text, color: color }; }
@@ -28,6 +29,19 @@
     if (cur < target) return Math.min(target, cur + stepAmt);
     if (cur > target) return Math.max(target, cur - stepAmt);
     return cur;
+  }
+  // 對齊道路格子中央（縱線每 ENEMY_GAP 一條、單位置中於格內）
+  function snapCell(x) { const g = D().ENEMY_GAP, h = g / 2; return Math.round((x - h) / g) * g + h; }
+  // 依「敵人集結點」與「隊伍位置」算出雙方各自要前進的位移（在兩者中間相遇、相距 ATTACK_RANGE）
+  // 沒有固定中線：相遇點由集結點決定，雙方各走一半、最終都落在格子上。
+  function computeEngage() {
+    const d = D(), v = Game.view;
+    const assemblyFrontX = snapCell(Math.round(v.w * d.ASSEMBLY_FRAC));
+    battle.assemblyFrontX = assemblyFrontX;
+    const half = (assemblyFrontX - d.PARTY_X - d.ATTACK_RANGE) / 2;
+    const targetEnemyFront = snapCell(assemblyFrontX - half);     // 敵人前排最終落點（格子中央）
+    battle.enemyPushTarget = Math.max(0, assemblyFrontX - targetEnemyFront);
+    battle.heroPushTarget = Math.max(0, targetEnemyFront - d.ATTACK_RANGE - d.PARTY_X); // ATTACK_RANGE=2格→英雄也落格上
   }
 
   // ---- 建立出戰隊伍 runtime ----
@@ -167,6 +181,8 @@
   function startEncounter() {
     battle.flow = "encounter";
     battle.heroPush = 0;
+    battle.enemyPush = 0; // 敵人先在集結點成軍（畫面右側）
+    computeEngage();
     syncHeroX();
     spawnWave();
     setBanner("遭遇敵人", "#ffd23f");
@@ -346,10 +362,6 @@
     const d = D();
     const v = Game.view;
     const idle = Game.State.battleMode === "idle";
-    // 交會線：英雄前排站到 heroFrontX，敵人前排停在 enemyFrontX（相距 ATTACK_RANGE）
-    const heroFrontX = Math.round(v.w * d.MEET_FRAC);
-    const enemyFrontX = heroFrontX + d.ATTACK_RANGE;
-    const heroPushTarget = heroFrontX - d.PARTY_X;
 
     // 浮動 / 投射 / flash
     for (let i = battle.floats.length - 1; i >= 0; i--) {
@@ -446,9 +458,9 @@
 
     // ===== 遭遇 / 開戰 / 戰鬥（推進 flow encounter|combat 或掛機）=====
     const encountering = battle.flow === "encounter";
-    const assemblyFrontX = Math.round(v.w * d.ASSEMBLY_FRAC);
-    const enemyAnchor = encountering ? assemblyFrontX : enemyFrontX;
     const conv = encountering ? 1 : d.CONVERGE_MUL; // 開戰後雙方 0.5 倍速往中間
+    // 敵人前排錨點：遭遇時在集結點（畫面右側）；開戰後整個陣型隨 enemyPush 往左滑向相遇點
+    const engageAnchor = battle.assemblyFrontX - (encountering ? 0 : battle.enemyPush);
 
     // 生成敵人：推進整波已在 startEncounter 一次出場；此處負責掛機持續補位、推進補滿（行內 < ENEMY_COLS）
     const cap = d.isBossStage(Game.State.stage) ? 1 : d.LANES * d.ENEMY_COLS;
@@ -457,12 +469,12 @@
       if (battle.spawnCD <= 0) { spawnEnemyRoom(); if (!idle) battle.toSpawn--; battle.spawnCD = d.SPAWN_INTERVAL; }
     }
 
-    // 逐行排隊指派陣位：前排停在 anchor，後續往右排隊（維持 5 縱深隊形）
+    // 逐行排隊指派陣位：前排站錨點，後續往右排隊（維持縱深、停下時對齊格子）
     for (let L = 0; L < d.LANES; L++) {
       const lane = battle.enemies.filter((e) => e.lane === L).sort((a, b) => a.x - b.x);
-      lane.forEach((e, idx) => (e.targetX = enemyAnchor + idx * d.ENEMY_GAP));
+      lane.forEach((e, idx) => (e.targetX = engageAnchor + idx * d.ENEMY_GAP));
     }
-    // 敵人持續走向自己的陣位（遭遇＝正常走進來；開戰後＝0.5 倍速往中間）
+    // 敵人持續走向自己的陣位（只往左、不後退）
     battle.enemies.forEach((e) => {
       if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * conv * dt);
     });
@@ -504,14 +516,17 @@
       return;
     }
 
-    // 英雄滑向交戰線（0.5 倍速往中間）
-    battle.heroPush = approach(battle.heroPush, heroPushTarget, d.HERO_ADVANCE_SPEED * d.CONVERGE_MUL * dt);
+    // 雙方往中間靠近（0.5 倍速）：英雄往右、敵人陣型往左，各走一半到相遇點。
+    // 沒有固定中線，相遇點由集結點決定；雙方持續前進直到就位（不會卡在某條線前停住）。
+    const cspd = d.HERO_ADVANCE_SPEED * d.CONVERGE_MUL * dt;
+    battle.heroPush = approach(battle.heroPush, battle.heroPushTarget, cspd);
+    battle.enemyPush = approach(battle.enemyPush, battle.enemyPushTarget, cspd);
     syncHeroX();
-    const heroAdvanced = battle.heroPush >= heroPushTarget - 1;
+    const converged = battle.heroPush >= battle.heroPushTarget - 1 && battle.enemyPush >= battle.enemyPushTarget - 1;
 
-    // 相位：英雄已到線且有就位敵人 → 戰鬥；否則仍在靠近中（背景靜止）
+    // 相位：雙方就位且前排敵人到位 → 戰鬥；否則仍在靠近中（背景靜止）
     const anyEngaged = battle.enemies.some((e) => e.x <= e.targetX + 2);
-    battle.phase = (heroAdvanced && anyEngaged) ? "fighting" : "walking";
+    battle.phase = (converged && anyEngaged) ? "fighting" : "walking";
 
     if (battle.phase !== "fighting") return;
 
@@ -590,6 +605,7 @@
     battle = newBattle();
     buildField();
     setupStage(Game.State.stage);
+    computeEngage();
     if (Game.State.battleMode === "idle") { battle.flow = "combat"; battle.spawnCD = 0.3; }
     else { battle.flow = "march"; battle.marchTimer = D().MARCH_TIME; battle.heroPush = 0; }
   }
@@ -616,13 +632,15 @@
       Game.State.stage = D().segmentStart(Game.State.stage);
       buildField();
       setupStage(Game.State.stage);
-      battle.flow = "combat"; battle.spawnCD = 0.3;
+      computeEngage();
+      battle.flow = "combat"; battle.spawnCD = 0.3; battle.enemyPush = 0;
       battle.reviveTimer = D().IDLE_REVIVE_INTERVAL;
     } else {
       // 推進：由行軍起（英雄滑回最左、走 10 秒進當前關）
       battle.flow = "march"; battle.marchTimer = D().MARCH_TIME;
       battle.heroPush = 0;
       setupStage(Game.State.stage);
+      computeEngage();
       syncHeroX();
     }
   }
