@@ -12,6 +12,7 @@
   Game.view = { w: 256, h: 144, ground: 114 };
 
   let battle = null;
+  let DEMO = true; // 暫時：練習假人展示模式（場上只一隻無限血/0閃避/不攻擊的假人，方便看狀態效果）
 
   function newBattle() {
     return {
@@ -190,7 +191,16 @@
     for (let L = 0; L < d.LANES; L++) if ((cnt[L] || 0) < d.ENEMY_COLS) avail.push(L);
     return avail.length ? avail[Math.floor(Math.random() * avail.length)] : null;
   }
+  // 暫時：把最後生成的敵人變成「練習假人」（無限血、0閃避、不攻擊、無技能）
+  function makeDummy() {
+    const e = battle.enemies[battle.enemies.length - 1];
+    if (!e) return;
+    e.isDummy = true; e.isBoss = false; e.isElite = false; e.isChest = false;
+    e.maxHp = 1e9; e.hp = 1e9; e.dodge = 0; e.atk = 0; e.range = 1;
+    e.eskill = null; e.eskillCD = 0;
+  }
   function spawnEnemyRoom() {
+    if (DEMO) { if (!battle.enemies.length) { spawnEnemy(1); makeDummy(); } return; }
     const L = laneWithRoom();
     if (L == null) return;
     spawnEnemy(L);
@@ -208,6 +218,7 @@
   function spawnWave() {
     const d = D();
     battle.enemies = [];
+    if (DEMO) { spawnEnemy(1, 0); makeDummy(); battle.toSpawn = 0; return; } // 只生一隻假人
     if (d.isBossStage(Game.State.stage)) { spawnEnemy(1, 0); battle.toSpawn = 0; return; }
     const cnt = [0, 0, 0];
     const n = Math.min(battle.toSpawn, d.LANES * d.ENEMY_COLS);
@@ -567,7 +578,7 @@
       if (p.life <= 0) battle.particles.splice(i, 1);
     }
     battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); if (h.pauseT > 0) h.pauseT -= dt; });
-    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); if (e.pauseT > 0) e.pauseT -= dt; });
+    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); if (e.pauseT > 0) e.pauseT -= dt; if (e.isDummy) e.hp = e.maxHp; });
     if (battle.bannerTimer > 0) battle.bannerTimer -= dt;
 
     // 全隊陣亡 → 失敗字樣 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
@@ -748,6 +759,7 @@
     battle.enemies.slice().forEach((e) => {
       if (e.air > 0) return;
       fxTick(e, dt, false); // 狀態計時 + 燃燒（可能致死並 splice）
+      if (e.isDummy) return; // 假人不攻擊、不放技
       if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
       const fired = updateEnemySkills(e, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
       if (fired || e.pauseT > 0 || fxBlockAct(e)) return; // 已放技/定格/暈眩冰凍 → 不普攻
@@ -833,6 +845,7 @@
 
   Game.Engine = {
     init, update, onPartyChanged, resetBattle, onModeChange,
+    setDemo: (b) => { DEMO = !!b; }, isDemo: () => DEMO,
     get battle() { return battle; },
   };
 })();
