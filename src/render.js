@@ -274,14 +274,42 @@
       }
     });
 
-    // 投射物（帶尾光）
+    // 投射物：依種類繪製（箭帶尾跡 / 火球 / 冰晶 / 暗球 / 聖光 / 預設小球）
     b.projectiles.forEach((p) => {
       const x = p.x + (p.tx - p.x) * p.t, y = p.y + (p.ty - p.y) * p.t;
-      ctx.globalAlpha = 0.4; ctx.fillStyle = p.color;
-      ctx.fillRect(Math.round(x - (p.tx - p.x) * 0.04) - 1, Math.round(y) - 1, 3, 2);
-      ctx.globalAlpha = 1; ctx.fillStyle = p.color;
-      ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
-      ctx.fillStyle = "#fff"; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      const dx = p.tx - p.x, dy = p.ty - p.y, len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len, rx = Math.round(x), ry = Math.round(y);
+      if (p.kind === "arrow") {
+        ctx.globalAlpha = 0.35; ctx.strokeStyle = p.color; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(rx - ux * 9, ry - uy * 9); ctx.lineTo(rx - ux * 3, ry - uy * 3); ctx.stroke(); // 尾跡
+        ctx.globalAlpha = 1; ctx.strokeStyle = "#caa14a";
+        ctx.beginPath(); ctx.moveTo(rx - ux * 4, ry - uy * 4); ctx.lineTo(rx + ux * 2, ry + uy * 2); ctx.stroke(); // 箭身
+        ctx.fillStyle = "#fff"; ctx.fillRect(rx + Math.round(ux * 2), ry + Math.round(uy * 2), 1, 1); // 箭頭
+      } else if (p.kind === "fireball") {
+        ctx.globalAlpha = 0.4; ctx.fillStyle = "#ff5a1e";
+        for (let s = 1; s <= 3; s++) ctx.fillRect(rx - Math.round(ux * s * 2) - 1, ry - Math.round(uy * s * 2) - 1, 2, 2); // 尾焰
+        ctx.globalAlpha = 1; ctx.fillStyle = "#ff7a2a"; ctx.fillRect(rx - 2, ry - 2, 4, 4);
+        ctx.fillStyle = "#ffd23f"; ctx.fillRect(rx - 1, ry - 1, 2, 2);
+        ctx.fillStyle = "#fff"; ctx.fillRect(rx, ry, 1, 1);
+      } else if (p.kind === "frost") {
+        ctx.globalAlpha = 0.4; ctx.fillStyle = p.color; ctx.fillRect(rx - Math.round(ux * 4) - 1, ry - Math.round(uy * 4) - 1, 2, 2);
+        ctx.globalAlpha = 1; ctx.fillStyle = "#7ad7ff"; ctx.fillRect(rx - 1, ry - 2, 2, 5); ctx.fillRect(rx - 2, ry - 1, 5, 2); // 冰晶十字
+        ctx.fillStyle = "#fff"; ctx.fillRect(rx, ry, 1, 1);
+      } else if (p.kind === "dark") {
+        ctx.globalAlpha = 0.4; ctx.fillStyle = "#a35bff"; ctx.fillRect(rx - 2, ry - 2, 4, 4); // 紫暈
+        ctx.globalAlpha = 1; ctx.fillStyle = "#160a26"; ctx.fillRect(rx - 1, ry - 1, 3, 3); // 黑核
+        ctx.fillStyle = "#c89bff"; ctx.fillRect(rx, ry, 1, 1);
+      } else if (p.kind === "holy") {
+        ctx.globalAlpha = 0.35; ctx.fillStyle = p.color; ctx.fillRect(rx - 2, ry - 2, 4, 4);
+        ctx.globalAlpha = 1; ctx.fillStyle = p.color; ctx.fillRect(rx - 1, ry - 1, 3, 3);
+        ctx.fillStyle = "#eaffe9"; ctx.fillRect(rx, ry, 1, 1);
+      } else {
+        ctx.globalAlpha = 0.4; ctx.fillStyle = p.color;
+        ctx.fillRect(rx - Math.round(ux * 2) - 1, ry - 1, 3, 2);
+        ctx.globalAlpha = 1; ctx.fillStyle = p.color; ctx.fillRect(rx - 1, ry - 1, 3, 3);
+        ctx.fillStyle = "#fff"; ctx.fillRect(rx, ry, 1, 1);
+      }
+      ctx.globalAlpha = 1;
     });
 
     // 粒子（火花 / 金幣 / 揮砍）
@@ -311,6 +339,10 @@
           ctx.strokeStyle = "rgba(255,255,255," + a + ")"; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283); ctx.stroke();
         }
+      } else if (p.type === "heal") {
+        // 綠色十字治療粒子（上升）
+        const hx = Math.round(p.x), hy = Math.round(p.y);
+        ctx.fillStyle = p.color; ctx.fillRect(hx, hy - 1, 1, 3); ctx.fillRect(hx - 1, hy, 3, 1);
       } else {
         ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       }
