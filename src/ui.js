@@ -125,6 +125,15 @@
       Game.Engine && Game.Engine.onModeChange && Game.Engine.onModeChange();
       updateModeBtn();
     });
+    // 暫用：跳關 +100（直接前進 100 關並重整戰鬥）
+    $("skip-btn") && $("skip-btn").addEventListener("click", () => {
+      St().stage = (St().stage || 1) + 100;
+      Game.Engine && Game.Engine.resetBattle && Game.Engine.resetBattle();
+      const b = Game.Engine && Game.Engine.battle;
+      if (b && b.flow === "march") b.marchTimer = 0.3; // 跳關後快速進入戰鬥
+      sync(1); // 立即刷新 HUD
+      Game.UI && Game.UI.toast && Game.UI.toast("跳關 → 第 " + St().stage + " 關");
+    });
 
     openTab("heroes");
   }
