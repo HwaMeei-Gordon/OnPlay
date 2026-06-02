@@ -33,10 +33,14 @@
   const MEET_FRAC = 0.42;       // 雙方交會點 ≈ view.w × 此值
   const ATTACK_RANGE = 32;      // 英雄線與敵人前排線的間距（本階段單一全域值）
   const HERO_ADVANCE_SPEED = 80; // 英雄往中間/回左的滑動速度
+  const ENEMY_COLS = 5;         // 敵人陣型縱深（每行最多 5 隻；3 行×5＝15 格）
+  const ASSEMBLY_FRAC = 0.66;   // 遭遇時敵人前排集結點 ≈ view.w × 此值（在右側）
+  const CONVERGE_MUL = 0.5;     // 開戰後雙方往中間靠近的速度倍率（0.5 倍速）
+  const CLASH_TIME = 0.9;       // 「開戰！」停頓秒數（雙方就位後短暫定格）
 
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
-  const KILLS_PER_STAGE = 5; // 一般層需擊殺數
+  const KILLS_PER_STAGE = 12; // 一般層需擊殺數（一次全部出場、填滿 3 行陣型）
   const BOSS_EVERY = 10; // 每 10 層出魔王
   const SEGMENT = 10; // 死亡回到本段起點（10 層一段）
   const IDLE_REVIVE_INTERVAL = 300; // 掛機：每 5 分鐘自動復活全隊並回滿血
@@ -685,6 +689,7 @@
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
     LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY,
     MARCH_TIME, VICTORY_TIME, DEFEAT_TIME, MEET_FRAC, ATTACK_RANGE, HERO_ADVANCE_SPEED,
+    ENEMY_COLS, ASSEMBLY_FRAC, CONVERGE_MUL, CLASH_TIME,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
