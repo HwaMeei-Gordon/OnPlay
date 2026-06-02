@@ -234,17 +234,17 @@
       ctx.fillRect(0, bot, v.w, 1);
     }
 
-    const LY = (lane) => d.laneY(v.ground, lane);
+    const LYF = (u) => d.laneYF(v.ground, u.laneF != null ? u.laneF : u.lane);
     const walking = b.phase === "walking";
 
     // 腳下陰影（各自行的地面層；空中敵人不畫影；寵物也在 field 內）
-    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LY(h.lane)); });
-    b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LY(e.lane)); });
+    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LYF(h)); });
+    b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
 
-    // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製
+    // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製（小數行位→換行更平滑）
     const drawList = [];
-    b.enemies.forEach((e) => drawList.push({ y: LY(e.lane), kind: "e", o: e }));
-    b.field.forEach((h, i) => drawList.push({ y: LY(h.lane), kind: "h", o: h, i: i }));
+    b.enemies.forEach((e) => drawList.push({ y: LYF(e), kind: "e", o: e }));
+    b.field.forEach((h, i) => drawList.push({ y: LYF(h), kind: "h", o: h, i: i }));
     drawList.sort((a, c) => a.y - c.y || (a.kind === "e" ? a.o.x : -a.o.x) - (c.kind === "e" ? c.o.x : -c.o.x));
     drawList.forEach((dr) => {
       if (dr.kind === "e") {

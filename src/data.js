@@ -38,6 +38,22 @@
   const CONVERGE_MUL = 0.5;     // 開戰後雙方往中間靠近的速度倍率（0.5 倍速）
   const CLASH_TIME = 0.9;       // 「開戰！」停頓秒數（雙方就位後短暫定格）
 
+  // ---- 格子戰術 AI（逐單位攻擊距離／最近目標／自由移動）----
+  const RANGE_BY_CLS = { "戰士": 1, "狂戰": 1, "盜賊": 1, "法師": 2, "牧師": 2, "弓手": 3 }; // 攻擊距離（格）；預設 1
+  const BOSS_RANGE = 5, ENEMY_RANGE = 1;
+  function unitRangeForHero(cls) { return RANGE_BY_CLS[cls] || 1; }
+  function unitRangeForEnemy(isBoss) { return isBoss ? BOSS_RANGE : ENEMY_RANGE; }
+  const GRID_STEP_SPEED = 80;   // 逐格移動的 x 動畫速度（px/s）
+  const LANE_EASE = 8;          // 換行時行位緩動（每秒）
+  const CELL_ALIGN_EPS = 0.75;  // 視為「已就位於格」的 x 容差
+  const LANE_ALIGN_EPS = 0.06;  // 行位對齊容差
+  // 小數行位 → y（對 LANE_DY 線性內插，供換行動畫平滑繪製）
+  function laneYF(ground, laneF) {
+    const last = LANES - 1, fl = Math.floor(laneF);
+    const a = Math.max(0, Math.min(last, fl)), b = Math.max(0, Math.min(last, fl + 1));
+    return ground + LANE_DY[a] + (LANE_DY[b] - LANE_DY[a]) * (laneF - fl);
+  }
+
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
   const KILLS_PER_STAGE = 12; // 一般層需擊殺數（一次全部出場、填滿 3 行陣型）
@@ -687,9 +703,11 @@
 
   Game.Data = {
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
-    LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY,
+    LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY, laneYF,
     MARCH_TIME, VICTORY_TIME, DEFEAT_TIME, MEET_FRAC, ATTACK_RANGE, HERO_ADVANCE_SPEED,
     ENEMY_COLS, ASSEMBLY_FRAC, CONVERGE_MUL, CLASH_TIME,
+    RANGE_BY_CLS, BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
+    GRID_STEP_SPEED, LANE_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
