@@ -958,7 +958,7 @@
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
           <div class="hb-mon-name">${def.name}</div>
-          <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
+          <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}${def.fly ? "・飛行類" : ""}</div>
         </div>
         <div class="hb-mon-grid">${stats}</div>
       </div>
