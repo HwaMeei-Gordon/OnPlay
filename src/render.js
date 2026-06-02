@@ -77,6 +77,44 @@
       }
     }
   }
+  // ---- 狀態效果視覺（模組層，戰鬥與說明書共用）----
+  function uhas(o, k) { return o.fx && o.fx[k] > 0; }
+  // 整體染色：只有冰凍(青)與狂暴(紅)會改變身體顏色，避免與燃燒混淆
+  function fxTint(o) {
+    if (uhas(o, "freeze")) return "#7ad7ff"; // 冰凍：全身青藍
+    if (uhas(o, "berserk")) return "#ff7a7a"; // 狂暴：全身泛紅
+    return null;
+  }
+  function drawFx(o, cx, topY, yoff, w, h, clk) {
+    const fx = o.fx; if (!fx) return; const t = clk || 0, midY = topY + h / 2 + yoff;
+    // 冰凍：身上覆蓋冰晶（青白），整體已染青
+    if (fx.freeze > 0) { ctx.fillStyle = "#eaffff"; ctx.fillRect(cx - 4, topY + 1 + yoff, 1, 3); ctx.fillRect(cx + 3, topY + 3 + yoff, 1, 3); ctx.fillRect(cx - 1, topY - 1 + yoff, 2, 1); }
+    // 燃燒：不染色，腳下/身上竄出橘黃火焰（上升閃爍）→ 用火焰辨識
+    if (fx.burn > 0) { for (let k = 0; k < 4; k++) { const fy = topY + h - 1 - ((t * 26 + k * 5) % (h + 3)); ctx.fillStyle = (k + Math.floor(t * 12)) % 2 ? "#ffd23f" : "#ff5a1e"; ctx.fillRect(Math.round(cx - w / 2 + 1 + k * (w / 4)), Math.round(fy + yoff), 1, 2); } }
+    // 虛弱：半透明紫色遮罩覆蓋全身 → 用紫色辨識
+    if (fx.weak > 0) { ctx.globalAlpha = 0.42; ctx.fillStyle = "#9b59d6"; ctx.fillRect(Math.round(cx - w / 2), Math.round(topY + yoff), Math.round(w), Math.round(h)); ctx.globalAlpha = 1; }
+    // 麻痺：身上竄黃色電弧 ⚡ → 用電辨識
+    if (fx.paralyze > 0 && Math.floor(t * 14) % 2) { ctx.strokeStyle = "#fff04a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 3, topY + 2 + yoff); ctx.lineTo(cx + 1, midY); ctx.lineTo(cx - 2, midY + 2); ctx.lineTo(cx + 2, topY + h + yoff); ctx.stroke(); }
+    // 狂暴：身體外圍紅色脈動光環（呼吸般放大縮小）→ 用紅光環辨識
+    if (fx.berserk > 0 && ctx.arc) { ctx.globalAlpha = 0.3 + 0.25 * Math.sin(t * 8); ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, midY, Math.max(w, h) / 2 + 2, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    // 暈眩：頭上 3 顆黃色星星繞圈 ⭐
+    if (fx.stun > 0) { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.094, sx = Math.round(cx + Math.cos(a) * 5), sy = Math.round(topY - 4 + Math.sin(a) * 2 + yoff); ctx.fillStyle = "#ffe45a"; ctx.fillRect(sx, sy, 1, 1); ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); } }
+  }
+  // 說明書預覽：把效果套在範例精靈上畫到指定 ctx（用後還原模組 ctx，戰鬥不受影響）
+  function drawSpriteFx(targetCtx, sprite, fxKey, clk, opts) {
+    if (!targetCtx || !sprite) return;
+    opts = opts || {};
+    const prev = ctx;
+    ctx = targetCtx;
+    if (ctx.imageSmoothingEnabled !== undefined) ctx.imageSmoothingEnabled = false;
+    const w = spriteWidth(sprite), h = sprite.length;
+    const cx = opts.cx != null ? opts.cx : w / 2;
+    const bottomY = opts.bottomY != null ? opts.bottomY : h + 1;
+    const fake = { fx: fxKey ? { [fxKey]: 1 } : null };
+    drawSprite(sprite, cx, bottomY, false, fxTint(fake), 0);
+    drawFx(fake, Math.round(cx), bottomY - h, 0, w, h, clk);
+    ctx = prev;
+  }
   function drawBar(x, y, w, h, ratio, color) {
     ratio = Math.max(0, Math.min(1, ratio));
     ctx.fillStyle = "#1a1228"; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
@@ -241,30 +279,8 @@
     b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LYF(h)); });
     b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
 
-    // 狀態效果：動態時鐘 + 染色 + 頭頂遮罩
+    // 狀態效果動態時鐘（fxTint/drawFx 已提升到模組層，供戰鬥與說明書共用）
     const clk = b.fxClock || 0;
-    const uhas = (o, k) => o.fx && o.fx[k] > 0;
-    // 整體染色：只有冰凍(青)與狂暴(紅)會改變身體顏色，避免與燃燒混淆
-    function fxTint(o) {
-      if (uhas(o, "freeze")) return "#7ad7ff"; // 冰凍：全身青藍
-      if (uhas(o, "berserk")) return "#ff7a7a"; // 狂暴：全身泛紅
-      return null;
-    }
-    function drawFx(o, cx, topY, yoff, w, h) {
-      const fx = o.fx; if (!fx) return; const t = clk, midY = topY + h / 2 + yoff;
-      // 冰凍：身上覆蓋冰晶（青白），整體已染青
-      if (fx.freeze > 0) { ctx.fillStyle = "#eaffff"; ctx.fillRect(cx - 4, topY + 1 + yoff, 1, 3); ctx.fillRect(cx + 3, topY + 3 + yoff, 1, 3); ctx.fillRect(cx - 1, topY - 1 + yoff, 2, 1); }
-      // 燃燒：不染色，腳下/身上竄出橘黃火焰（上升閃爍）→ 用火焰辨識
-      if (fx.burn > 0) { for (let k = 0; k < 4; k++) { const fy = topY + h - 1 - ((t * 26 + k * 5) % (h + 3)); ctx.fillStyle = (k + Math.floor(t * 12)) % 2 ? "#ffd23f" : "#ff5a1e"; ctx.fillRect(Math.round(cx - w / 2 + 1 + k * (w / 4)), Math.round(fy + yoff), 1, 2); } }
-      // 虛弱：半透明紫色遮罩覆蓋全身 → 用紫色辨識
-      if (fx.weak > 0) { ctx.globalAlpha = 0.42; ctx.fillStyle = "#9b59d6"; ctx.fillRect(Math.round(cx - w / 2), Math.round(topY + yoff), Math.round(w), Math.round(h)); ctx.globalAlpha = 1; }
-      // 麻痺：身上竄黃色電弧 ⚡ → 用電辨識
-      if (fx.paralyze > 0 && Math.floor(t * 14) % 2) { ctx.strokeStyle = "#fff04a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 3, topY + 2 + yoff); ctx.lineTo(cx + 1, midY); ctx.lineTo(cx - 2, midY + 2); ctx.lineTo(cx + 2, topY + h + yoff); ctx.stroke(); }
-      // 狂暴：身體外圍紅色脈動光環（呼吸般放大縮小）→ 用紅光環辨識
-      if (fx.berserk > 0 && ctx.arc) { ctx.globalAlpha = 0.3 + 0.25 * Math.sin(t * 8); ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, midY, Math.max(w, h) / 2 + 2, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
-      // 暈眩：頭上 3 顆黃色星星繞圈 ⭐
-      if (fx.stun > 0) { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.094, sx = Math.round(cx + Math.cos(a) * 5), sy = Math.round(topY - 4 + Math.sin(a) * 2 + yoff); ctx.fillStyle = "#ffe45a"; ctx.fillRect(sx, sy, 1, 1); ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); } }
-    }
 
     // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製（小數行位→換行更平滑）
     const drawList = [];
@@ -280,7 +296,7 @@
         drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
         const bw = Math.max(10, spriteWidth(sp) - 2);
         drawBar(ex - bw / 2, gy - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
-        drawFx(e, Math.round(ex), gy - sp.length, ey, spriteWidth(sp), sp.length);
+        drawFx(e, Math.round(ex), gy - sp.length, ey, spriteWidth(sp), sp.length, clk);
         if (e.isChest) {
           const my = gy - sp.length - 9 + ey, mx = Math.round(ex);
           rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
@@ -297,7 +313,7 @@
         const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
         drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob);
         if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - h.sprite.length - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
-        if (!h.dead) drawFx(h, Math.round(hx), gy - h.sprite.length, hy, spriteWidth(h.sprite), h.sprite.length);
+        if (!h.dead) drawFx(h, Math.round(hx), gy - h.sprite.length, hy, spriteWidth(h.sprite), h.sprite.length, clk);
       }
     });
 
@@ -426,5 +442,5 @@
     }
   }
 
-  Game.Render = { init, resize, draw };
+  Game.Render = { init, resize, draw, drawSpriteFx };
 })();
