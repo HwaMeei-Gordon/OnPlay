@@ -141,9 +141,8 @@
     const mb = $("mode-toggle");
     if (!mb) return;
     const push = (St().battleMode || "push") === "push";
-    mb.classList.toggle("on", push);            // 開＝推進、關＝掛機
-    const lbl = $("mode-label");
-    if (lbl) lbl.textContent = push ? "推進" : "掛機";
+    mb.textContent = push ? "推進" : "掛機";   // 推進＝亮色、掛機＝灰階
+    mb.classList.toggle("on", push);
   }
   let hudT = 0;
   function sync(dt) {
