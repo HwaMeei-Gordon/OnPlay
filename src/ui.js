@@ -940,19 +940,20 @@
       + cell("攻擊速度", `<b>${(def.atkInterval * d.ATK_INTERVAL_MUL).toFixed(2)}s</b>`)
       + cell("移動速度", `<b>${def.moveMul.toFixed(2)}×</b>`);
     const mname = (id) => d.MONSTER_BY_ID[id] ? d.MONSTER_BY_ID[id].name : "小怪";
-    const row = (name, type, cd, desc, once) => {
+    const row = (name, type, cd, desc, once, strong) => {
       const tag = `<span class="hb-tag ${type === "主動" ? "act" : "pas"}">${type}</span>`;
       const note = cd != null ? `<span class="hb-cd">冷卻 ${cd}s</span>` : (once ? `<span class="hb-cd">僅觸發一次</span>` : "");
-      return `<div class="hb-skill"><b>${name}</b>${tag}${note}<div class="hb-skill-d">${desc}</div></div>`;
+      return `<div class="hb-skill"><b class="${strong ? "hb-sk-strong" : ""}">${name}</b>${tag}${note}<div class="hb-skill-d">${desc}</div></div>`;
     };
     const rows = [];
     (def.skills || []).forEach((id) => { const s = d.ENEMY_SKILLS[id]; if (s) rows.push(row(s.name, "主動", s.cd, enemySkillDesc(id))); });
-    if (def.special === "split") rows.push(row("分裂", "被動", null, `死亡時分裂成 ${def.splitCount} 隻${mname(def.splitInto)}`, true));
-    else if (def.special === "summon") rows.push(row("召喚", "主動", 9, `召喚 ${def.summonCount} 隻${mname(def.summonId)}`));
-    else if (def.special === "enrage") rows.push(row("狂暴", "被動", null, `低血時進入${fxColorName("berserk")}狀態`, true));
-    else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷"));
-    while (rows.length < 3) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 3 格、不足補空
-    const skills = rows.slice(0, 3).join("");
+    // 特殊＝強力技能（名稱紅字、更高規格）
+    if (def.special === "split") rows.push(row("分裂", "被動", null, `死亡時分裂成 ${def.splitCount} 隻${mname(def.splitInto)}`, true, true));
+    else if (def.special === "summon") rows.push(row("召喚", "主動", 9, `召喚 ${def.summonCount} 隻${mname(def.summonId)}`, false, true));
+    else if (def.special === "enrage") rows.push(row("狂暴", "被動", null, `低血時進入${fxColorName("berserk")}狀態`, true, true));
+    else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷", false, true));
+    while (rows.length < 4) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 4 格、不足補空
+    const skills = rows.slice(0, 4).join("");
     return `<div class="hb-mon2">
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
@@ -1002,7 +1003,7 @@
       <span class="hb-count">${handbookPage + 1} / ${pages.length}</span>
       <button class="hb-arrow" data-act="hb-next" ${handbookPage >= pages.length - 1 ? "disabled" : ""}>往後翻 →</button>
     </div>`;
-    return chips + `<div class="hb-page">${pg.body}</div>` + nav;
+    return `<div class="hb-root">` + chips + `<div class="hb-page">${pg.body}</div>` + nav + `</div>`;
   }
   // 狀態效果預覽動畫（只在說明書分頁時跑，離開即自我終止）
   let hbRaf = 0, hbClk = 0, hbLast = 0;

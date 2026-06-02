@@ -448,12 +448,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 .hb-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; -webkit-overflow-scrolling: touch; }
 .hb-chip { flex: 0 0 auto; padding: 5px 10px; border-radius: 14px; border: 1px solid var(--line); background: #1a1228; color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .hb-chip.on { background: var(--gold); color: #2a1c00; border-color: var(--gold); font-weight: bold; }
-.hb-page { min-height: 240px; }
+.hb-root { display: flex; flex-direction: column; min-height: 100%; }
+.hb-page { flex: 0 0 auto; }
 .hb-prose { font-size: 13px; line-height: 1.7; color: #d7d2e4; }
 .hb-prose p { margin: 0 0 9px; }
 .hb-prose b { color: #fff; }
 .hb-sub { font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
-.hb-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.hb-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
 .hb-arrow { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: #241a38; color: #eee; font-size: 13px; cursor: pointer; }
 .hb-arrow:disabled { opacity: 0.35; cursor: default; }
 .hb-count { font-size: 12px; color: var(--muted); }
@@ -477,10 +478,11 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-mc { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 4px; border-bottom: 1px solid var(--line); }
 .hb-mc span { color: var(--muted); }
 .hb-mc b { font-weight: bold; }
-.hb-skill { font-size: 12.5px; line-height: 1.35; color: #d7d2e4; margin: 3px 0; }
-.hb-skill > b { color: #cfe0ff; }
+.hb-skill { font-size: 12.5px; line-height: 1.3; color: #d7d2e4; margin: 2px 0; }
+.hb-skill > b { color: #ffd23f; }               /* 技能名稱：黃字 */
+.hb-skill > b.hb-sk-strong { color: #ff3b46; }  /* 王/特殊強力技能：紅字(更高規格) */
 .hb-skill-empty { color: #4a4458; }
-.hb-skill-d { font-size: 11px; color: #b9b4c8; margin-top: 1px; }
+.hb-skill-d { font-size: 11px; color: #b9b4c8; margin-top: 0; }
 .hb-tag { font-size: 10px; padding: 0 5px; border-radius: 3px; margin-left: 6px; }
 .hb-tag.act { background: #3a2a5a; color: #c9a8ff; }
 .hb-tag.pas { background: #243a26; color: #9fd0a0; }

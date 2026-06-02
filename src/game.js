@@ -192,6 +192,13 @@
     const range = boss ? d.BOSS_RANGE : def.range;
     const moveSpeed = def.moveMul * d.GRID_STEP_SPEED * (0.9 + Math.random() * 0.2);
     const eskills = (def.skills || []).map((id) => ({ id, cd: d.ENEMY_SKILLS[id].cd * (0.5 + Math.random() * 0.6) }));
+    // 中後期(區域>=3)精英怪必有至少 3 個技能：補足攻擊型技能
+    if (isElite && r >= 3 && eskills.length < 3) {
+      const have = eskills.map((e) => e.id);
+      const cand = Object.keys(d.ENEMY_SKILLS).filter((k) => k !== "heal" && have.indexOf(k) < 0);
+      for (let j = cand.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); const t = cand[j]; cand[j] = cand[k]; cand[k] = t; }
+      for (const id of cand) { if (eskills.length >= 3) break; eskills.push({ id, cd: d.ENEMY_SKILLS[id].cd * (0.5 + Math.random() * 0.6) }); }
+    }
     let baseX, gcol, glane = lane;
     if (opts.x != null) { // 分裂/召喚：落在父怪附近的空格、直接就位於格
       const fc = freeCellNear(lane, clampCol(colOfX(opts.x)));
