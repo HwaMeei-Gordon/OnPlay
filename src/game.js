@@ -19,7 +19,7 @@
       phase: "walking", worldScroll: 0, walkPhase: 0,
       killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
       allDeadTimer: 0, reviveTimer: D().IDLE_REVIVE_INTERVAL,
-      flow: "march", marchTimer: D().MARCH_TIME, bannerTimer: 0, banner: null, heroPush: 0,
+      flow: "march", marchTimer: D().MARCH_TIME, bannerTimer: 0, banner: null, heroPush: 0, holdTimer: 0,
     };
   }
   function setBanner(text, color) { battle.banner = { text: text, color: color }; }
@@ -99,12 +99,14 @@
     battle.phase = "walking";
   }
 
-  function spawnEnemy(lane) {
+  // 從右側走進場（不再天降）；startSlot 用於整波同時出場時錯開起始 x，形成縱隊
+  function spawnEnemy(lane, startSlot) {
     const st = Game.State;
     const stage = st.stage;
     const boss = D().isBossStage(stage);
     if (boss) lane = 1; // 魔王固定中行
     if (lane == null) lane = Math.floor(Math.random() * D().LANES);
+    const slot = startSlot || 0;
     const r = D().regionOf(stage);
     const stx = D().makeEnemyStats(stage, boss);
     let sprite;
@@ -127,9 +129,48 @@
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
-      x: Game.view.w + 8 + Math.random() * 10, targetX: 0, lane: lane, air: D().ENEMY_DROP_H, vy: 0,
+      x: Game.view.w + 6 + slot * D().ENEMY_GAP + Math.random() * 4, targetX: 0, lane: lane, air: 0, vy: 0,
       hitFlash: 0, shake: 0, lunge: 0,
     });
+  }
+
+  // 隨機挑一個還有空位（< ENEMY_COLS）的行
+  function laneWithRoom() {
+    const d = D(), cnt = [0, 0, 0];
+    battle.enemies.forEach((e) => { cnt[e.lane] = (cnt[e.lane] || 0) + 1; });
+    const avail = [];
+    for (let L = 0; L < d.LANES; L++) if ((cnt[L] || 0) < d.ENEMY_COLS) avail.push(L);
+    return avail.length ? avail[Math.floor(Math.random() * avail.length)] : null;
+  }
+  function spawnEnemyRoom() {
+    const L = laneWithRoom();
+    if (L != null) spawnEnemy(L);
+  }
+  // 整波一次出場：依該關敵人數量隨機分布到 3 行×ENEMY_COLS 的格子，全部從右側走進來
+  function spawnWave() {
+    const d = D();
+    battle.enemies = [];
+    if (d.isBossStage(Game.State.stage)) { spawnEnemy(1, 0); battle.toSpawn = 0; return; }
+    const cnt = [0, 0, 0];
+    const n = Math.min(battle.toSpawn, d.LANES * d.ENEMY_COLS);
+    let placed = 0;
+    for (let i = 0; i < n; i++) {
+      const avail = [];
+      for (let L = 0; L < d.LANES; L++) if (cnt[L] < d.ENEMY_COLS) avail.push(L);
+      if (!avail.length) break;
+      const L = avail[Math.floor(Math.random() * avail.length)];
+      spawnEnemy(L, cnt[L]);
+      cnt[L]++; placed++;
+    }
+    battle.toSpawn -= placed;
+  }
+  function startEncounter() {
+    battle.flow = "encounter";
+    battle.heroPush = 0;
+    syncHeroX();
+    spawnWave();
+    setBanner("遭遇敵人", "#ffd23f");
+    battle.bannerTimer = 1;
   }
 
   // ---- 浮動文字 / 投射物 ----
@@ -385,7 +426,7 @@
         if (fh) addParticle("dust", fh.x - 7, d.laneY(v.ground, fh.lane) - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
         battle.dustT = 0.15;
       }
-      if (battle.marchTimer <= 0) { battle.flow = "combat"; battle.spawnCD = 0.3; }
+      if (battle.marchTimer <= 0) startEncounter();
       return;
     }
 
@@ -403,17 +444,49 @@
       return;
     }
 
-    // ===== 戰鬥（推進 flow==="combat" 或掛機）：背景靜止、雙方往中間靠近 =====
-    // 英雄滑向交戰線
-    battle.heroPush = approach(battle.heroPush, heroPushTarget, d.HERO_ADVANCE_SPEED * dt);
-    syncHeroX();
-    const heroAdvanced = battle.heroPush >= heroPushTarget - 1;
+    // ===== 遭遇 / 開戰 / 戰鬥（推進 flow encounter|combat 或掛機）=====
+    const encountering = battle.flow === "encounter";
+    const assemblyFrontX = Math.round(v.w * d.ASSEMBLY_FRAC);
+    const enemyAnchor = encountering ? assemblyFrontX : enemyFrontX;
+    const conv = encountering ? 1 : d.CONVERGE_MUL; // 開戰後雙方 0.5 倍速往中間
 
-    // 生成敵人（天降：從右上掉到隨機行；掛機持續、推進依 toSpawn；同屏上限）
-    const cap = d.isBossStage(Game.State.stage) ? 1 : d.MAX_CONCURRENT;
+    // 生成敵人：推進整波已在 startEncounter 一次出場；此處負責掛機持續補位、推進補滿（行內 < ENEMY_COLS）
+    const cap = d.isBossStage(Game.State.stage) ? 1 : d.LANES * d.ENEMY_COLS;
     if ((idle || battle.toSpawn > 0) && battle.enemies.length < cap) {
       battle.spawnCD -= dt;
-      if (battle.spawnCD <= 0) { spawnEnemy(); if (!idle) battle.toSpawn--; battle.spawnCD = d.SPAWN_INTERVAL; }
+      if (battle.spawnCD <= 0) { spawnEnemyRoom(); if (!idle) battle.toSpawn--; battle.spawnCD = d.SPAWN_INTERVAL; }
+    }
+
+    // 逐行排隊指派陣位：前排停在 anchor，後續往右排隊（維持 5 縱深隊形）
+    for (let L = 0; L < d.LANES; L++) {
+      const lane = battle.enemies.filter((e) => e.lane === L).sort((a, b) => a.x - b.x);
+      lane.forEach((e, idx) => (e.targetX = enemyAnchor + idx * d.ENEMY_GAP));
+    }
+    // 敵人持續走向自己的陣位（遭遇＝正常走進來；開戰後＝0.5 倍速往中間）
+    battle.enemies.forEach((e) => {
+      if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * conv * dt);
+    });
+
+    // 遭遇階段：英雄在最左等待；敵人全部走進陣位後 → 開戰停頓
+    if (encountering) {
+      battle.heroPush = 0; syncHeroX();
+      battle.phase = "encounter";
+      battle.bannerTimer = 1; // 維持「遭遇敵人」字樣
+      const allIn = battle.enemies.length > 0 && battle.enemies.every((e) => e.x <= e.targetX + 1);
+      if (allIn) {
+        battle.flow = "combat";
+        battle.holdTimer = d.CLASH_TIME;
+        setBanner("開戰！", "#ff5a5a");
+        battle.bannerTimer = d.CLASH_TIME;
+      }
+      return;
+    }
+
+    // 開戰停頓：雙方就位後短暫定格，再開始往中間
+    if (battle.holdTimer > 0) {
+      battle.holdTimer -= dt;
+      battle.phase = "encounter";
+      return;
     }
 
     // 關卡清除 → 勝利（掛機不前進、不勝利）
@@ -431,33 +504,13 @@
       return;
     }
 
-    // 天降下落（air>0 在空中、落地噴塵）
-    battle.enemies.forEach((e) => {
-      if (e.air > 0) {
-        e.vy = (e.vy || 0) + d.DROP_GRAVITY * dt;
-        e.air = e.air - e.vy * dt;
-        if (e.air <= 0) {
-          e.air = 0; e.vy = 0;
-          const ly = d.laneY(v.ground, e.lane);
-          addParticle("dust", e.x, ly, -12 - Math.random() * 8, -3 - Math.random() * 6, 0.35, "#9a866a");
-          addParticle("dust", e.x, ly, 12 + Math.random() * 8, -3 - Math.random() * 6, 0.35, "#9a866a");
-        }
-      }
-    });
-
-    // 逐行排隊指派陣位（只算已落地者）：前排停在 enemyFrontX，後續往右排隊
-    for (let L = 0; L < d.LANES; L++) {
-      const lane = battle.enemies.filter((e) => e.lane === L && e.air <= 0).sort((a, b) => a.x - b.x);
-      lane.forEach((e, idx) => (e.targetX = enemyFrontX + idx * d.ENEMY_GAP));
-    }
-
-    // 移動與攻擊分開：每隻怪物都持續以接近速度走向自己的陣位
-    battle.enemies.forEach((e) => {
-      if (e.air <= 0 && e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
-    });
+    // 英雄滑向交戰線（0.5 倍速往中間）
+    battle.heroPush = approach(battle.heroPush, heroPushTarget, d.HERO_ADVANCE_SPEED * d.CONVERGE_MUL * dt);
+    syncHeroX();
+    const heroAdvanced = battle.heroPush >= heroPushTarget - 1;
 
     // 相位：英雄已到線且有就位敵人 → 戰鬥；否則仍在靠近中（背景靜止）
-    const anyEngaged = battle.enemies.some((e) => e.air <= 0 && e.x <= e.targetX + 2);
+    const anyEngaged = battle.enemies.some((e) => e.x <= e.targetX + 2);
     battle.phase = (heroAdvanced && anyEngaged) ? "fighting" : "walking";
 
     if (battle.phase !== "fighting") return;
