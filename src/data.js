@@ -53,6 +53,20 @@
     const a = Math.max(0, Math.min(last, fl)), b = Math.max(0, Math.min(last, fl + 1));
     return ground + LANE_DY[a] + (LANE_DY[b] - LANE_DY[a]) * (laneF - fl);
   }
+  // 移動速度差異化（× GRID_STEP_SPEED）：盜賊/狂戰快、戰士中、遠程職業偏慢（本就靠後）
+  const MOVE_BY_CLS = { "盜賊": 1.45, "狂戰": 1.2, "戰士": 1.0, "牧師": 0.9, "法師": 0.85, "弓手": 0.92 };
+  function heroMoveSpeed(cls) { return GRID_STEP_SPEED * (MOVE_BY_CLS[cls] || 1); }
+  // 敵人攻擊距離：多數近戰(1)，少數遠程(2~5，偏向 2~3)；遠程比例隨區域(深層)提高
+  function enemyRangeRoll(stage) {
+    const p = Math.min(0.5, 0.12 + regionOf(stage) * 0.06);
+    if (Math.random() < p) return [2, 2, 3, 3, 4, 5][Math.floor(Math.random() * 6)];
+    return 1;
+  }
+  // 敵人移動速度：近戰較快、遠程較慢、王最慢；加 ±10% 個體差異
+  function enemyMoveSpeed(range, isBoss) {
+    let mul = isBoss ? 0.55 : range >= 4 ? 0.66 : range >= 2 ? 0.8 : 0.96;
+    return GRID_STEP_SPEED * mul * (0.9 + Math.random() * 0.2);
+  }
 
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
@@ -708,6 +722,7 @@
     ENEMY_COLS, ASSEMBLY_FRAC, CONVERGE_MUL, CLASH_TIME,
     RANGE_BY_CLS, BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
     GRID_STEP_SPEED, LANE_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
+    MOVE_BY_CLS, heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
