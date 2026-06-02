@@ -82,7 +82,7 @@
         const stats = S().petStats(slot.id) || { maxHp: 1, def: 0, dodge: 0, hit: 0, atk: 0, atkInterval: 99, crit: 0, critDmg: 1 };
         return Object.assign({
           isPet: true, petId: slot.id, heroId: null, sprite: Game.Sprites.pets[pdef.sprite],
-          stats, maxHp: stats.maxHp, hp: stats.maxHp, range: 0, moveSpeed: d.GRID_STEP_SPEED,
+          stats, maxHp: stats.maxHp, hp: stats.maxHp, range: 1, moveSpeed: d.GRID_STEP_SPEED,
           atkTimer: 1e9, lane: slot.lane, col: slot.col,
           baseX: bx, x: cellX(gcol), lift: 0,
           hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
@@ -220,6 +220,7 @@
   }
   function startEncounter() {
     battle.flow = "encounter";
+    if (battle.pendingParty) { buildField(); battle.pendingParty = false; } // 套用本輪結束前累積的出戰/位置調整
     resetHeroesHome(); // 英雄在 home 格等待
     spawnWave();        // 敵人從右側外出場、走進集結格
     setBanner("遭遇敵人", "#ffd23f");
@@ -419,9 +420,11 @@
     const reserved = {};
     enemies.forEach((u) => (reserved[key(u.glane, u.gcol)] = true));
     battle.field.forEach((u) => { if (!u.dead) reserved[key(u.glane, u.gcol)] = true; });
-    // 決策（穩定順序：敵先、英後，各依陣列序）；寵物佔格當障礙但不追擊
+    // 決策（穩定順序：敵先、英後）；寵物也一起往最近敵人移動（但不攻擊、不被選為目標）
+    const pets = battle.field.filter((h) => h.isPet && !h.dead);
     enemies.forEach((u) => decideStep(u, heroes, -1, NCOLS, reserved, key));
     heroes.forEach((u) => decideStep(u, enemies, +1, NCOLS, reserved, key));
+    pets.forEach((u) => decideStep(u, enemies, +1, NCOLS, reserved, key));
     // 動畫（含寵物，往各自 moveTX/glane）；戰鬥時移動速度再 ×COMBAT_MOVE_MUL
     const mul = D().COMBAT_MOVE_MUL;
     enemies.forEach((u) => animateUnit(u, dt, mul));
@@ -485,6 +488,7 @@
       battle.flow = "combat";
       battle.reviveTimer -= dt;
       if (battle.reviveTimer <= 0) {
+        if (battle.pendingParty) { buildField(); battle.pendingParty = false; } // 掛機：每輪復活時套用出戰/位置調整
         let revived = false;
         battle.field.forEach((h) => { if (h.dead) { h.dead = false; revived = true; } h.hp = h.maxHp; });
         battle.reviveTimer = d.IDLE_REVIVE_INTERVAL;
@@ -677,7 +681,10 @@
     step(dt);
   }
   function onPartyChanged() {
-    if (battle) buildField();
+    if (!battle) return;
+    // 戰鬥中（flow=combat）調整出戰/位置 → 延後到本輪結束才生效，不影響進行中的戰鬥
+    if (battle.flow === "combat") { battle.pendingParty = true; return; }
+    buildField();
   }
   function resetBattle() {
     init();
@@ -686,6 +693,7 @@
   function onModeChange() {
     if (!battle) return;
     battle.banner = null; battle.bannerTimer = 0;
+    battle.pendingParty = false; // 切模式即重整隊伍，清掉延後旗標
     if (Game.State.battleMode === "idle") {
       // 掛機：對齊段起點（XX1、非魔王）、重整關卡，英雄維持前進迎戰
       Game.State.stage = D().segmentStart(Game.State.stage);
@@ -696,6 +704,7 @@
     } else {
       // 推進：由行軍起（英雄回 home 格、走 10 秒進當前關）
       battle.flow = "march"; battle.marchTimer = D().MARCH_TIME;
+      buildField();
       setupStage(Game.State.stage);
       resetHeroesHome();
     }
