@@ -141,8 +141,20 @@
     const mb = $("mode-toggle");
     if (!mb) return;
     const push = (St().battleMode || "push") === "push";
-    mb.textContent = push ? "推進" : "掛機";   // 推進＝亮色、掛機＝灰階
+    const lbl = $("mode-label");
+    if (lbl) lbl.textContent = push ? "推進" : "掛機";
     mb.classList.toggle("on", push);
+    // 掛機：綠色充電條（剩餘復活倒數）由左到右填滿；推進：不顯示
+    const fill = $("mode-fill");
+    if (fill) {
+      let pct = 0;
+      const b = Game.Engine && Game.Engine.battle;
+      if (!push && b) {
+        const iv = D().IDLE_REVIVE_INTERVAL || 1;
+        pct = Math.max(0, Math.min(1, 1 - (b.reviveTimer || 0) / iv));
+      }
+      fill.style.width = (pct * 100).toFixed(1) + "%";
+    }
   }
   let hudT = 0;
   function sync(dt) {
