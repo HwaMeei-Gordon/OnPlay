@@ -140,9 +140,10 @@
   function updateModeBtn() {
     const mb = $("mode-toggle");
     if (!mb) return;
-    const m = St().battleMode || "push";
-    mb.textContent = m === "idle" ? "掛機中" : "推進中";
-    mb.classList.toggle("on", m === "push");
+    const push = (St().battleMode || "push") === "push";
+    mb.classList.toggle("on", push);            // 開＝推進、關＝掛機
+    const lbl = $("mode-label");
+    if (lbl) lbl.textContent = push ? "推進" : "掛機";
   }
   let hudT = 0;
   function sync(dt) {
