@@ -910,12 +910,15 @@
         </div>
       </div>`;
   }
-  // 敵人技能說明（由 ENEMY_SKILLS 欄位推導）
+  // 狀態名稱上色（粗體）
+  const FXCOLOR = { freeze: "#7ad7ff", burn: "#ff5a3a", berserk: "#ff4d4d", weak: "#c46bff", stun: "#ffe45a", paralyze: "#fff04a" };
+  function fxColorName(k) { return `<b style="color:${FXCOLOR[k] || "#fff"}">${FXNAME[k] || k}</b>`; }
+  // 敵人技能說明（由 ENEMY_SKILLS 欄位推導；附加狀態以顏色標示）
   function enemySkillDesc(id) {
     const s = D().ENEMY_SKILLS[id]; if (!s) return "";
     if (id === "heal") return `回復自身 ${Math.round(s.pct * 100)}% 生命`;
     let t = (s.range >= 2 ? "遠程" : "近戰") + "重擊（攻擊×" + s.mult + "）";
-    if (s.applies) t += "，使目標" + (FXNAME[s.applies] || s.applies);
+    if (s.applies) t += "，使目標" + fxColorName(s.applies);
     return t;
   }
   function renderHbMonsterPage(def) {
@@ -923,25 +926,32 @@
     const spr = Game.Sprites.byKey(def.sprite);
     const theme = d.THEMES[def.region] ? d.THEMES[def.region].name : "";
     const SN = { hp: "生命", def: "防禦", atk: "攻擊", hit: "命中", dodge: "閃避", critDmg: "爆傷" };
-    const tier = (k) => { const t = d.monsterTierLabel(def.tiers[k]); return `<div class="hb-mc"><span>${SN[k]}</span><b style="color:${t.color}">${t.name}</b></div>`; };
-    const val = (label, v) => `<div class="hb-mc"><span>${label}</span><b>${v}</b></div>`;
-    const skills = (def.skills || []).length
-      ? def.skills.map((id) => `<div class="hb-skill"><b>${d.ENEMY_SKILLS[id] ? d.ENEMY_SKILLS[id].name : id}</b>：${enemySkillDesc(id)}</div>`).join("")
-      : `<div class="hb-skill">—</div>`;
-    const specialTxt = def.special === "split" ? `死亡分裂成 ${def.splitCount} 隻${d.MONSTER_BY_ID[def.splitInto] ? d.MONSTER_BY_ID[def.splitInto].name : "小怪"}`
-      : def.special === "summon" ? `戰鬥中召喚 ${def.summonCount} 隻${d.MONSTER_BY_ID[def.summonId] ? d.MONSTER_BY_ID[def.summonId].name : "小怪"}`
-      : def.special === "enrage" ? "低血時進入狂暴（攻擊/移速↑、受傷↑）"
-      : def.special === "shield" ? "戰鬥中不時張開護盾（短時大幅減傷）" : "";
+    const cell = (label, inner) => `<div class="hb-mc"><span>${label}</span>${inner}</div>`;
+    const tier = (k) => { const t = d.monsterTierLabel(def.tiers[k]); return cell(SN[k], `<b style="color:${t.color}">${t.name}</b>`); };
+    const stats = tier("hp") + tier("def") + tier("atk") + tier("hit") + tier("dodge") + tier("critDmg")
+      + cell("爆擊率", `<b>${Math.round((def.crit || 0) * 100)}%</b>`)
+      + cell("攻擊距離", `<b>${def.range} 格</b>`)
+      + cell("攻擊速度", `<b>${(def.atkInterval * d.ATK_INTERVAL_MUL).toFixed(2)}s</b>`)
+      + cell("移動速度", `<b>${def.moveMul.toFixed(2)}×</b>`);
+    const mname = (id) => d.MONSTER_BY_ID[id] ? d.MONSTER_BY_ID[id].name : "小怪";
+    const row = (name, type, cd, desc, once) => {
+      const tag = `<span class="hb-tag ${type === "主動" ? "act" : "pas"}">${type}</span>`;
+      const note = cd != null ? `<span class="hb-cd">冷卻 ${cd}s</span>` : (once ? `<span class="hb-cd">僅觸發一次</span>` : "");
+      return `<div class="hb-skill"><b>${name}</b>${tag}${note}<div class="hb-skill-d">${desc}</div></div>`;
+    };
+    const rows = [];
+    (def.skills || []).forEach((id) => { const s = d.ENEMY_SKILLS[id]; if (s) rows.push(row(s.name, "主動", s.cd, enemySkillDesc(id))); });
+    if (def.special === "split") rows.push(row("分裂", "被動", null, `死亡時分裂成 ${def.splitCount} 隻${mname(def.splitInto)}`, true));
+    else if (def.special === "summon") rows.push(row("召喚", "主動", 9, `召喚 ${def.summonCount} 隻${mname(def.summonId)}`));
+    else if (def.special === "enrage") rows.push(row("狂暴", "被動", null, `低血時進入${fxColorName("berserk")}狀態`, true));
+    else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷"));
+    const skills = rows.length ? rows.join("") : `<div class="hb-skill">—</div>`;
     return `<div class="hb-mon-head">
         <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 46)}</div>
         <div><div class="hb-mon-name">${def.name}</div><div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div></div>
       </div>
-      <div class="hb-mon-cap">數值（相對強弱）</div>
-      <div class="hb-mon-grid">${tier("hp")}${tier("def")}${tier("atk")}${tier("hit")}${tier("dodge")}${tier("critDmg")}</div>
-      <div class="hb-mon-cap">明確數值</div>
-      <div class="hb-mon-grid2">${val("爆擊率", Math.round((def.crit || 0) * 100) + "%")}${val("攻擊距離", def.range + " 格")}${val("攻擊速度", (def.atkInterval * d.ATK_INTERVAL_MUL).toFixed(2) + "s")}${val("移動速度", def.moveMul.toFixed(2) + "×")}</div>
-      <div class="hb-mon-cap">技能</div>${skills}
-      ${specialTxt ? `<div class="hb-mon-cap">特殊</div><div class="hb-skill">${specialTxt}</div>` : ""}`;
+      <div class="hb-mon-grid">${stats}</div>
+      <div class="hb-mon-cap">技能</div>${skills}`;
   }
   function renderHbEquipPage() {
     const cells = D().EQUIPMENT_SLOTS.map((sl) =>
