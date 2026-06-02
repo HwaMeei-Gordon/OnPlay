@@ -467,17 +467,19 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-set-name { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
 
 /* 怪物圖鑑（緊湊版，盡量一頁不需下滑） */
-.hb-mon-head { display: flex; gap: 10px; align-items: center; margin: 2px 0 8px; }
-.hb-mon-spr { flex: 0 0 auto; width: 52px; text-align: center; }
-.hb-mon-name { font-size: 17px; font-weight: bold; color: #fff; }
-.hb-mon-sub { font-size: 11px; color: var(--gold); }
-.hb-mon-cap { font-size: 11px; color: var(--muted); margin: 7px 0 2px; }
-.hb-mon-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 10px; }
-.hb-mc { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.hb-mon2 { display: flex; gap: 12px; align-items: flex-start; margin: 2px 0 4px; }
+.hb-mon-left { flex: 0 0 78px; text-align: center; }
+.hb-mon-grid { flex: 1 1 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 10px; align-self: stretch; }
+.hb-mon-spr { width: 100%; text-align: center; }
+.hb-mon-name { font-size: 15px; font-weight: bold; color: #fff; margin-top: 2px; }
+.hb-mon-sub { font-size: 10px; color: var(--gold); }
+.hb-mon-cap { font-size: 11px; color: var(--muted); margin: 5px 0 2px; }
+.hb-mc { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 4px; border-bottom: 1px solid var(--line); }
 .hb-mc span { color: var(--muted); }
 .hb-mc b { font-weight: bold; }
-.hb-skill { font-size: 12.5px; line-height: 1.4; color: #d7d2e4; margin: 4px 0; }
+.hb-skill { font-size: 12.5px; line-height: 1.35; color: #d7d2e4; margin: 3px 0; }
 .hb-skill > b { color: #cfe0ff; }
+.hb-skill-empty { color: #4a4458; }
 .hb-skill-d { font-size: 11px; color: #b9b4c8; margin-top: 1px; }
 .hb-tag { font-size: 10px; padding: 0 5px; border-radius: 3px; margin-left: 6px; }
 .hb-tag.act { background: #3a2a5a; color: #c9a8ff; }

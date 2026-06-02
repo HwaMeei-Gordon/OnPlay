@@ -951,12 +951,16 @@
     else if (def.special === "summon") rows.push(row("召喚", "主動", 9, `召喚 ${def.summonCount} 隻${mname(def.summonId)}`));
     else if (def.special === "enrage") rows.push(row("狂暴", "被動", null, `低血時進入${fxColorName("berserk")}狀態`, true));
     else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷"));
-    const skills = rows.length ? rows.join("") : `<div class="hb-skill">—</div>`;
-    return `<div class="hb-mon-head">
-        <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 46)}</div>
-        <div><div class="hb-mon-name">${def.name}</div><div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div></div>
+    while (rows.length < 3) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 3 格、不足補空
+    const skills = rows.slice(0, 3).join("");
+    return `<div class="hb-mon2">
+        <div class="hb-mon-left">
+          <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
+          <div class="hb-mon-name">${def.name}</div>
+          <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
+        </div>
+        <div class="hb-mon-grid">${stats}</div>
       </div>
-      <div class="hb-mon-grid">${stats}</div>
       <div class="hb-mon-cap">技能</div>${skills}`;
   }
   function renderHbEquipPage() {
