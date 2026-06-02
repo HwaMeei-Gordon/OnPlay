@@ -433,6 +433,13 @@
         // 命中特效
         if (kind === "fireball") { spark(fe.x, gy - 14, 11, "#ff9a3d"); addParticle("flash", fe.x, gy - 14, 0, 0, 0.32, "#ffce54"); }
         else if (kind === "frost") { spark(fe.x, gy - 14, 9, "#9fe8ff"); }
+        // 斬擊：依序輪流賦予一種狀態（方便檢視效果）；被擋(已有狀態)則下次再試同一個
+        if (sid === "slash" && fe.hp > 0) {
+          const order = ["freeze", "burn", "berserk", "weak", "paralyze", "stun"];
+          const label = { freeze: "冰凍", burn: "燃燒", berserk: "狂暴", weak: "虛弱", paralyze: "麻痺", stun: "暈眩" };
+          const fk = order[(h._slashFx || 0) % order.length];
+          if (fxAdd(fe, fk, D().FX[fk].dur)) { h._slashFx = (h._slashFx || 0) + 1; addFloat(fe.x, D().laneY(gy, fe.lane) - 40, label[fk], "#ffffff", true); }
+        }
         h.skillTimers[sid] = def.cooldown; fired = true;
       }
     });
