@@ -223,13 +223,15 @@
     if (bgCanvas.width) mainCtx.drawImage(bgCanvas, 0, 0);
     if (!b) return;
 
-    // 道路三行網格（淺灰色）
+    // 道路三行網格（淺灰色、固定不隨畫面捲動；人物站在格子中央）
     {
-      const top = d.laneY(v.ground, 0) - 4, bot = d.laneY(v.ground, d.LANES - 1) + 2;
-      ctx.fillStyle = "rgba(210,216,228,0.07)";
-      for (let x = (Math.floor(b.worldScroll) % 16) - 16; x <= v.w; x += 16) ctx.fillRect(Math.round(x), top, 1, bot - top);
-      ctx.fillStyle = "rgba(210,216,228,0.16)";
-      for (let L = 0; L < d.LANES; L++) ctx.fillRect(0, d.laneY(v.ground, L) + 1, v.w, 1);
+      const half = Math.round((d.laneY(v.ground, 1) - d.laneY(v.ground, 0)) / 2) || 5;
+      const top = d.laneY(v.ground, 0) - half, bot = d.laneY(v.ground, d.LANES - 1) + half;
+      ctx.fillStyle = "rgba(210,216,228,0.06)";
+      for (let x = 0; x <= v.w; x += 16) ctx.fillRect(x, top, 1, bot - top); // 縱線固定，每 16px（單位置中）
+      ctx.fillStyle = "rgba(210,216,228,0.15)";
+      for (let L = 0; L < d.LANES; L++) ctx.fillRect(0, d.laneY(v.ground, L) - half, v.w, 1);
+      ctx.fillRect(0, bot, v.w, 1);
     }
 
     const LY = (lane) => d.laneY(v.ground, lane);

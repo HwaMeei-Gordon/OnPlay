@@ -12,14 +12,14 @@
   const WORLD_H = 134;
   const GROUND_FROM_BOTTOM = 30;
   const PARTY_X = 40; // 隊伍最前排 X
-  const CONTACT_RANGE = 30;
+  const CONTACT_RANGE = 32; // 對齊 16px 網格（contactX=72）
   const ENEMY_SPEED = 22;
   const APPROACH_SPEED = 120; // 敵人進場接近速度（快速逼近，減少等待）
   const WALK_SPEED = 26;
   // ---- 三線戰場（上/中/下行）＋ 英雄 3×3 陣型 ----
   const LANES = 3;
   const LANE_DY = [2, 12, 22];      // 各行相對 ground 的 y 偏移（全部落在草地道路上）
-  const FORM_COL_GAP = 12;          // 英雄每排 x 間距（col0=前排最靠敵）
+  const FORM_COL_GAP = 16;          // 英雄每排 x 間距（=ENEMY_GAP，對齊網格；col0=前排最靠敵）
   const ENEMY_GAP = 16;             // 同行敵人排隊間距
   const SPAWN_INTERVAL = 0.65;      // 每隻天降間隔
   const MAX_CONCURRENT = 9;         // 同屏最多敵人
