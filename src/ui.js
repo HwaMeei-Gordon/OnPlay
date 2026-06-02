@@ -385,7 +385,7 @@
         <div class="item-icon">${ico(sk.icon, 24)}</div>
         <div class="item-main">
           <div class="item-name">${sk.name} <span class="tag">${sk.type === "passive" ? "被動" : "主動"}</span> <span class="lvl">${lv ? "Lv." + lv : "未習得"}</span></div>
-          <div class="item-bonus">${sk.effectText(max ? lv : lv + 1)}</div>
+          <div class="item-bonus">${colorFx(sk.effectText(max ? lv : lv + 1))}</div>
         </div>
         ${max ? `<button class="buy-btn" disabled><span class="lbl">已滿級</span></button>`
           : buyBtn("hero-skill", { id, skill: sid }, "gold", cost, lv ? "升級" : "習得")}
@@ -904,7 +904,7 @@
       <div class="hb-fx-card">
         <canvas class="fx-preview" data-effect="${key}" data-sprite="knight" width="40" height="46"></canvas>
         <div class="hb-fx-info">
-          <div class="hb-fx-name">${FXNAME[key] || key}</div>
+          <div class="hb-fx-name" style="color:${FXCOLOR[key] || "#fff"}">${FXNAME[key] || key}</div>
           <div class="hb-fx-dur">持續 ${f.dur} 秒</div>
           <div class="stat-box">${lines}</div>
         </div>
@@ -913,6 +913,12 @@
   // 狀態名稱上色（粗體）
   const FXCOLOR = { freeze: "#7ad7ff", burn: "#ff5a3a", berserk: "#ff4d4d", weak: "#c46bff", stun: "#ffe45a", paralyze: "#fff04a" };
   function fxColorName(k) { return `<b style="color:${FXCOLOR[k] || "#fff"}">${FXNAME[k] || k}</b>`; }
+  const FXTEXT_KEY = { "冰凍": "freeze", "燃燒": "burn", "狂暴": "berserk", "虛弱": "weak", "暈眩": "stun", "麻痺": "paralyze" };
+  // 把任意文字中的狀態名稱上色粗體（英雄/敵人技能說明共用）
+  function colorFx(text) {
+    if (!text) return text;
+    return String(text).replace(/(冰凍|燃燒|狂暴|虛弱|暈眩|麻痺)/g, (m) => `<b style="color:${FXCOLOR[FXTEXT_KEY[m]]}">${m}</b>`);
+  }
   // 敵人技能說明（由 ENEMY_SKILLS 欄位推導；附加狀態以顏色標示）
   function enemySkillDesc(id) {
     const s = D().ENEMY_SKILLS[id]; if (!s) return "";
