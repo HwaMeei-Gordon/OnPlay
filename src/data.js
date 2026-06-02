@@ -18,7 +18,7 @@
   const WALK_SPEED = 26;
   // ---- 三線戰場（上/中/下行）＋ 英雄 3×3 陣型 ----
   const LANES = 3;
-  const LANE_DY = [-12, 0, 12];     // 各行相對 ground 的 y 偏移（上行較後/較高）
+  const LANE_DY = [2, 12, 22];      // 各行相對 ground 的 y 偏移（全部落在草地道路上）
   const FORM_COL_GAP = 12;          // 英雄每排 x 間距（col0=前排最靠敵）
   const ENEMY_GAP = 16;             // 同行敵人排隊間距
   const SPAWN_INTERVAL = 0.65;      // 每隻天降間隔

@@ -223,6 +223,15 @@
     if (bgCanvas.width) mainCtx.drawImage(bgCanvas, 0, 0);
     if (!b) return;
 
+    // 道路三行網格（淺灰色）
+    {
+      const top = d.laneY(v.ground, 0) - 4, bot = d.laneY(v.ground, d.LANES - 1) + 2;
+      ctx.fillStyle = "rgba(210,216,228,0.07)";
+      for (let x = (Math.floor(b.worldScroll) % 16) - 16; x <= v.w; x += 16) ctx.fillRect(Math.round(x), top, 1, bot - top);
+      ctx.fillStyle = "rgba(210,216,228,0.16)";
+      for (let L = 0; L < d.LANES; L++) ctx.fillRect(0, d.laneY(v.ground, L) + 1, v.w, 1);
+    }
+
     const LY = (lane) => d.laneY(v.ground, lane);
     const walking = b.phase === "walking";
 
