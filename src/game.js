@@ -253,7 +253,14 @@
   }
 
   // ---- 狀態效果（暈眩/冰凍/燃燒/麻痺/虛弱/狂暴）----
-  function fxAdd(u, k, dur) { if (!u.fx) u.fx = {}; u.fx[k] = Math.max(u.fx[k] || 0, dur); }
+  function fxAdd(u, k, dur) {
+    if (!u.fx) u.fx = {};
+    // 同一時間只能附帶一個狀態：已有其他狀態 → 不再被附加（同狀態可刷新時間）
+    for (const e in u.fx) { if (u.fx[e] > 0 && e !== k) return false; }
+    u.fx[k] = Math.max(u.fx[k] || 0, dur);
+    if (k === "burn") u.burnTick = 1; // 燃燒每秒結算（首次 1 秒後）
+    return true;
+  }
   function fxHas(u, k) { return !!(u.fx && u.fx[k] > 0); }
   function fxFlag(u, flag) { const F = D().FX; if (u.fx) for (const k in u.fx) if (u.fx[k] > 0 && F[k] && F[k][flag]) return true; return false; }
   function fxBlockMove(u) { return fxFlag(u, "blockMove"); }

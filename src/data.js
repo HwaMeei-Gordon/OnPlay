@@ -48,7 +48,7 @@
   const COMBAT_MOVE_MUL = 0.5;  // 戰鬥時移動速度再慢一倍（×0.5；雙方）
   // ---- 狀態效果（個人 buff/debuff；資料驅動：blockMove/blockAct/各倍率/DoT）----
   const FX = {
-    stun:     { dur: 2,  blockMove: true,  blockAct: true },                       // 暈眩：不可動不可攻
+    stun:     { dur: 5,  blockMove: true,  blockAct: true },                       // 暈眩：不可動不可攻
     freeze:   { dur: 5,  blockMove: true,  blockAct: true, defMul: 1.5 },          // 冰凍：不可動不可攻、防禦+50%
     burn:     { dur: 5,  dotPct: 0.03 },                                           // 燃燒：每秒 3% 最大生命
     paralyze: { dur: 5,  blockMove: true,  blockAct: false, inMul: 1.25 },         // 麻痺：不可動可攻、受傷+25%
