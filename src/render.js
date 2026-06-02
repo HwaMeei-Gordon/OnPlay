@@ -79,24 +79,56 @@
   }
   // ---- 狀態效果視覺（模組層，戰鬥與說明書共用）----
   function uhas(o, k) { return o.fx && o.fx[k] > 0; }
-  // 整體染色：只有冰凍(青)與狂暴(紅)會改變身體顏色，避免與燃燒混淆
-  function fxTint(o) {
-    if (uhas(o, "freeze")) return "#7ad7ff"; // 冰凍：全身青藍
-    if (uhas(o, "berserk")) return "#ff7a7a"; // 狂暴：全身泛紅
-    return null;
-  }
+  // 改用半透明遮罩呈現，保留角色細節，不再整體死板染色
+  function fxTint(o) { return null; }
   function drawFx(o, cx, topY, yoff, w, h, clk) {
-    const fx = o.fx; if (!fx) return; const t = clk || 0, midY = topY + h / 2 + yoff;
-    // 冰凍：身上覆蓋冰晶（青白），整體已染青
-    if (fx.freeze > 0) { ctx.fillStyle = "#eaffff"; ctx.fillRect(cx - 4, topY + 1 + yoff, 1, 3); ctx.fillRect(cx + 3, topY + 3 + yoff, 1, 3); ctx.fillRect(cx - 1, topY - 1 + yoff, 2, 1); }
-    // 燃燒：不染色，腳下/身上竄出橘黃火焰（上升閃爍）→ 用火焰辨識
-    if (fx.burn > 0) { for (let k = 0; k < 4; k++) { const fy = topY + h - 1 - ((t * 26 + k * 5) % (h + 3)); ctx.fillStyle = (k + Math.floor(t * 12)) % 2 ? "#ffd23f" : "#ff5a1e"; ctx.fillRect(Math.round(cx - w / 2 + 1 + k * (w / 4)), Math.round(fy + yoff), 1, 2); } }
-    // 虛弱：半透明紫色遮罩覆蓋全身 → 用紫色辨識
-    if (fx.weak > 0) { ctx.globalAlpha = 0.42; ctx.fillStyle = "#9b59d6"; ctx.fillRect(Math.round(cx - w / 2), Math.round(topY + yoff), Math.round(w), Math.round(h)); ctx.globalAlpha = 1; }
-    // 麻痺：身上竄黃色電弧 ⚡ → 用電辨識
-    if (fx.paralyze > 0 && Math.floor(t * 14) % 2) { ctx.strokeStyle = "#fff04a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 3, topY + 2 + yoff); ctx.lineTo(cx + 1, midY); ctx.lineTo(cx - 2, midY + 2); ctx.lineTo(cx + 2, topY + h + yoff); ctx.stroke(); }
-    // 狂暴：身體外圍紅色脈動光環（呼吸般放大縮小）→ 用紅光環辨識
-    if (fx.berserk > 0 && ctx.arc) { ctx.globalAlpha = 0.3 + 0.25 * Math.sin(t * 8); ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, midY, Math.max(w, h) / 2 + 2, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    const fx = o.fx; if (!fx) return; const t = clk || 0;
+    const left = Math.round(cx - w / 2), top = Math.round(topY + yoff), midY = topY + h / 2 + yoff;
+    // 冰凍：半透明淺藍把整個身體「冰封」起來＋白色冰塊邊與冰紋（像被凍在冰塊裡）
+    if (fx.freeze > 0) {
+      ctx.globalAlpha = 0.45; ctx.fillStyle = "#8fd6ff"; ctx.fillRect(left - 1, top - 1, w + 2, h + 2);
+      ctx.globalAlpha = 0.9; ctx.fillStyle = "#eaffff";
+      ctx.fillRect(left - 1, top - 1, w + 2, 1); ctx.fillRect(left - 1, top - 1, 1, h + 2); // 上緣/左緣高光
+      ctx.fillRect(cx - 2, top + 3, 1, 2); ctx.fillRect(cx + 2, top + 6, 1, 2); ctx.fillRect(cx, top + Math.floor(h / 2), 1, 2); // 冰紋
+      ctx.globalAlpha = 1;
+    }
+    // 燃燒：腳下一把火持續燃燒（一直竄動的火焰本體）＋上飄火星
+    if (fx.burn > 0) {
+      const baseY = top + h + 1, fw = w + 2;
+      for (let c = 0; c < fw; c++) {
+        const taper = 1 - Math.abs(c - (fw - 1) / 2) / (fw / 2) * 0.7;
+        const fh = Math.max(1, Math.round((5 + 3 * Math.sin(t * 12 + c * 0.9)) * taper));
+        const x = left - 1 + c;
+        for (let yy = 0; yy < fh; yy++) {
+          const r = yy / fh;
+          ctx.fillStyle = r < 0.4 ? "#ff4a14" : r < 0.75 ? "#ff8c1e" : "#ffd23f";
+          ctx.fillRect(x, baseY - yy, 1, 1);
+        }
+      }
+      for (let k = 0; k < 3; k++) { const ey = baseY - 6 - ((t * 26 + k * 7) % 11); ctx.fillStyle = "#ffd23f"; ctx.fillRect(Math.round(cx - 3 + k * 3), Math.round(ey), 1, 1); }
+    }
+    // 虛弱：灰暗壓制(像英雄聯盟虛弱)＋頭上下沉灰箭頭
+    if (fx.weak > 0) {
+      ctx.globalAlpha = 0.5; ctx.fillStyle = "#26262e"; ctx.fillRect(left, top, Math.round(w), Math.round(h)); ctx.globalAlpha = 1;
+      ctx.fillStyle = "#8a8a96"; const ay = Math.round(top - 4 + Math.sin(t * 3));
+      ctx.fillRect(cx - 1, ay, 2, 2); ctx.fillRect(cx - 2, ay + 2, 4, 1); ctx.fillRect(cx - 1, ay + 3, 2, 1);
+    }
+    // 麻痺：全身竄黃色電弧＋火花(像神奇寶貝麻痺)，快速閃爍
+    if (fx.paralyze > 0 && Math.floor(t * 18) % 2) {
+      ctx.strokeStyle = "#fff04a"; ctx.lineWidth = 1;
+      for (let b = 0; b < 4; b++) {
+        const bx = left + Math.round((b * 0.27 + 0.12) * w), s = b % 2 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(bx, top + 1); ctx.lineTo(bx + 2 * s, top + h * 0.35); ctx.lineTo(bx - s, top + h * 0.55); ctx.lineTo(bx + 2 * s, top + h * 0.85);
+        ctx.stroke();
+      }
+      for (let k = 0; k < 5; k++) { const a = t * 32 + k * 1.7; ctx.fillStyle = "#ffffaa"; ctx.fillRect(Math.round(cx + Math.cos(a) * (w / 2 + 1)), Math.round(top + (k / 5) * h), 1, 1); }
+    }
+    // 狂暴：半透明紅色染＋外圍紅色脈動光環(透紅)
+    if (fx.berserk > 0) {
+      ctx.globalAlpha = 0.32; ctx.fillStyle = "#ff2a2a"; ctx.fillRect(left, top, Math.round(w), Math.round(h)); ctx.globalAlpha = 1;
+      if (ctx.arc) { ctx.globalAlpha = 0.3 + 0.25 * Math.sin(t * 8); ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, midY, Math.max(w, h) / 2 + 2, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    }
     // 暈眩：頭上 3 顆黃色星星繞圈 ⭐
     if (fx.stun > 0) { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.094, sx = Math.round(cx + Math.cos(a) * 5), sy = Math.round(topY - 4 + Math.sin(a) * 2 + yoff); ctx.fillStyle = "#ffe45a"; ctx.fillRect(sx, sy, 1, 1); ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); } }
   }
