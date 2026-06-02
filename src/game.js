@@ -35,10 +35,12 @@
   function colOfX(x) { const g = D().ENEMY_GAP; return Math.round((x - g / 2) / g); }
   function ncols() { return Math.max(1, Math.floor(Game.view.w / D().ENEMY_GAP)); }
   function clampCol(c) { return Math.max(0, Math.min(ncols() - 1, c)); }
-  // 找 (lane,gcol) 附近的空格（分裂/召喚子體用，避免共格）
+  // 佔位鍵（含層 z：0 地面 / 1 空中）
+  function gzKey(l, c, z) { return (z ? 1e6 : 0) + l * 1000 + c; }
+  // 找 (lane,gcol) 附近的地面空格（分裂/召喚子體用，避免共格；只看地面層）
   function freeCellNear(lane, gcolWanted) {
     const occ = {};
-    battle.enemies.forEach((o) => (occ[o.glane * 1000 + o.gcol] = 1));
+    battle.enemies.forEach((o) => { if (!(o.gz > 0)) occ[o.glane * 1000 + o.gcol] = 1; });
     battle.field.forEach((o) => { if (!o.dead) occ[o.glane * 1000 + o.gcol] = 1; });
     const N = ncols(), L0 = Math.max(0, Math.min(D().LANES - 1, lane));
     for (let rad = 0; rad < N; rad++) {
@@ -64,15 +66,28 @@
   }
   function aliveEnemies() { return battle.enemies.filter((e) => e.air <= 0); }
   function aliveHeroes() { return battle.field.filter((h) => !h.dead && !h.isPet); }
+  // ---- 空中層：目標篩選（誰能打到空中）----
+  function heroRanged(h) { const c = D().HERO_BY_ID[h.heroId].cls; return c === "法師" || c === "弓手" || c === "牧師"; }
+  function heroTargetList(h) {
+    const all = aliveEnemies();
+    if (!heroRanged(h)) return all.filter((e) => !(e.gz > 0)); // 近戰只打地面
+    if (D().HERO_BY_ID[h.heroId].cls === "弓手") { const air = all.filter((e) => e.gz > 0); if (air.length) return air; } // 射手絕對優先空中
+    return all; // 法師/牧師可打全部
+  }
+  function petTargetList() { return aliveEnemies().filter((e) => !(e.gz > 0)); } // 寵物只地面
   function unitSettled(u) {
     const d = D();
-    return Math.abs(u.x - cellX(u.gcol)) <= d.CELL_ALIGN_EPS && Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS;
+    return Math.abs(u.x - cellX(u.gcol)) <= d.CELL_ALIGN_EPS && Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS
+      && Math.abs((u.zF || 0) - (u.gz || 0)) <= d.LANE_ALIGN_EPS;
   }
   function animateUnit(u, dt, mul) {
     const d = D();
     u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * (mul || 1) * fxMoveMul(u) * dt);
     u.laneF += (u.glane - u.laneF) * Math.min(1, d.LANE_EASE * dt);
     if (Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS) u.laneF = u.glane;
+    const gz = u.gz || 0;
+    u.zF = (u.zF || 0) + (gz - (u.zF || 0)) * Math.min(1, d.Z_EASE * dt);
+    if (Math.abs(u.zF - gz) <= d.LANE_ALIGN_EPS) u.zF = gz;
     u.lane = u.glane;
   }
   // 英雄/寵物回 home 格（行軍、勝利、切模式用）
@@ -219,6 +234,7 @@
       summonId: def.summonId, summonCount: def.summonCount, splitDepth: opts.depth || 0,
       specT: (def.special === "summon" || def.special === "shield") ? (3 + Math.random() * 4) : 0, enraged: false, shieldT: 0,
       fx: {}, burnTick: 0,
+      fly: !!def.fly, gz: 0, zF: 0, ascCol: null,
       x: baseX, targetX: 0, lane: glane, air: 0, vy: 0,
       gcol: gcol, glane: glane, laneF: glane, moveTX: cellX(gcol),
       hitFlash: 0, shake: 0, lunge: 0,
@@ -242,6 +258,7 @@
     e.isDummy = true; e.isBoss = false; e.isElite = false; e.isChest = false;
     e.maxHp = 1e9; e.hp = 1e9; e.dodge = 0; e.atk = 0; e.range = 1;
     e.eskill = null; e.eskillCD = 0; e.eskills = []; e.special = null;
+    e.fly = false; e.gz = 0; e.zF = 0;
   }
   function spawnEnemyRoom() {
     if (DEMO) { if (!battle.enemies.length) { spawnEnemy(1); makeDummy(); } return; }
@@ -349,7 +366,7 @@
   }
 
   // 英雄目標：以自己為中心向外找最近的敵人（格子距離）；技能/連擊沿用
-  function heroTarget(h) { return nearestOpp(h, aliveEnemies()).target; }
+  function heroTarget(h) { return nearestOpp(h, heroTargetList(h)).target; }
   // 任一存活英雄（行軍揚塵用）
   function frontHeroAny() {
     let f = null;
@@ -436,7 +453,7 @@
   function updateHeroSkills(h, dt) {
     if (fxBlockAct(h)) return false; // 暈眩/冰凍：不能放技
     const gy = Game.view.ground, hy = D().laneY(gy, h.lane);
-    const tgt = nearestOpp(h, aliveEnemies());
+    const tgt = nearestOpp(h, heroTargetList(h));
     const fe = tgt.target;
     const feInRange = !!fe && tgt.dist <= h.range; // 傷害型技能需在攻擊距離內
     let fired = false;
@@ -572,7 +589,7 @@
 
   // ---- 格子戰術移動：朝「黏著的最近目標」逐格走、被擋才繞行（減少上下亂跑）----
   function commitStep(u, cd, reserved, key) {
-    reserved[key(cd.l, cd.c)] = true; // 佔住新格，避免兩隻搶同格
+    reserved[key(cd.l, cd.c, u.gz || 0)] = true; // 佔住新格(含層)，避免兩隻搶同格
     u.glane = cd.l; u.gcol = cd.c; u.moveTX = cellX(cd.c);
   }
   function decideStep(u, opp, dir, NCOLS, reserved, key) {
@@ -586,7 +603,15 @@
     u._tgt = t;
     if (!t) return;
     const curD = gridDist(u.glane, u.gcol, t.glane, t.gcol);
-    if (curD <= u.range) return; // 進入攻擊距離 → 停
+    if (curD <= u.range) return; // 進入攻擊距離 → 停（飛行怪在空中也照常攻擊地面）
+    const z = u.gz || 0;
+    // 飛行·空中：已比起飛欄更靠近目標、且下方地面空 → 降落
+    if (u.fly && z === 1) {
+      const asc = (u.ascCol != null) ? u.ascCol : u.gcol;
+      if (Math.abs(t.gcol - u.gcol) < Math.abs(t.gcol - asc) && !reserved[key(u.glane, u.gcol, 0)]) {
+        reserved[key(u.glane, u.gcol, 0)] = true; u.gz = 0; u.ascCol = null; return;
+      }
+    }
     const dCol = t.gcol - u.gcol, dLane = t.glane - u.glane;
     const sCol = dCol > 0 ? 1 : dCol < 0 ? -1 : 0;
     const sLane = dLane > 0 ? 1 : dLane < 0 ? -1 : 0;
@@ -597,27 +622,29 @@
     if (sLane) main.push({ l: u.glane + sLane, c: u.gcol });
     if (sCol && !colFirst) main.push({ l: u.glane, c: u.gcol + sCol });
     const inb = (cd) => cd.l >= 0 && cd.l < D().LANES && cd.c >= 0 && cd.c < NCOLS;
-    for (const cd of main) { if (inb(cd) && !reserved[key(cd.l, cd.c)]) { commitStep(u, cd, reserved, key); return; } }
+    for (const cd of main) { if (inb(cd) && !reserved[key(cd.l, cd.c, z)]) { commitStep(u, cd, reserved, key); return; } }
     // 備援繞行：主方向都被擋 → 找空鄰行（容許暫時不更近一格），形成「換行繞過去」
     const around = [{ l: u.glane + 1, c: u.gcol }, { l: u.glane - 1, c: u.gcol }];
     for (const cd of around) {
-      if (!inb(cd) || reserved[key(cd.l, cd.c)]) continue;
+      if (!inb(cd) || reserved[key(cd.l, cd.c, z)]) continue;
       if (gridDist(cd.l, cd.c, t.glane, t.gcol) <= curD + 1 + 1e-6) { commitStep(u, cd, reserved, key); return; }
     }
+    // 被擋且為飛行地面單位 → 起飛到空中同格（第二層空著時）
+    if (u.fly && z === 0 && !reserved[key(u.glane, u.gcol, 1)]) { reserved[key(u.glane, u.gcol, 1)] = true; u.gz = 1; u.ascCol = u.gcol; }
   }
   function gridCombatStep(dt, NCOLS) {
     const heroes = aliveHeroes();
     const enemies = aliveEnemies();
-    const key = (l, c) => l * 1000 + c;
+    const key = gzKey;
     const reserved = {};
-    enemies.forEach((u) => (reserved[key(u.glane, u.gcol)] = true));
-    battle.field.forEach((u) => { if (!u.dead) reserved[key(u.glane, u.gcol)] = true; });
-    // 決策（穩定順序：敵先、英後）；寵物也一起往最近敵人移動（但不攻擊、不被選為目標）
+    enemies.forEach((u) => (reserved[key(u.glane, u.gcol, u.gz || 0)] = true));
+    battle.field.forEach((u) => { if (!u.dead) reserved[key(u.glane, u.gcol, u.gz || 0)] = true; });
+    // 決策（穩定順序：敵先、英後）；英雄/寵物依「能打到的目標」決定移動（近戰打不到空中）
     const pets = battle.field.filter((h) => h.isPet && !h.dead);
     enemies.forEach((u) => decideStep(u, heroes, -1, NCOLS, reserved, key));
-    heroes.forEach((u) => decideStep(u, enemies, +1, NCOLS, reserved, key));
-    pets.forEach((u) => decideStep(u, enemies, +1, NCOLS, reserved, key));
-    // 動畫（含寵物，往各自 moveTX/glane）；戰鬥時移動速度再 ×COMBAT_MOVE_MUL
+    heroes.forEach((u) => decideStep(u, heroTargetList(u), +1, NCOLS, reserved, key));
+    pets.forEach((u) => decideStep(u, petTargetList(), +1, NCOLS, reserved, key));
+    // 動畫（含寵物，往各自 moveTX/glane/層）；戰鬥時移動速度再 ×COMBAT_MOVE_MUL
     const mul = D().COMBAT_MOVE_MUL;
     enemies.forEach((u) => animateUnit(u, dt, mul));
     battle.field.forEach((u) => { if (!u.dead) animateUnit(u, dt, mul); });
@@ -792,10 +819,10 @@
       const fired = updateHeroSkills(h, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
       h.atkTimer -= dt;
       if (h.atkTimer <= 0 && !fired && !fxBlockAct(h)) { // 本幀沒放技、未被暈眩/冰凍才普攻
-        const aim = nearestOpp(h, aliveEnemies());
+        const aim = nearestOpp(h, heroTargetList(h));
         const target = aim.target;
         if (target && aim.dist <= h.range && unitSettled(h)) { // 在攻擊距離內、已就位於格才出手
-          const hy = d.laneY(v.ground, h.lane), ty = d.laneY(v.ground, target.lane);
+          const hy = d.laneY(v.ground, h.lane), ty = d.laneY(v.ground, target.lane) - (target.gz ? d.AIR_LIFT : 0);
           const cls = D().HERO_BY_ID[h.heroId].cls;
           const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
           h.lunge = ranged ? 2 : 6;

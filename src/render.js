@@ -316,7 +316,7 @@
     const LYF = (u) => d.laneYF(v.ground, u.laneF != null ? u.laneF : u.lane);
     const walking = b.phase === "walking";
 
-    // 腳下陰影（各自行的地面層；空中敵人不畫影；寵物也在 field 內）
+    // 腳下陰影（皆畫在地面層；空中單位也在地面留影，呈現高度）
     b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LYF(h)); });
     b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
 
@@ -325,14 +325,14 @@
 
     // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製（小數行位→換行更平滑）
     const drawList = [];
-    b.enemies.forEach((e) => drawList.push({ y: LYF(e), kind: "e", o: e }));
+    b.enemies.forEach((e) => drawList.push({ y: LYF(e) + ((e.zF > 0) ? 0.4 : 0), kind: "e", o: e }));
     b.field.forEach((h, i) => { if (!h.dead) drawList.push({ y: LYF(h), kind: "h", o: h, i: i }); }); // 死亡→消失，復活才再出現
     drawList.sort((a, c) => a.y - c.y || (a.kind === "e" ? a.o.x : -a.o.x) - (c.kind === "e" ? c.o.x : -c.o.x));
     drawList.forEach((dr) => {
       if (dr.kind === "e") {
         const e = dr.o, sp = e.sprite, gy = dr.y;
         const tint = e.hitFlash > 0 ? "#ffffff" : fxTint(e);
-        const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0);
+        const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0) - (e.zF || 0) * d.AIR_LIFT;
         const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
         drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
         const bw = Math.max(10, spriteWidth(sp) - 2);
