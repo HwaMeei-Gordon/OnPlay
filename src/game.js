@@ -52,9 +52,9 @@
     const d = D();
     return Math.abs(u.x - cellX(u.gcol)) <= d.CELL_ALIGN_EPS && Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS;
   }
-  function animateUnit(u, dt) {
+  function animateUnit(u, dt, mul) {
     const d = D();
-    u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * dt);
+    u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * (mul || 1) * dt);
     u.laneF += (u.glane - u.laneF) * Math.min(1, d.LANE_EASE * dt);
     if (Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS) u.laneF = u.glane;
     u.lane = u.glane;
@@ -383,7 +383,7 @@
     u.glane = cd.l; u.gcol = cd.c; u.moveTX = cellX(cd.c);
   }
   function decideStep(u, opp, dir, NCOLS, reserved, key) {
-    if (!unitSettled(u) || !opp.length) return;
+    if (u.pauseT > 0 || !unitSettled(u) || !opp.length) return; // 擊殺後定格中不移動
     // 黏著目標：除非出現「明顯更近」的目標，否則不換（避免在兩個等距目標間上下擺動）
     let t = u._tgt;
     if (!t || t.dead || (t.hp != null && t.hp <= 0) || opp.indexOf(t) < 0) t = null;
@@ -422,9 +422,10 @@
     // 決策（穩定順序：敵先、英後，各依陣列序）；寵物佔格當障礙但不追擊
     enemies.forEach((u) => decideStep(u, heroes, -1, NCOLS, reserved, key));
     heroes.forEach((u) => decideStep(u, enemies, +1, NCOLS, reserved, key));
-    // 動畫（含寵物，往各自 moveTX/glane）
-    enemies.forEach((u) => animateUnit(u, dt));
-    battle.field.forEach((u) => { if (!u.dead) animateUnit(u, dt); });
+    // 動畫（含寵物，往各自 moveTX/glane）；戰鬥時移動速度再 ×COMBAT_MOVE_MUL
+    const mul = D().COMBAT_MOVE_MUL;
+    enemies.forEach((u) => animateUnit(u, dt, mul));
+    battle.field.forEach((u) => { if (!u.dead) animateUnit(u, dt, mul); });
   }
 
   // ---- 單步模擬 ----
@@ -451,8 +452,8 @@
       p.life -= dt;
       if (p.life <= 0) battle.particles.splice(i, 1);
     }
-    battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); });
-    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); });
+    battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); if (h.pauseT > 0) h.pauseT -= dt; });
+    battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); if (e.pauseT > 0) e.pauseT -= dt; });
     if (battle.bannerTimer > 0) battle.bannerTimer -= dt;
 
     // 全隊陣亡 → 失敗字樣 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
@@ -588,6 +589,7 @@
       if (h.dead || h.isPet) return; // 寵物不攻擊
       // 套裝：每秒回復生命
       if (h.stats.regen) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.stats.regen * dt);
+      if (h.pauseT > 0) return; // 擊敗對手後定格 0.5 秒，不攻擊不放技
       updateHeroSkills(h, dt);
       h.atkTimer -= dt;
       if (h.atkTimer <= 0) {
@@ -606,6 +608,7 @@
           } else {
             const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
             damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
+            if (target.hp <= 0) h.pauseT = d.KILL_PAUSE; // 擊敗對手 → 原地定格 0.5 秒
             // 套裝：連擊（再打一次同目標，二擊不再觸發連擊）
             if (h.stats.multi && Math.random() < h.stats.multi) {
               const t2 = heroTarget(h);
@@ -617,13 +620,13 @@
             }
           }
         }
-        h.atkTimer = h.stats.atkInterval;
+        h.atkTimer = h.stats.atkInterval * d.ATK_INTERVAL_MUL; // 攻速放慢一倍
       }
     });
 
     // 敵人攻擊：以自己為中心找最近英雄，進入攻擊距離且已就位於格才出手
     battle.enemies.forEach((e) => {
-      if (e.air > 0) return;
+      if (e.air > 0 || e.pauseT > 0) return; // 擊敗對手後定格 0.5 秒
       const aim = nearestOpp(e, aliveHeroes());
       const target = aim.target;
       if (!target || aim.dist > e.range || !unitSettled(e)) return;
@@ -646,12 +649,13 @@
             }
             if (target.hp <= 0) {
               target.hp = 0; target.dead = true;
+              e.pauseT = d.KILL_PAUSE; // 擊敗對手 → 原地定格 0.5 秒
               addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
               if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
             }
           }
         }
-        e.atkTimer = e.atkInterval;
+        e.atkTimer = e.atkInterval * d.ATK_INTERVAL_MUL; // 攻速放慢一倍
       }
     });
   }

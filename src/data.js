@@ -43,6 +43,9 @@
   const BOSS_RANGE = 5, ENEMY_RANGE = 1;
   function unitRangeForHero(cls) { return RANGE_BY_CLS[cls] || 1; }
   function unitRangeForEnemy(isBoss) { return isBoss ? BOSS_RANGE : ENEMY_RANGE; }
+  const ATK_INTERVAL_MUL = 2;   // 攻速放慢一倍（攻擊間隔 ×2；雙方）
+  const KILL_PAUSE = 0.5;       // 擊敗對手後原地停 0.5 秒才能下一個動作（雙方）
+  const COMBAT_MOVE_MUL = 0.5;  // 戰鬥時移動速度再慢一倍（×0.5；雙方）
   const GRID_STEP_SPEED = 80;   // 逐格移動的 x 動畫速度（px/s）
   const LANE_EASE = 8;          // 換行時行位緩動（每秒）
   const CELL_ALIGN_EPS = 0.75;  // 視為「已就位於格」的 x 容差
@@ -722,6 +725,7 @@
     ENEMY_COLS, ASSEMBLY_FRAC, CONVERGE_MUL, CLASH_TIME,
     RANGE_BY_CLS, BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
     GRID_STEP_SPEED, LANE_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
+    ATK_INTERVAL_MUL, KILL_PAUSE, COMBAT_MOVE_MUL,
     MOVE_BY_CLS, heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
