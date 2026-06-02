@@ -345,6 +345,17 @@
       ctx.fillRect(rx + 1, v.h - 15, 1, 3); ctx.fillRect(rx + 5, v.h - 10, 1, 3);
     }
 
+    // 中央橫幅（勝利／失敗）：大字置中、末段淡出
+    if (b.banner && b.bannerTimer > 0) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, b.bannerTimer / 0.4));
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "bold 20px monospace";
+      const cx = v.w / 2, cy = Math.round(v.ground * 0.5);
+      ctx.fillStyle = "#000"; ctx.fillText(b.banner.text, cx + 1, cy + 1);
+      ctx.fillStyle = b.banner.color; ctx.fillText(b.banner.text, cx, cy);
+      ctx.globalAlpha = 1;
+    }
+
     // 邊緣暗角
     if (ctx.createRadialGradient) {
       const vg = ctx.createRadialGradient(v.w / 2, v.ground * 0.6, v.ground * 0.3, v.w / 2, v.ground * 0.6, v.w * 0.7);

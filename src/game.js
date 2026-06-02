@@ -19,7 +19,15 @@
       phase: "walking", worldScroll: 0, walkPhase: 0,
       killsNeeded: 0, killedThisStage: 0, toSpawn: 0, spawnCD: 0.5,
       allDeadTimer: 0, reviveTimer: D().IDLE_REVIVE_INTERVAL,
+      flow: "march", marchTimer: D().MARCH_TIME, bannerTimer: 0, banner: null, heroPush: 0,
     };
+  }
+  function setBanner(text, color) { battle.banner = { text: text, color: color }; }
+  function syncHeroX() { battle.field.forEach((h) => { h.x = h.baseX + battle.heroPush; }); }
+  function approach(cur, target, stepAmt) {
+    if (cur < target) return Math.min(target, cur + stepAmt);
+    if (cur > target) return Math.max(target, cur - stepAmt);
+    return cur;
   }
 
   // ---- 建立出戰隊伍 runtime ----
@@ -27,7 +35,9 @@
     const st = Game.State, d = D();
     const mods = S().globalMods();
     const layout = S().formationLayout();
+    const push = battle ? battle.heroPush || 0 : 0;
     battle.field = layout.map((slot, i) => {
+      const bx = d.PARTY_X - slot.col * d.FORM_COL_GAP;
       if (slot.kind === "pet") {
         const pdef = d.PET_BY_ID[slot.id];
         const stats = S().petStats(slot.id) || { maxHp: 1, def: 0, dodge: 0, hit: 0, atk: 0, atkInterval: 99, crit: 0, critDmg: 1 };
@@ -35,7 +45,7 @@
           isPet: true, petId: slot.id, heroId: null, sprite: Game.Sprites.pets[pdef.sprite],
           stats, maxHp: stats.maxHp, hp: stats.maxHp,
           atkTimer: 1e9, lane: slot.lane, col: slot.col,
-          x: d.PARTY_X - slot.col * d.FORM_COL_GAP, lift: 0,
+          baseX: bx, x: bx + push, lift: 0,
           hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
           actives: [], skillTimers: {},
         };
@@ -53,7 +63,7 @@
         stats, maxHp: stats.maxHp, hp: stats.maxHp,
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
         lane: slot.lane, col: slot.col,
-        x: d.PARTY_X - slot.col * d.FORM_COL_GAP, lift: 0,
+        baseX: bx, x: bx + push, lift: 0,
         hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
         actives, skillTimers: timers,
       };
@@ -294,7 +304,11 @@
   function step(dt) {
     const d = D();
     const v = Game.view;
-    const contactX = d.PARTY_X + d.CONTACT_RANGE;
+    const idle = Game.State.battleMode === "idle";
+    // 交會線：英雄前排站到 heroFrontX，敵人前排停在 enemyFrontX（相距 ATTACK_RANGE）
+    const heroFrontX = Math.round(v.w * d.MEET_FRAC);
+    const enemyFrontX = heroFrontX + d.ATTACK_RANGE;
+    const heroPushTarget = heroFrontX - d.PARTY_X;
 
     // 浮動 / 投射 / flash
     for (let i = battle.floats.length - 1; i >= 0; i--) {
@@ -316,27 +330,37 @@
     }
     battle.field.forEach((h) => { if (h.hitFlash > 0) h.hitFlash -= dt; if (h.shake > 0) h.shake -= dt; if (h.lunge > 0) h.lunge = Math.max(0, h.lunge - dt * 36); });
     battle.enemies.forEach((e) => { if (e.hitFlash > 0) e.hitFlash -= dt; if (e.shake > 0) e.shake -= dt; if (e.lunge > 0) e.lunge = Math.max(0, e.lunge - dt * 36); });
+    if (battle.bannerTimer > 0) battle.bannerTimer -= dt;
 
-    const idle = Game.State.battleMode === "idle";
-
-    // 全隊陣亡 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
+    // 全隊陣亡 → 失敗字樣 → 退 20 關並對齊段起點（XX1、非魔王）、無條件進入掛機
     const anyAlive = battle.field.some((h) => !h.dead && !h.isPet);
     if (!anyAlive) {
+      if (battle.flow !== "defeat") {
+        battle.flow = "defeat";
+        setBanner("失敗", "#ff4d4d");
+        battle.bannerTimer = Math.max(battle.allDeadTimer, d.DEFEAT_TIME);
+      }
       battle.allDeadTimer -= dt;
-      battle.worldScroll += d.WALK_SPEED * 0.2 * dt;
+      battle.heroPush = approach(battle.heroPush, 0, d.HERO_ADVANCE_SPEED * dt);
+      syncHeroX();
+      battle.phase = "walking";
       if (battle.allDeadTimer <= 0) {
         const back = d.segmentStart(Math.max(1, Game.State.stage - d.DEATH_RETREAT));
         Game.State.stage = back;
         Game.State.battleMode = "idle";
+        battle.heroPush = 0;
         buildField();
         setupStage(back);
+        battle.flow = "combat"; battle.spawnCD = 0.3;
+        battle.banner = null; battle.bannerTimer = 0;
         battle.reviveTimer = d.IDLE_REVIVE_INTERVAL;
       }
       return;
     }
 
-    // 掛機：每隔一段時間自動復活全隊並回滿血
+    // 掛機：每隔一段時間自動復活全隊並回滿血；掛機恆為 combat 流程
     if (idle) {
+      battle.flow = "combat";
       battle.reviveTimer -= dt;
       if (battle.reviveTimer <= 0) {
         let revived = false;
@@ -346,6 +370,45 @@
       }
     }
 
+    // ===== 行軍：關卡之間走路（背景捲動、無敵人、英雄滑回最左）=====
+    if (!idle && battle.flow === "march") {
+      battle.marchTimer -= dt;
+      battle.worldScroll += d.WALK_SPEED * dt;
+      battle.walkPhase += dt * 6;
+      battle.heroPush = approach(battle.heroPush, 0, d.HERO_ADVANCE_SPEED * dt);
+      syncHeroX();
+      battle.phase = "walking";
+      // 走路揚塵
+      battle.dustT = (battle.dustT || 0) - dt;
+      if (battle.dustT <= 0) {
+        const fh = frontHeroAny();
+        if (fh) addParticle("dust", fh.x - 7, d.laneY(v.ground, fh.lane) - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
+        battle.dustT = 0.15;
+      }
+      if (battle.marchTimer <= 0) { battle.flow = "combat"; battle.spawnCD = 0.3; }
+      return;
+    }
+
+    // ===== 勝利：跳字樣、英雄滑回最左，倒數結束後行軍進下一關 =====
+    if (!idle && battle.flow === "victory") {
+      battle.heroPush = approach(battle.heroPush, 0, d.HERO_ADVANCE_SPEED * dt);
+      battle.walkPhase += dt * 6;
+      syncHeroX();
+      battle.phase = "walking";
+      if (battle.bannerTimer <= 0) {
+        setupStage(Game.State.stage + 1);
+        battle.flow = "march"; battle.marchTimer = d.MARCH_TIME;
+        battle.banner = null;
+      }
+      return;
+    }
+
+    // ===== 戰鬥（推進 flow==="combat" 或掛機）：背景靜止、雙方往中間靠近 =====
+    // 英雄滑向交戰線
+    battle.heroPush = approach(battle.heroPush, heroPushTarget, d.HERO_ADVANCE_SPEED * dt);
+    syncHeroX();
+    const heroAdvanced = battle.heroPush >= heroPushTarget - 1;
+
     // 生成敵人（天降：從右上掉到隨機行；掛機持續、推進依 toSpawn；同屏上限）
     const cap = d.isBossStage(Game.State.stage) ? 1 : d.MAX_CONCURRENT;
     if ((idle || battle.toSpawn > 0) && battle.enemies.length < cap) {
@@ -353,7 +416,7 @@
       if (battle.spawnCD <= 0) { spawnEnemy(); if (!idle) battle.toSpawn--; battle.spawnCD = d.SPAWN_INTERVAL; }
     }
 
-    // 關卡清除 → 下一層（掛機不前進）
+    // 關卡清除 → 勝利（掛機不前進、不勝利）
     if (!idle && battle.toSpawn === 0 && battle.enemies.length === 0 && battle.killedThisStage >= battle.killsNeeded) {
       // 過關掉寶箱（只給貨幣）
       const box = S().onStageClear(Game.State.stage);
@@ -361,9 +424,10 @@
         if (box.box === "gold") Game.UI.toast("金幣寶箱！+" + box.gold + " 金幣");
         else Game.UI.toast("鑽石寶箱！+" + box.gems + " 鑽");
       }
-      setupStage(Game.State.stage + 1);
-      battle.worldScroll += d.WALK_SPEED * dt;
-      battle.walkPhase += dt * 6;
+      battle.flow = "victory";
+      setBanner("勝利", "#ffd23f");
+      battle.bannerTimer = d.VICTORY_TIME;
+      battle.phase = "walking";
       return;
     }
 
@@ -381,30 +445,20 @@
       }
     });
 
-    // 逐行排隊指派陣位（只算已落地者）
+    // 逐行排隊指派陣位（只算已落地者）：前排停在 enemyFrontX，後續往右排隊
     for (let L = 0; L < d.LANES; L++) {
       const lane = battle.enemies.filter((e) => e.lane === L && e.air <= 0).sort((a, b) => a.x - b.x);
-      lane.forEach((e, idx) => (e.targetX = contactX + idx * d.ENEMY_GAP));
+      lane.forEach((e, idx) => (e.targetX = enemyFrontX + idx * d.ENEMY_GAP));
     }
 
-    // 相位：任一落地敵人接觸最前線 → 戰鬥；否則前進（推進捲動）
-    const anyEngaged = battle.enemies.some((e) => e.air <= 0 && e.x <= contactX + 2);
-    battle.phase = anyEngaged ? "fighting" : "walking";
-    if (!anyEngaged && !idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
-    // 移動與攻擊分開：每隻怪物都持續以接近速度走向自己的陣位，戰鬥時不再整體降速
+    // 移動與攻擊分開：每隻怪物都持續以接近速度走向自己的陣位
     battle.enemies.forEach((e) => {
       if (e.air <= 0 && e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
     });
 
-    // 走路塵土（前進時腳後揚塵；掛機不揚塵）
-    if (battle.phase === "walking" && !idle) {
-      battle.dustT = (battle.dustT || 0) - dt;
-      if (battle.dustT <= 0) {
-        const fh = frontHeroAny();
-        if (fh) addParticle("dust", fh.x - 7, d.laneY(v.ground, fh.lane) - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
-        battle.dustT = 0.15;
-      }
-    }
+    // 相位：英雄已到線且有就位敵人 → 戰鬥；否則仍在靠近中（背景靜止）
+    const anyEngaged = battle.enemies.some((e) => e.air <= 0 && e.x <= e.targetX + 2);
+    battle.phase = (heroAdvanced && anyEngaged) ? "fighting" : "walking";
 
     if (battle.phase !== "fighting") return;
 
@@ -483,6 +537,8 @@
     battle = newBattle();
     buildField();
     setupStage(Game.State.stage);
+    if (Game.State.battleMode === "idle") { battle.flow = "combat"; battle.spawnCD = 0.3; }
+    else { battle.flow = "march"; battle.marchTimer = D().MARCH_TIME; battle.heroPush = 0; }
   }
   function update(dt) {
     if (dt > 0.1) dt = 0.1;
@@ -501,11 +557,20 @@
   // 切換戰鬥模式：進入掛機時無條件對齊到段起點（XX1、非魔王）並重整關卡
   function onModeChange() {
     if (!battle) return;
+    battle.banner = null; battle.bannerTimer = 0;
     if (Game.State.battleMode === "idle") {
+      // 掛機：對齊段起點（XX1、非魔王）、重整關卡，英雄維持前進迎戰
       Game.State.stage = D().segmentStart(Game.State.stage);
       buildField();
       setupStage(Game.State.stage);
+      battle.flow = "combat"; battle.spawnCD = 0.3;
       battle.reviveTimer = D().IDLE_REVIVE_INTERVAL;
+    } else {
+      // 推進：由行軍起（英雄滑回最左、走 10 秒進當前關）
+      battle.flow = "march"; battle.marchTimer = D().MARCH_TIME;
+      battle.heroPush = 0;
+      setupStage(Game.State.stage);
+      syncHeroX();
     }
   }
 
