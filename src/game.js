@@ -54,7 +54,7 @@
   }
   function animateUnit(u, dt, mul) {
     const d = D();
-    u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * (mul || 1) * dt);
+    u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * (mul || 1) * fxMoveMul(u) * dt);
     u.laneF += (u.glane - u.laneF) * Math.min(1, d.LANE_EASE * dt);
     if (Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS) u.laneF = u.glane;
     u.lane = u.glane;
@@ -65,6 +65,7 @@
     battle.field.forEach((h) => {
       h.glane = h.homeLane; h.gcol = h.homeCol; h.lane = h.homeLane; h.laneF = h.homeLane;
       h.x = cellX(h.homeCol); h.moveTX = h.x;
+      h.fx = {}; h.burnTick = 0; h.rageMul = 1; // 清除狀態效果
     });
   }
 
@@ -85,7 +86,7 @@
           stats, maxHp: stats.maxHp, hp: stats.maxHp, range: 1, moveSpeed: d.GRID_STEP_SPEED,
           atkTimer: 1e9, lane: slot.lane, col: slot.col,
           baseX: bx, x: cellX(gcol), lift: 0,
-          hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
+          hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1, fx: {}, burnTick: 0,
           actives: [], skillTimers: {},
         }, grid);
       }
@@ -104,7 +105,7 @@
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
         lane: slot.lane, col: slot.col,
         baseX: bx, x: cellX(gcol), lift: 0,
-        hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
+        hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1, fx: {}, burnTick: 0,
         actives, skillTimers: timers,
       }, grid);
     });
@@ -173,6 +174,7 @@
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
       range: range, moveSpeed: D().enemyMoveSpeed(range, boss),
       eskill: eskill, eskillCD: eskill ? D().ENEMY_SKILLS[eskill].cd * (0.5 + Math.random() * 0.6) : 0,
+      fx: {}, burnTick: 0,
       x: Game.view.w + 6 + slot * D().ENEMY_GAP + Math.random() * 4, targetX: 0, lane: lane, air: 0, vy: 0,
       gcol: clampCol(colOfX(Game.view.w + 6 + slot * D().ENEMY_GAP)), glane: lane, laneF: lane,
       moveTX: Game.view.w + 6 + slot * D().ENEMY_GAP,
@@ -231,21 +233,57 @@
 
   // ---- 浮動文字 / 投射物 ----
   function addFloat(x, y, text, color, big) {
-    battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: 0.7, vy: -14, big: !!big });
+    battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: D().FLOAT_LIFE, vy: -14, big: !!big });
   }
   function addProjectile(x, y, tx, ty, color, kind) {
-    battle.projectiles.push({ x, y, tx, ty, color, kind: kind || "orb", life: 0.3, t: 0 });
+    battle.projectiles.push({ x, y, tx, ty, color, kind: kind || "orb", life: D().PROJECTILE_LIFE, t: 0 });
   }
   function addParticle(type, x, y, vx, vy, life, color) {
+    life *= D().PARTICLE_LIFE_MUL; // 動畫變持久
     battle.particles.push({ type, x, y, vx, vy, life, life0: life, color });
   }
   function addSlash(x, y) {
-    battle.particles.push({ type: "slash", x, y, vx: 0, vy: 0, life: 0.18, life0: 0.18, color: "#ffffff" });
+    const l = 0.18 * D().PARTICLE_LIFE_MUL;
+    battle.particles.push({ type: "slash", x, y, vx: 0, vy: 0, life: l, life0: l, color: "#ffffff" });
   }
   function spark(x, y, n, color) {
     for (let k = 0; k < n; k++)
       addParticle("spark", x, y, (Math.random() - 0.5) * 64, -22 - Math.random() * 40,
         0.18 + Math.random() * 0.22, k % 2 ? "#ffffff" : color);
+  }
+
+  // ---- 狀態效果（暈眩/冰凍/燃燒/麻痺/虛弱/狂暴）----
+  function fxAdd(u, k, dur) { if (!u.fx) u.fx = {}; u.fx[k] = Math.max(u.fx[k] || 0, dur); }
+  function fxHas(u, k) { return !!(u.fx && u.fx[k] > 0); }
+  function fxFlag(u, flag) { const F = D().FX; if (u.fx) for (const k in u.fx) if (u.fx[k] > 0 && F[k] && F[k][flag]) return true; return false; }
+  function fxBlockMove(u) { return fxFlag(u, "blockMove"); }
+  function fxBlockAct(u) { return fxFlag(u, "blockAct"); }
+  function fxMul(u, field) { const F = D().FX; let m = 1; if (u.fx) for (const k in u.fx) if (u.fx[k] > 0 && F[k] && F[k][field] != null) m *= F[k][field]; return m; }
+  function fxOutMul(u) { return fxMul(u, "outMul"); }
+  function fxInMul(u) { return fxMul(u, "inMul"); }
+  function fxMoveMul(u) { return fxMul(u, "moveMul"); }
+  function fxDefMul(u) { return fxMul(u, "defMul"); }
+  function effDefEnemy(t) { return (t.def || 0) * fxDefMul(t); }
+  function effDefHero(t) { return (t.stats.def || 0) * fxDefMul(t); }
+  // 狀態計時 + 燃燒 DoT（只在戰鬥迴圈內呼叫）
+  function fxTick(u, dt, isHero) {
+    if (!u.fx) return;
+    for (const k in u.fx) { u.fx[k] -= dt; if (u.fx[k] <= 0) { delete u.fx[k]; if (k === "berserk") u.rageMul = 1; } }
+    if (fxHas(u, "burn")) {
+      u.burnTick = (u.burnTick || 0) - dt;
+      while (u.burnTick <= 0 && !u.dead && u.hp > 0) {
+        u.burnTick += 1;
+        const base = Math.max(1, Math.round(u.maxHp * D().FX.burn.dotPct));
+        if (isHero) {
+          const dmg = Math.max(1, Math.round(base * fxInMul(u)));
+          u.hp -= dmg; u.hitFlash = 0.1;
+          addFloat(u.x, D().laneY(Game.view.ground, u.lane) - 20, "" + dmg, "#ff7a3d");
+          if (u.hp <= 0) { u.hp = 0; u.dead = true; if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4; }
+        } else {
+          damageEnemy(u, base, { noProc: true, color: "#ff7a3d" }); // damageEnemy 內含 inMul
+        }
+      }
+    }
   }
 
   // 英雄目標：以自己為中心向外找最近的敵人（格子距離）；技能/連擊沿用
@@ -266,6 +304,7 @@
   function damageEnemy(target, dmg, opts) {
     if (!target) return;
     opts = opts || {};
+    dmg = Math.max(1, Math.round(dmg * fxInMul(target))); // 受傷倍率（狂暴/虛弱/麻痺）
     target.hp -= dmg;
     target.hitFlash = 0.12;
     target.shake = 0.14;
@@ -326,14 +365,12 @@
 
   // ---- 主動技能 ----
   function updateHeroSkills(h, dt) {
-    if (h.rageLeft > 0) {
-      h.rageLeft -= dt;
-      if (h.rageLeft <= 0) h.rageMul = 1;
-    }
+    if (fxBlockAct(h)) return false; // 暈眩/冰凍：不能放技
     const gy = Game.view.ground, hy = D().laneY(gy, h.lane);
     const tgt = nearestOpp(h, aliveEnemies());
     const fe = tgt.target;
     const feInRange = !!fe && tgt.dist <= h.range; // 傷害型技能需在攻擊距離內
+    let fired = false;
     h.actives.forEach((sid) => {
       h.skillTimers[sid] -= dt;
       if (h.skillTimers[sid] > 0) return;
@@ -355,14 +392,14 @@
           if (t.dead) return;
           for (let k = 0; k < 3; k++) addParticle("heal", t.x + (Math.random() - 0.5) * 8, D().laneY(gy, t.lane) - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5 + Math.random() * 0.2, "#7df09a");
         });
-        h.skillTimers[sid] = def.cooldown;
+        h.skillTimers[sid] = def.cooldown; fired = true;
       } else if (sid === "rage") {
         if (!fe) { h.skillTimers[sid] = 0; return; }
-        h.rageMul = 1 + (0.5 + 0.1 * lv);
-        h.rageLeft = def.duration;
+        fxAdd(h, def.applies || "berserk", def.duration); // 進入狂暴狀態（攻擊由 fxOutMul 承擔）
+        h.rageMul = 1;
         addFloat(h.x, hy - 28, def.name, "#ff4d4d", true); // 技能名稱（狂暴）
         spark(h.x, hy - 8, 9, "#ff7a7a"); // 紅色狂暴氣焰
-        h.skillTimers[sid] = def.cooldown;
+        h.skillTimers[sid] = def.cooldown; fired = true;
       } else {
         // 傷害型技能（需在攻擊距離內）
         if (!feInRange) { h.skillTimers[sid] = 0; return; }
@@ -376,58 +413,65 @@
         addFloat(h.x, hy - 30, def.name, color, true); // 技能名稱
         h.lunge = melee ? 7 : 3;
         for (let k = 0; k < hits; k++) {
+          if (fe.hp <= 0 || battle.enemies.indexOf(fe) < 0) break; // 連射：目標中途死亡 → 取消剩餘
           if (kind) addProjectile(h.x, hy - 16, fe.x, ty - 8, color, kind);
           if (melee) addSlash(fe.x - 4, gy - 18);
           const isCrit = forceCrit || Math.random() < h.stats.crit;
-          const raw = h.stats.atk * h.rageMul * mult * (isCrit ? h.stats.critDmg : 1);
-          const dmg = Math.max(1, Math.round(raw - (fe.def || 0)));
+          const raw = h.stats.atk * fxOutMul(h) * mult * (isCrit ? h.stats.critDmg : 1);
+          const dmg = Math.max(1, Math.round(raw - effDefEnemy(fe)));
           damageEnemy(fe, dmg, { crit: isCrit, color: color, src: h, lifesteal: h.stats.lifesteal, melee: melee });
+          if (k === 0 && def.applies && fe.hp > 0) fxAdd(fe, def.applies, D().FX[def.applies].dur); // 命中附加效果（首發）
           if (!battle.enemies.length) break;
         }
         // 命中特效
         if (kind === "fireball") { spark(fe.x, gy - 14, 11, "#ff9a3d"); addParticle("flash", fe.x, gy - 14, 0, 0, 0.32, "#ffce54"); }
         else if (kind === "frost") { spark(fe.x, gy - 14, 9, "#9fe8ff"); }
-        h.skillTimers[sid] = def.cooldown;
+        h.skillTimers[sid] = def.cooldown; fired = true;
       }
     });
+    return fired;
   }
 
   // ---- 敵人技能（精英/魔王）：治療自身 或 遠程重擊；名稱顯示在戰鬥畫面 ----
   function updateEnemySkills(e, dt) {
-    if (!e.eskill) return;
+    if (!e.eskill || fxBlockAct(e)) return false; // 暈眩/冰凍：不能放技
     const sk = D().ENEMY_SKILLS[e.eskill];
     e.eskillCD -= dt;
-    if (e.eskillCD > 0 || e.pauseT > 0 || !unitSettled(e)) return;
+    if (e.eskillCD > 0 || e.pauseT > 0 || !unitSettled(e)) return false;
     const gy = Game.view.ground, ey = D().laneY(gy, e.lane);
     if (e.eskill === "heal") {
-      if (e.hp >= e.maxHp) { e.eskillCD = 1; return; }
+      if (e.hp >= e.maxHp) { e.eskillCD = 1; return false; }
       e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * sk.pct));
       addFloat(e.x, ey - 26, sk.name, sk.color, true);
       for (let k = 0; k < 4; k++) addParticle("heal", e.x + (Math.random() - 0.5) * 8, ey - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5, "#7df09a");
       e.eskillCD = sk.cd;
-    } else { // bolt / flame：遠程重擊
-      const aim = nearestOpp(e, aliveHeroes());
-      if (!aim.target || aim.dist > (sk.range || 6)) { e.eskillCD = 0.3; return; } // 沒有夠近目標 → 稍後再試
-      const target = aim.target, ty = D().laneY(gy, target.lane);
-      addFloat(e.x, ey - 26, sk.name, sk.color, true);
-      addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
-      e.lunge = 5;
-      if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
-        addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
-      } else {
-        const dmg = Math.max(1, Math.round(e.atk * sk.mult - target.stats.def));
-        target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
-        addFloat(target.x + 4, ty - 22, "" + dmg, sk.color);
-        spark(target.x, gy - 14, 8, sk.color);
-        if (target.stats.reflect && e.hp > 0) damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
-        if (target.hp <= 0) {
-          target.hp = 0; target.dead = true; e.pauseT = D().KILL_PAUSE;
-          addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
-          if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
-        }
-      }
-      e.eskillCD = sk.cd;
+      return true;
     }
+    // bolt / flame / 效果彈：遠程重擊（可附加狀態）
+    const aim = nearestOpp(e, aliveHeroes());
+    if (!aim.target || aim.dist > (sk.range || 6)) { e.eskillCD = 0.3; return false; } // 沒有夠近目標 → 稍後再試
+    const target = aim.target, ty = D().laneY(gy, target.lane);
+    addFloat(e.x, ey - 26, sk.name, sk.color, true);
+    addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
+    e.lunge = 5;
+    if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+      addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
+    } else {
+      let dmg = Math.max(1, Math.round(e.atk * sk.mult * fxOutMul(e) - effDefHero(target)));
+      dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
+      target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
+      addFloat(target.x + 4, ty - 22, "" + dmg, sk.color);
+      spark(target.x, gy - 14, 8, sk.color);
+      if (sk.applies) fxAdd(target, sk.applies, D().FX[sk.applies].dur); // 命中附加狀態效果
+      if (target.stats.reflect && e.hp > 0) damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
+      if (target.hp <= 0) {
+        target.hp = 0; target.dead = true; e.pauseT = D().KILL_PAUSE;
+        addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
+        if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
+      }
+    }
+    e.eskillCD = sk.cd;
+    return true;
   }
 
   // ---- 格子戰術移動：朝「黏著的最近目標」逐格走、被擋才繞行（減少上下亂跑）----
@@ -436,7 +480,7 @@
     u.glane = cd.l; u.gcol = cd.c; u.moveTX = cellX(cd.c);
   }
   function decideStep(u, opp, dir, NCOLS, reserved, key) {
-    if (u.pauseT > 0 || !unitSettled(u) || !opp.length) return; // 擊殺後定格中不移動
+    if (u.pauseT > 0 || fxBlockMove(u) || !unitSettled(u) || !opp.length) return; // 擊殺定格/暈眩/冰凍/麻痺中不移動
     // 黏著目標：除非出現「明顯更近」的目標，否則不換（避免在兩個等距目標間上下擺動）
     let t = u._tgt;
     if (!t || t.dead || (t.hp != null && t.hp <= 0) || opp.indexOf(t) < 0) t = null;
@@ -488,6 +532,7 @@
     const d = D();
     const v = Game.view;
     const idle = Game.State.battleMode === "idle";
+    battle.fxClock = (battle.fxClock || 0) + dt; // 狀態效果動畫時鐘（render 用）
 
     // 浮動 / 投射 / flash
     for (let i = battle.floats.length - 1; i >= 0; i--) {
@@ -645,10 +690,12 @@
       if (h.dead || h.isPet) return; // 寵物不攻擊
       // 套裝：每秒回復生命
       if (h.stats.regen) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.stats.regen * dt);
-      if (h.pauseT > 0) return; // 擊敗對手後定格 0.5 秒，不攻擊不放技
-      updateHeroSkills(h, dt);
+      fxTick(h, dt, true); // 狀態計時 + 燃燒
+      if (h.dead) return;  // 燃燒致死
+      if (h.pauseT > 0) return; // 擊敗對手後定格 0.5 秒
+      const fired = updateHeroSkills(h, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
       h.atkTimer -= dt;
-      if (h.atkTimer <= 0) {
+      if (h.atkTimer <= 0 && !fired && !fxBlockAct(h)) { // 本幀沒放技、未被暈眩/冰凍才普攻
         const aim = nearestOpp(h, aliveEnemies());
         const target = aim.target;
         if (target && aim.dist <= h.range && unitSettled(h)) { // 在攻擊距離內、已就位於格才出手
@@ -665,15 +712,15 @@
           if (Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
             addFloat(target.x, ty - 14, "MISS", "#cfd6e4");
           } else {
-            const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
+            const r = rollDamage(h.stats.atk * fxOutMul(h), h.stats.crit, h.stats.critDmg, effDefEnemy(target));
             damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
             if (target.hp <= 0) h.pauseT = d.KILL_PAUSE; // 擊敗對手 → 原地定格 0.5 秒
             // 套裝：連擊（再打一次同目標，二擊不再觸發連擊）
-            if (h.stats.multi && Math.random() < h.stats.multi) {
+            if (h.stats.multi && Math.random() < h.stats.multi && target.hp > 0) {
               const t2 = heroTarget(h);
               if (t2) {
                 addFloat(t2.x, d.laneY(v.ground, t2.lane) - 28, "連擊", "#ffe45a");
-                const r2 = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, t2.def);
+                const r2 = rollDamage(h.stats.atk * fxOutMul(h), h.stats.crit, h.stats.critDmg, effDefEnemy(t2));
                 damageEnemy(t2, r2.dmg, { crit: r2.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
               }
             }
@@ -684,10 +731,12 @@
     });
 
     // 敵人攻擊：以自己為中心找最近英雄，進入攻擊距離且已就位於格才出手
-    battle.enemies.forEach((e) => {
+    battle.enemies.slice().forEach((e) => {
       if (e.air > 0) return;
-      updateEnemySkills(e, dt); // 精英/魔王技能（治療/遠程重擊），自有冷卻
-      if (e.pauseT > 0) return; // 擊敗對手後定格 0.5 秒
+      fxTick(e, dt, false); // 狀態計時 + 燃燒（可能致死並 splice）
+      if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
+      const fired = updateEnemySkills(e, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
+      if (fired || e.pauseT > 0 || fxBlockAct(e)) return; // 已放技/定格/暈眩冰凍 → 不普攻
       const aim = nearestOpp(e, aliveHeroes());
       const target = aim.target;
       if (!target || aim.dist > e.range || !unitSettled(e)) return;
@@ -699,7 +748,8 @@
           if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
             addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
           } else {
-            const dmg = Math.max(1, Math.round(e.atk - target.stats.def));
+            let dmg = Math.max(1, Math.round(e.atk * fxOutMul(e) - effDefHero(target)));
+            dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
             target.hp -= dmg;
             target.hitFlash = 0.12;
             target.shake = 0.16;

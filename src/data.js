@@ -46,6 +46,19 @@
   const ATK_INTERVAL_MUL = 2;   // 攻速放慢一倍（攻擊間隔 ×2；雙方）
   const KILL_PAUSE = 0.5;       // 擊敗對手後原地停 0.5 秒才能下一個動作（雙方）
   const COMBAT_MOVE_MUL = 0.5;  // 戰鬥時移動速度再慢一倍（×0.5；雙方）
+  // ---- 狀態效果（個人 buff/debuff；資料驅動：blockMove/blockAct/各倍率/DoT）----
+  const FX = {
+    stun:     { dur: 2,  blockMove: true,  blockAct: true },                       // 暈眩：不可動不可攻
+    freeze:   { dur: 5,  blockMove: true,  blockAct: true, defMul: 1.5 },          // 冰凍：不可動不可攻、防禦+50%
+    burn:     { dur: 5,  dotPct: 0.03 },                                           // 燃燒：每秒 3% 最大生命
+    paralyze: { dur: 5,  blockMove: true,  blockAct: false, inMul: 1.25 },         // 麻痺：不可動可攻、受傷+25%
+    weak:     { dur: 5,  outMul: 0.5, inMul: 1.25, moveMul: 0.5 },                 // 虛弱：攻擊-50%、受傷+25%、移速-50%
+    berserk:  { dur: 10, outMul: 1.5, inMul: 1.25, moveMul: 1.5 },                 // 狂暴：攻擊+50%、受傷+25%、移速+50%
+  };
+  // 動畫節奏（變慢、變持久）
+  const PROJECTILE_LIFE = 0.45; // 投射物飛行時間（越大飛越慢、停留越久）
+  const FLOAT_LIFE = 0.95;      // 飄字停留時間
+  const PARTICLE_LIFE_MUL = 1.3; // 全特效粒子壽命倍率
   const GRID_STEP_SPEED = 80;   // 逐格移動的 x 動畫速度（px/s）
   const LANE_EASE = 8;          // 換行時行位緩動（每秒）
   const CELL_ALIGN_EPS = 0.75;  // 視為「已就位於格」的 x 容差
@@ -75,10 +88,16 @@
     heal:  { name: "治療", cd: 6.5, pct: 0.22, color: "#5ec46b" },                     // 回復自身 22% 生命
     bolt:  { name: "暗箭", cd: 5.0, mult: 1.8, range: 6, color: "#a35bff", kind: "dark" },     // 遠程重擊（暗）
     flame: { name: "黑炎", cd: 4.5, mult: 2.4, range: 7, color: "#ff6a2a", kind: "fireball" }, // 魔王：火球重擊
+    icebolt:   { name: "冰封", cd: 6.0, mult: 1.4, range: 6, color: "#7ad7ff", kind: "frost",    applies: "freeze" },
+    stunbolt:  { name: "震擊", cd: 5.5, mult: 1.3, range: 5, color: "#ffe45a", kind: "orb",       applies: "stun" },
+    emberbolt: { name: "灼燒", cd: 5.0, mult: 1.5, range: 6, color: "#ff7a3d", kind: "fireball",  applies: "burn" },
+    shock:     { name: "麻痺", cd: 6.5, mult: 1.2, range: 4, color: "#fff04a", kind: "orb",       applies: "paralyze" },
+    curse:     { name: "虛弱", cd: 6.5, mult: 1.1, range: 6, color: "#b07ad0", kind: "dark",      applies: "weak" },
   };
   function enemySkillFor(isBoss, isElite) {
-    if (isBoss) return "flame";
-    if (isElite) return Math.random() < 0.5 ? "heal" : "bolt";
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    if (isBoss) return pick(["flame", "emberbolt", "icebolt"]);
+    if (isElite) return pick(["heal", "bolt", "icebolt", "stunbolt", "emberbolt", "shock", "curse"]);
     return null;
   }
 
@@ -542,12 +561,12 @@
     slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 7, maxLevel: 20,
       desc: "對前方敵人造成額外傷害", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 傷害` },
-    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20,
-      desc: "範圍火焰傷害", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 傷害` },
-    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 12, maxLevel: 20,
-      desc: "凍結並重擊", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 傷害` },
+    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20, applies: "burn",
+      desc: "火焰傷害並使敵人燃燒", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
+      effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 並燃燒` },
+    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 12, maxLevel: 20, applies: "freeze",
+      desc: "重擊並冰凍敵人", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
+      effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 並冰凍` },
     multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 9, maxLevel: 20,
       desc: "連射多箭", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} ×3` },
@@ -557,9 +576,9 @@
     heal: { name: "治癒術", icon: "heal", type: "active", cooldown: 7, maxLevel: 20,
       desc: "回復全隊生命", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
       effectText: (l) => `全隊回復 ${Math.round((0.08 + 0.02 * l) * 100)}% 生命` },
-    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 11, duration: 4, maxLevel: 20,
-      desc: "短時間提升攻擊", cost: (l) => Math.floor(55 * Math.pow(1.5, l)),
-      effectText: (l) => `4 秒 攻擊 +${50 + 10 * l}%` },
+    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 11, duration: 10, maxLevel: 20, applies: "berserk",
+      desc: "進入狂暴狀態", cost: (l) => Math.floor(55 * Math.pow(1.5, l)),
+      effectText: (l) => `10 秒 攻擊+50% 移速+50% 受傷+25%` },
     // 被動
     guard: { name: "堅守", icon: "shield", type: "passive", maxLevel: 20,
       desc: "提升生命與防禦", cost: (l) => Math.floor(35 * Math.pow(1.5, l)),
@@ -737,6 +756,7 @@
     RANGE_BY_CLS, BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
     GRID_STEP_SPEED, LANE_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
     ATK_INTERVAL_MUL, KILL_PAUSE, COMBAT_MOVE_MUL,
+    FX, PROJECTILE_LIFE, FLOAT_LIFE, PARTICLE_LIFE_MUL,
     MOVE_BY_CLS, heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
     ENEMY_SKILLS, enemySkillFor,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
