@@ -54,7 +54,7 @@
   }
   function animateUnit(u, dt) {
     const d = D();
-    u.x = approach(u.x, u.moveTX, d.GRID_STEP_SPEED * dt);
+    u.x = approach(u.x, u.moveTX, (u.moveSpeed || d.GRID_STEP_SPEED) * dt);
     u.laneF += (u.glane - u.laneF) * Math.min(1, d.LANE_EASE * dt);
     if (Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS) u.laneF = u.glane;
     u.lane = u.glane;
@@ -82,7 +82,7 @@
         const stats = S().petStats(slot.id) || { maxHp: 1, def: 0, dodge: 0, hit: 0, atk: 0, atkInterval: 99, crit: 0, critDmg: 1 };
         return Object.assign({
           isPet: true, petId: slot.id, heroId: null, sprite: Game.Sprites.pets[pdef.sprite],
-          stats, maxHp: stats.maxHp, hp: stats.maxHp, range: 0,
+          stats, maxHp: stats.maxHp, hp: stats.maxHp, range: 0, moveSpeed: d.GRID_STEP_SPEED,
           atkTimer: 1e9, lane: slot.lane, col: slot.col,
           baseX: bx, x: cellX(gcol), lift: 0,
           hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
@@ -99,7 +99,8 @@
       actives.forEach((sid) => (timers[sid] = d.HERO_SKILLS[sid].cooldown));
       return Object.assign({
         heroId, sprite: Game.Sprites.heroes[def.sprite],
-        stats, maxHp: stats.maxHp, hp: stats.maxHp, range: d.unitRangeForHero(def.cls),
+        stats, maxHp: stats.maxHp, hp: stats.maxHp,
+        range: d.unitRangeForHero(def.cls), moveSpeed: d.heroMoveSpeed(def.cls),
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
         lane: slot.lane, col: slot.col,
         baseX: bx, x: cellX(gcol), lift: 0,
@@ -163,12 +164,13 @@
     let maxHp = stx.maxHp, atk = stx.atk, gold = stx.gold;
     if (chest) { maxHp = Math.floor(maxHp * 2.5); atk = Math.floor(atk * 0.6); gold = Math.floor(gold * 4); }
     else if (elite) { const E = D().ELITE; maxHp = Math.floor(maxHp * E.hpMul); atk = Math.floor(atk * E.atkMul); gold = Math.floor(gold * E.goldMul); }
+    const range = boss ? D().BOSS_RANGE : D().enemyRangeRoll(stage); // 少數遠程(2~5)、多數近戰(1)
     battle.enemies.push({
       maxHp: maxHp, hp: maxHp, atk: atk, def: stx.def,
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
-      range: D().unitRangeForEnemy(boss),
+      range: range, moveSpeed: D().enemyMoveSpeed(range, boss),
       x: Game.view.w + 6 + slot * D().ENEMY_GAP + Math.random() * 4, targetX: 0, lane: lane, air: 0, vy: 0,
       gcol: clampCol(colOfX(Game.view.w + 6 + slot * D().ENEMY_GAP)), glane: lane, laneF: lane,
       moveTX: Game.view.w + 6 + slot * D().ENEMY_GAP,
@@ -188,13 +190,15 @@
     const L = laneWithRoom();
     if (L == null) return;
     spawnEnemy(L);
-    // 指派該行最右側的空格當進場格（避免新生敵與既有敵共格）
+    // 指派該行最右側的空格當進場格（避免與任何單位＝敵/英/寵共格）
     const e = battle.enemies[battle.enemies.length - 1];
     const occ = {};
     battle.enemies.forEach((o) => { if (o !== e && o.glane === L) occ[o.gcol] = 1; });
-    let gc = ncols() - 1;
-    while (gc > 0 && occ[gc]) gc--;
-    e.gcol = clampCol(gc); e.glane = L; e.laneF = L; e.moveTX = cellX(e.gcol);
+    battle.field.forEach((o) => { if (!o.dead && o.glane === L) occ[o.gcol] = 1; });
+    let gc = -1;
+    for (let c = ncols() - 1; c >= 0; c--) { if (!occ[c]) { gc = c; break; } }
+    if (gc < 0) { battle.enemies.pop(); return; } // 該行已滿（罕見）→ 取消本次生成
+    e.gcol = gc; e.glane = L; e.laneF = L; e.moveTX = cellX(gc);
   }
   // 整波一次出場：依該關敵人數量隨機分布到 3 行×ENEMY_COLS 的格子，全部從右側走進來
   function spawnWave() {
@@ -373,27 +377,39 @@
     });
   }
 
-  // ---- 格子戰術移動：逐單位往最近敵人走、被擋繞行、就位才停 ----
+  // ---- 格子戰術移動：朝「黏著的最近目標」逐格走、被擋才繞行（減少上下亂跑）----
+  function commitStep(u, cd, reserved, key) {
+    reserved[key(cd.l, cd.c)] = true; // 佔住新格，避免兩隻搶同格
+    u.glane = cd.l; u.gcol = cd.c; u.moveTX = cellX(cd.c);
+  }
   function decideStep(u, opp, dir, NCOLS, reserved, key) {
     if (!unitSettled(u) || !opp.length) return;
-    const curD = nearestDistFrom(u.glane, u.gcol, opp);
-    if (curD === Infinity || curD <= u.range) return; // 已可攻擊 → 不動
-    const cands = [
-      { l: u.glane, c: u.gcol + dir, rank: 0 },   // 前進（朝敵）
-      { l: u.glane + 1, c: u.gcol, rank: 1 },      // 換行
-      { l: u.glane - 1, c: u.gcol, rank: 1 },
-      { l: u.glane, c: u.gcol - dir, rank: 2 },    // 後退（全向：敵繞到後方時回頭）
-    ].filter((n) => n.l >= 0 && n.l < D().LANES && n.c >= 0 && n.c < NCOLS);
-    cands.forEach((n) => (n.nd = nearestDistFrom(n.l, n.c, opp)));
-    cands.sort((a, b) => a.nd - b.nd || a.rank - b.rank);
-    let chosen = null;
-    // 第一輪：嚴格更近（單調前進、不抖動）
-    for (const n of cands) { if (!reserved[key(n.l, n.c)] && n.nd < curD - 1e-6) { chosen = n; break; } }
-    // 第二輪：前方被擋 → 允許一格繞行（距離不大幅變遠）
-    if (!chosen) for (const n of cands) { if (!reserved[key(n.l, n.c)] && n.nd <= curD + 1 + 1e-6) { chosen = n; break; } }
-    if (chosen) {
-      reserved[key(chosen.l, chosen.c)] = true; // 佔住新格，避免兩隻搶同格
-      u.glane = chosen.l; u.gcol = chosen.c; u.moveTX = cellX(chosen.c);
+    // 黏著目標：除非出現「明顯更近」的目標，否則不換（避免在兩個等距目標間上下擺動）
+    let t = u._tgt;
+    if (!t || t.dead || (t.hp != null && t.hp <= 0) || opp.indexOf(t) < 0) t = null;
+    const near = nearestOpp(u, opp);
+    if (!t) t = near.target;
+    else if (near.target && near.dist < gridDist(u.glane, u.gcol, t.glane, t.gcol) - 0.75) t = near.target;
+    u._tgt = t;
+    if (!t) return;
+    const curD = gridDist(u.glane, u.gcol, t.glane, t.gcol);
+    if (curD <= u.range) return; // 進入攻擊距離 → 停
+    const dCol = t.gcol - u.gcol, dLane = t.glane - u.glane;
+    const sCol = dCol > 0 ? 1 : dCol < 0 ? -1 : 0;
+    const sLane = dLane > 0 ? 1 : dLane < 0 ? -1 : 0;
+    // 主候選：朝目標（較大軸優先；平手先走欄＝前進感，減少上下抖動）
+    const colFirst = Math.abs(dCol) >= Math.abs(dLane);
+    const main = [];
+    if (sCol && colFirst) main.push({ l: u.glane, c: u.gcol + sCol });
+    if (sLane) main.push({ l: u.glane + sLane, c: u.gcol });
+    if (sCol && !colFirst) main.push({ l: u.glane, c: u.gcol + sCol });
+    const inb = (cd) => cd.l >= 0 && cd.l < D().LANES && cd.c >= 0 && cd.c < NCOLS;
+    for (const cd of main) { if (inb(cd) && !reserved[key(cd.l, cd.c)]) { commitStep(u, cd, reserved, key); return; } }
+    // 備援繞行：主方向都被擋 → 找空鄰行（容許暫時不更近一格），形成「換行繞過去」
+    const around = [{ l: u.glane + 1, c: u.gcol }, { l: u.glane - 1, c: u.gcol }];
+    for (const cd of around) {
+      if (!inb(cd) || reserved[key(cd.l, cd.c)]) continue;
+      if (gridDist(cd.l, cd.c, t.glane, t.gcol) <= curD + 1 + 1e-6) { commitStep(u, cd, reserved, key); return; }
     }
   }
   function gridCombatStep(dt, NCOLS) {
@@ -521,7 +537,8 @@
     // 遭遇：敵人各行從右側外走進集結格（靠右緣成軍）；英雄在 home 等待
     if (encountering) {
       for (let L = 0; L < d.LANES; L++) {
-        const lane = battle.enemies.filter((e) => e.lane === L).sort((a, b) => a.x - b.x);
+        // 近戰(range 小)排前排(靠左、靠英雄)、遠程排後排(靠右)：以攻擊距離成軍
+        const lane = battle.enemies.filter((e) => e.lane === L).sort((a, b) => a.range - b.range || a.x - b.x);
         const m = lane.length;
         lane.forEach((e, idx) => { e.gcol = clampCol(NCOLS - m + idx); e.glane = L; e.moveTX = cellX(e.gcol); });
       }
