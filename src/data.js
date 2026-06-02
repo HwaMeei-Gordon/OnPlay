@@ -22,7 +22,7 @@
   const KILLS_PER_STAGE = 5; // 一般層需擊殺數
   const BOSS_EVERY = 10; // 每 10 層出魔王
   const SEGMENT = 10; // 死亡回到本段起點（10 層一段）
-  const IDLE_REVIVE_INTERVAL = 6; // 掛機：每隔幾秒自動復活全隊並回滿血
+  const IDLE_REVIVE_INTERVAL = 300; // 掛機：每 5 分鐘自動復活全隊並回滿血
   const DEATH_RETREAT = 20;       // 全滅退關數（再對齊到該段起點 XX1）
 
   // 區域：每 100 關一個主題，沿用 THEMES
