@@ -34,7 +34,7 @@
   const ATTACK_RANGE = 32;      // 英雄線與敵人前排線的間距（本階段單一全域值）
   const HERO_ADVANCE_SPEED = 80; // 英雄往中間/回左的滑動速度
   const ENEMY_COLS = 5;         // 敵人陣型縱深（每行最多 5 隻；3 行×5＝15 格）
-  const ASSEMBLY_FRAC = 0.66;   // 遭遇時敵人前排集結點 ≈ view.w × 此值（在右側）
+  const ASSEMBLY_FRAC = 0.78;   // 遭遇時敵人前排集結點 ≈ view.w × 此值（靠畫面右側）
   const CONVERGE_MUL = 0.5;     // 開戰後雙方往中間靠近的速度倍率（0.5 倍速）
   const CLASH_TIME = 0.9;       // 「開戰！」停頓秒數（雙方就位後短暫定格）
 
