@@ -35,6 +35,21 @@
   function colOfX(x) { const g = D().ENEMY_GAP; return Math.round((x - g / 2) / g); }
   function ncols() { return Math.max(1, Math.floor(Game.view.w / D().ENEMY_GAP)); }
   function clampCol(c) { return Math.max(0, Math.min(ncols() - 1, c)); }
+  // 找 (lane,gcol) 附近的空格（分裂/召喚子體用，避免共格）
+  function freeCellNear(lane, gcolWanted) {
+    const occ = {};
+    battle.enemies.forEach((o) => (occ[o.glane * 1000 + o.gcol] = 1));
+    battle.field.forEach((o) => { if (!o.dead) occ[o.glane * 1000 + o.gcol] = 1; });
+    const N = ncols(), L0 = Math.max(0, Math.min(D().LANES - 1, lane));
+    for (let rad = 0; rad < N; rad++) {
+      for (const L of [L0, L0 + 1, L0 - 1]) {
+        if (L < 0 || L >= D().LANES) continue;
+        const cols = rad === 0 ? [gcolWanted] : [gcolWanted + rad, gcolWanted - rad];
+        for (const c of cols) { const cc = clampCol(c); if (!occ[L * 1000 + cc]) return { lane: L, gcol: cc }; }
+      }
+    }
+    return { lane: L0, gcol: clampCol(gcolWanted) };
+  }
   // 一個行距＝一格：近戰(1)只能打正交相鄰格，弓3/法2/補2/王5 可斜向打到半徑內
   function gridDist(aL, aC, bL, bC) { return Math.hypot(aC - bC, aL - bL); }
   function nearestOpp(u, list) {
@@ -141,46 +156,68 @@
     battle.phase = "walking";
   }
 
-  // 從右側走進場（不再天降）；startSlot 用於整波同時出場時錯開起始 x，形成縱隊
-  function spawnEnemy(lane, startSlot) {
-    const st = Game.State;
-    const stage = st.stage;
-    const boss = D().isBossStage(stage);
+  // 依名冊生成怪物；opts 給分裂/召喚用：{ monsterId, x, lane, scale, depth }
+  function spawnEnemy(lane, startSlot, opts) {
+    const d = D(), st = Game.State, stage = st.stage;
+    opts = opts || {};
+    const boss = !opts.monsterId && d.isBossStage(stage);
     if (boss) lane = 1; // 魔王固定中行
-    if (lane == null) lane = Math.floor(Math.random() * D().LANES);
+    if (lane == null) lane = (opts.lane != null) ? opts.lane : Math.floor(Math.random() * d.LANES);
     const slot = startSlot || 0;
-    const r = D().regionOf(stage);
-    const stx = D().makeEnemyStats(stage, boss);
-    let sprite;
-    if (boss) {
-      const pool = Game.Sprites.bossForRegion(r);
-      sprite = pool[Math.floor(stage / D().BOSS_EVERY) % pool.length];
-    } else {
-      const pool = Game.Sprites.smallForRegion(r);
-      sprite = pool[Math.floor(Math.random() * pool.length)];
+    const r = d.regionOf(stage);
+    const stx = d.makeEnemyStats(stage, boss);
+    // 選怪物定義
+    let def;
+    if (opts.monsterId) def = d.MONSTER_BY_ID[opts.monsterId];
+    else if (boss) def = d.bossForRegionDef(r, stage);
+    else { const pool = d.monstersForRegion(r); def = pool[Math.floor(Math.random() * pool.length)]; }
+    if (!def) def = d.MONSTER_BY_ID["slime"];
+    const sprite = Game.Sprites.byKey(def.sprite) || Game.Sprites.THEMED_SMALL[r] || Game.Sprites.THEMED_SMALL[0];
+    const tm = (k) => d.monsterTierLabel(def.tiers[k]).mul;
+    const sc = opts.scale || 1;
+    let maxHp = stx.maxHp * tm("hp") * sc, atk = stx.atk * tm("atk") * sc;
+    let def_ = stx.def * tm("def"), hit = stx.hit * tm("hit"), dodge = stx.dodge * tm("dodge");
+    const critDmg = 1.5 * tm("critDmg");
+    let gold = stx.gold;
+    // 精英/寶箱（分裂/召喚子體不套）
+    let isChest = false, isElite = false;
+    if (!opts.monsterId && !boss) {
+      isChest = r >= d.DROP.minRegion && Math.random() < d.DROP.chestSpawnChance;
+      isElite = !isChest && Math.random() < d.eliteRatio(stage);
+      if (isChest) { maxHp *= 2.5; atk *= 0.6; gold *= 4; }
+      else if (isElite) { const E = d.ELITE; maxHp *= E.hpMul; atk *= E.atkMul; gold *= E.goldMul; }
     }
-    // 寶箱怪：region>=1、非魔王關，低機率出現；脆但肉、掉裝率高
-    const chest = !boss && r >= D().DROP.minRegion && Math.random() < D().DROP.chestSpawnChance;
-    // 精英怪：非魔王、非寶箱，出現比率隨關卡指數成長（900 關封頂 33%）；較肉、金幣較多
-    const elite = !boss && !chest && Math.random() < D().eliteRatio(stage);
-    let maxHp = stx.maxHp, atk = stx.atk, gold = stx.gold;
-    if (chest) { maxHp = Math.floor(maxHp * 2.5); atk = Math.floor(atk * 0.6); gold = Math.floor(gold * 4); }
-    else if (elite) { const E = D().ELITE; maxHp = Math.floor(maxHp * E.hpMul); atk = Math.floor(atk * E.atkMul); gold = Math.floor(gold * E.goldMul); }
-    const range = boss ? D().BOSS_RANGE : D().enemyRangeRoll(stage); // 少數遠程(2~5)、多數近戰(1)
-    const eskill = D().enemySkillFor(boss, elite); // 精英/魔王才有技能
-    battle.enemies.push({
-      maxHp: maxHp, hp: maxHp, atk: atk, def: stx.def,
-      gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
-      hit: stx.hit, dodge: stx.dodge,
-      atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
-      range: range, moveSpeed: D().enemyMoveSpeed(range, boss),
-      eskill: eskill, eskillCD: eskill ? D().ENEMY_SKILLS[eskill].cd * (0.5 + Math.random() * 0.6) : 0,
+    maxHp = Math.max(20, Math.floor(maxHp)); atk = Math.max(1, Math.floor(atk));
+    def_ = Math.floor(def_); hit = Math.floor(hit); dodge = Math.floor(dodge); gold = Math.floor(gold);
+    const range = boss ? d.BOSS_RANGE : def.range;
+    const moveSpeed = def.moveMul * d.GRID_STEP_SPEED * (0.9 + Math.random() * 0.2);
+    const eskills = (def.skills || []).map((id) => ({ id, cd: d.ENEMY_SKILLS[id].cd * (0.5 + Math.random() * 0.6) }));
+    let baseX, gcol, glane = lane;
+    if (opts.x != null) { // 分裂/召喚：落在父怪附近的空格、直接就位於格
+      const fc = freeCellNear(lane, clampCol(colOfX(opts.x)));
+      glane = fc.lane; gcol = fc.gcol; baseX = cellX(gcol);
+    } else {
+      baseX = Game.view.w + 6 + slot * d.ENEMY_GAP + Math.random() * 4;
+      gcol = clampCol(colOfX(Game.view.w + 6 + slot * d.ENEMY_GAP));
+    }
+    const e = {
+      monsterId: def.id, name: def.name,
+      maxHp: maxHp, hp: maxHp, atk: atk, def: def_,
+      gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: def.atkInterval,
+      hit: hit, dodge: dodge, crit: def.crit || 0, critDmg: critDmg,
+      atkTimer: def.atkInterval * 0.7, isBoss: boss, isChest: isChest, isElite: isElite, sprite,
+      range: range, moveSpeed: moveSpeed,
+      eskills: eskills, eskill: (def.skills && def.skills[0]) || null, eskillCD: 0,
+      special: def.special || null, splitInto: def.splitInto, splitCount: def.splitCount,
+      summonId: def.summonId, summonCount: def.summonCount, splitDepth: opts.depth || 0,
+      specT: (def.special === "summon" || def.special === "shield") ? (3 + Math.random() * 4) : 0, enraged: false, shieldT: 0,
       fx: {}, burnTick: 0,
-      x: Game.view.w + 6 + slot * D().ENEMY_GAP + Math.random() * 4, targetX: 0, lane: lane, air: 0, vy: 0,
-      gcol: clampCol(colOfX(Game.view.w + 6 + slot * D().ENEMY_GAP)), glane: lane, laneF: lane,
-      moveTX: Game.view.w + 6 + slot * D().ENEMY_GAP,
+      x: baseX, targetX: 0, lane: glane, air: 0, vy: 0,
+      gcol: gcol, glane: glane, laneF: glane, moveTX: cellX(gcol),
       hitFlash: 0, shake: 0, lunge: 0,
-    });
+    };
+    battle.enemies.push(e);
+    return e;
   }
 
   // 隨機挑一個還有空位（< ENEMY_COLS）的行
@@ -197,7 +234,7 @@
     if (!e) return;
     e.isDummy = true; e.isBoss = false; e.isElite = false; e.isChest = false;
     e.maxHp = 1e9; e.hp = 1e9; e.dodge = 0; e.atk = 0; e.range = 1;
-    e.eskill = null; e.eskillCD = 0;
+    e.eskill = null; e.eskillCD = 0; e.eskills = []; e.special = null;
   }
   function spawnEnemyRoom() {
     if (DEMO) { if (!battle.enemies.length) { spawnEnemy(1); makeDummy(); } return; }
@@ -323,6 +360,7 @@
     if (!target) return;
     opts = opts || {};
     dmg = Math.max(1, Math.round(dmg * fxInMul(target))); // 受傷倍率（狂暴/虛弱/麻痺）
+    if (target.shieldT > 0) dmg = Math.max(1, Math.round(dmg * 0.4)); // 護盾：減傷 60%
     target.hp -= dmg;
     target.hitFlash = 0.12;
     target.shake = 0.14;
@@ -377,6 +415,12 @@
       addParticle("coin", target.x, Game.view.ground - 14,
         (Math.random() - 0.5) * 36, -45 - Math.random() * 35, 0.7 + Math.random() * 0.3,
         "#ffd23f");
+    // 特殊：死亡分裂（子體直接上場、不動 toSpawn；深度上限避免無限分裂；勝利仍需清空 enemies）
+    if (target.special === "split" && (target.splitDepth || 0) < 1 && target.splitInto && (target.splitCount || 0) > 0) {
+      const c = target.splitCount;
+      for (let k = 0; k < c; k++)
+        spawnEnemy(target.lane, 0, { monsterId: target.splitInto, x: target.x + (k - (c - 1) / 2) * 10, lane: target.lane, scale: 0.5, depth: (target.splitDepth || 0) + 1 });
+    }
     battle.enemies.splice(i, 1);
     battle.killedThisStage++;
   }
@@ -450,46 +494,73 @@
     return fired;
   }
 
-  // ---- 敵人技能（精英/魔王）：治療自身 或 遠程重擊；名稱顯示在戰鬥畫面 ----
+  // ---- 敵人技能（多技能：各自冷卻、依序挑第一個可施放者）----
   function updateEnemySkills(e, dt) {
-    if (!e.eskill || fxBlockAct(e)) return false; // 暈眩/冰凍：不能放技
-    const sk = D().ENEMY_SKILLS[e.eskill];
-    e.eskillCD -= dt;
-    if (e.eskillCD > 0 || e.pauseT > 0 || !unitSettled(e)) return false;
+    const list = e.eskills;
+    if (!list || !list.length) return false;
+    for (let i = 0; i < list.length; i++) if (list[i].cd > 0) list[i].cd -= dt;
+    if (fxBlockAct(e) || e.pauseT > 0 || !unitSettled(e)) return false;
     const gy = Game.view.ground, ey = D().laneY(gy, e.lane);
-    if (e.eskill === "heal") {
-      if (e.hp >= e.maxHp) { e.eskillCD = 1; return false; }
-      e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * sk.pct));
-      addFloat(e.x, ey - 26, sk.name, sk.color, true);
-      for (let k = 0; k < 4; k++) addParticle("heal", e.x + (Math.random() - 0.5) * 8, ey - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5, "#7df09a");
-      e.eskillCD = sk.cd;
-      return true;
-    }
-    // bolt / flame / 效果彈：遠程重擊（可附加狀態）
-    const aim = nearestOpp(e, aliveHeroes());
-    if (!aim.target || aim.dist > (sk.range || 6)) { e.eskillCD = 0.3; return false; } // 沒有夠近目標 → 稍後再試
-    const target = aim.target, ty = D().laneY(gy, target.lane);
-    addFloat(e.x, ey - 26, sk.name, sk.color, true);
-    addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
-    e.lunge = 5;
-    if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
-      addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
-    } else {
-      let dmg = Math.max(1, Math.round(e.atk * sk.mult * fxOutMul(e) - effDefHero(target)));
-      dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
-      target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
-      addFloat(target.x + 4, ty - 22, "" + dmg, sk.color);
-      spark(target.x, gy - 14, 8, sk.color);
-      if (sk.applies) fxAdd(target, sk.applies, D().FX[sk.applies].dur); // 命中附加狀態效果
-      if (target.stats.reflect && e.hp > 0) damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
-      if (target.hp <= 0) {
-        target.hp = 0; target.dead = true; e.pauseT = D().KILL_PAUSE;
-        addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
-        if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      if (entry.cd > 0) continue;
+      const sk = D().ENEMY_SKILLS[entry.id];
+      if (entry.id === "heal") {
+        if (e.hp >= e.maxHp) continue; // 滿血 → 換下一個（不重置冷卻）
+        e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * sk.pct));
+        addFloat(e.x, ey - 26, sk.name, sk.color, true);
+        for (let k = 0; k < 4; k++) addParticle("heal", e.x + (Math.random() - 0.5) * 8, ey - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5, "#7df09a");
+        entry.cd = sk.cd; return true;
       }
+      const aim = nearestOpp(e, aliveHeroes());
+      if (!aim.target || aim.dist > (sk.range || 6)) continue; // 無目標在範圍 → 換下一個
+      const target = aim.target, ty = D().laneY(gy, target.lane);
+      addFloat(e.x, ey - 26, sk.name, sk.color, true);
+      addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
+      e.lunge = 5;
+      if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+        addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
+      } else {
+        const isCrit = Math.random() < (e.crit || 0);
+        let dmg = Math.max(1, Math.round(e.atk * sk.mult * fxOutMul(e) * (isCrit ? e.critDmg : 1) - effDefHero(target)));
+        dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
+        target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
+        addFloat(target.x + 4, ty - 22, isCrit ? dmg + "!" : "" + dmg, isCrit ? "#ffd23f" : sk.color, isCrit);
+        spark(target.x, gy - 14, isCrit ? 11 : 8, sk.color);
+        if (sk.applies) fxAdd(target, sk.applies, D().FX[sk.applies].dur);
+        if (target.stats.reflect && e.hp > 0) damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
+        if (target.hp <= 0) {
+          target.hp = 0; target.dead = true; e.pauseT = D().KILL_PAUSE;
+          addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
+          if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
+        }
+      }
+      entry.cd = sk.cd; return true;
     }
-    e.eskillCD = sk.cd;
-    return true;
+    return false;
+  }
+  // ---- 敵人特殊行為：召喚 / 低血狂暴 / 護盾（皆不動 toSpawn，勝利仍需清空 enemies）----
+  function updateEnemySpecials(e, dt) {
+    if (e.shieldT > 0) e.shieldT -= dt;
+    if (!e.special) return;
+    const ey = D().laneY(Game.view.ground, e.lane);
+    if (e.special === "enrage") {
+      if (!e.enraged && e.hp <= e.maxHp * 0.3 && fxAdd(e, "berserk", 8)) { e.enraged = true; addFloat(e.x, ey - 26, "狂暴", "#ff4d4d", true); }
+      return;
+    }
+    if (e.pauseT > 0 || !unitSettled(e) || fxBlockAct(e)) return;
+    e.specT -= dt;
+    if (e.specT > 0) return;
+    if (e.special === "summon") {
+      if (battle.enemies.length < 14) {
+        const num = e.summonCount || 1;
+        for (let k = 0; k < num; k++) spawnEnemy(e.lane, 0, { monsterId: e.summonId, x: e.x + (k - (num - 1) / 2) * 12, lane: e.lane, depth: 1 });
+        addFloat(e.x, ey - 26, "召喚", "#c79bff", true);
+      }
+      e.specT = 9;
+    } else if (e.special === "shield") {
+      e.shieldT = 3; addFloat(e.x, ey - 26, "護盾", "#7ad7ff", true); e.specT = 7;
+    }
   }
 
   // ---- 格子戰術移動：朝「黏著的最近目標」逐格走、被擋才繞行（減少上下亂跑）----
@@ -754,6 +825,8 @@
       fxTick(e, dt, false); // 狀態計時 + 燃燒（可能致死並 splice）
       if (e.isDummy) return; // 假人不攻擊、不放技
       if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
+      updateEnemySpecials(e, dt); // 召喚/狂暴/護盾
+      if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
       const fired = updateEnemySkills(e, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
       if (fired || e.pauseT > 0 || fxBlockAct(e)) return; // 已放技/定格/暈眩冰凍 → 不普攻
       const aim = nearestOpp(e, aliveHeroes());
@@ -767,12 +840,13 @@
           if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
             addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
           } else {
-            let dmg = Math.max(1, Math.round(e.atk * fxOutMul(e) - effDefHero(target)));
+            const isCrit = Math.random() < (e.crit || 0);
+            let dmg = Math.max(1, Math.round(e.atk * fxOutMul(e) * (isCrit ? e.critDmg : 1) - effDefHero(target)));
             dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
             target.hp -= dmg;
             target.hitFlash = 0.12;
             target.shake = 0.16;
-            addFloat(target.x + 4, ty - 22, "" + dmg, "#ff6b6b");
+            addFloat(target.x + 4, ty - 22, isCrit ? dmg + "!" : "" + dmg, isCrit ? "#ffd23f" : "#ff6b6b", isCrit);
             // 套裝：反傷（對攻擊者造成承受傷害 × 比例）
             if (target.stats.reflect && e.hp > 0) {
               damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
