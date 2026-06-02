@@ -880,6 +880,7 @@
     if (f.atkSpeedMul != null) pm(f.atkSpeedMul, "攻擊速度");
     if (f.moveMul != null) pm(f.moveMul, "移動速度");
     if (f.defMul != null) pm(f.defMul, "防禦力");
+    if (key === "freeze") L.push("可重置效果秒數");
     return L;
   }
   function renderHbIntro(sub) {
