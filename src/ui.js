@@ -300,7 +300,9 @@
       ${statLine("防禦", fmt(st.def))}
       ${statLine("暴擊", Math.round(st.crit * 100) + "%")}
       ${statLine("暴傷", Math.round(st.critDmg * 100) + "%")}
-      ${statLine("攻速", st.atkInterval.toFixed(2) + "s")}
+      ${statLine("攻擊距離", D().unitRangeForHero(def.cls) + " 格")}
+      ${statLine("攻速", (st.atkInterval * D().ATK_INTERVAL_MUL).toFixed(2) + "s")}
+      ${statLine("移動速度", (D().MOVE_BY_CLS[def.cls] || 1).toFixed(2) + "×")}
       ${statLine("吸血", Math.round(st.lifesteal * 100) + "%")}
       ${statLine("命中", st.hit)}
       ${statLine("閃避", st.dodge)}

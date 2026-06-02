@@ -39,7 +39,7 @@
   const CLASH_TIME = 0.9;       // 「開戰！」停頓秒數（雙方就位後短暫定格）
 
   // ---- 格子戰術 AI（逐單位攻擊距離／最近目標／自由移動）----
-  const RANGE_BY_CLS = { "戰士": 1, "狂戰": 1, "盜賊": 1, "法師": 2, "牧師": 2, "弓手": 3 }; // 攻擊距離（格）；預設 1
+  const RANGE_BY_CLS = { "戰士": 1, "狂戰": 1, "盜賊": 1, "法師": 3, "牧師": 3, "弓手": 5 }; // 攻擊距離（格）；預設 1
   const BOSS_RANGE = 5, ENEMY_RANGE = 1;
   function unitRangeForHero(cls) { return RANGE_BY_CLS[cls] || 1; }
   function unitRangeForEnemy(isBoss) { return isBoss ? BOSS_RANGE : ENEMY_RANGE; }
