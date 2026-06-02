@@ -113,12 +113,16 @@
     }
     // 虛弱：紫色旋繞圓圈(像英雄聯盟虛弱，上下浮動)＋淡紫壓制
     if (fx.weak > 0) {
-      ctx.globalAlpha = 0.26; ctx.fillStyle = "#9b59d6"; ctx.fillRect(left, top, Math.round(w), Math.round(h)); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.24; ctx.fillStyle = "#9b59d6"; ctx.fillRect(left, top, Math.round(w), Math.round(h)); ctx.globalAlpha = 1;
       if (ctx.arc) {
-        const ry = midY + Math.sin(t * 4) * 2;
+        // 紫色螺旋 🌀：三段同心弧、半徑漸增、起始角隨時間旋轉
         ctx.strokeStyle = "#c46bff"; ctx.lineWidth = 1;
-        ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(cx, ry, rad, 0, 6.283); ctx.stroke();
-        ctx.globalAlpha = 0.4; ctx.beginPath(); ctx.arc(cx, ry + 2, rad - 2, 0, 6.283); ctx.stroke();
+        const a0 = t * 5;
+        for (let s = 0; s < 3; s++) {
+          const r = rad * (0.45 + s * 0.28), a = a0 + s * 2.1;
+          ctx.globalAlpha = 0.9 - s * 0.22;
+          ctx.beginPath(); ctx.arc(cx, midY, r, a, a + 4.2); ctx.stroke();
+        }
         ctx.globalAlpha = 1;
       }
     }

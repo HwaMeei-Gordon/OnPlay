@@ -868,10 +868,16 @@
     const f = D().FX[key], L = [];
     if (f.blockMove) L.push("無法移動");
     if (f.blockAct) L.push("無法攻擊");
-    if (f.dotPct) L.push("每秒損失 " + Math.round(f.dotPct * 100) + "% 最大生命");
+    if (f.noDodge) L.push("無法閃避");
+    if (f.dotPct) {
+      const iv = f.dotInterval || 1;
+      const tt = f.dotTrue ? `（<b style="color:#fff">真實傷害</b>）` : "";
+      L.push("每 " + iv + " 秒損失 " + Math.round(f.dotPct * 100) + "% 最大生命" + tt);
+    }
     const pm = (v, name) => L.push(name + " " + (v > 1 ? "提升" : "降低") + " " + Math.round(Math.abs(v - 1) * 100) + "%");
     if (f.outMul != null) pm(f.outMul, "攻擊力");
     if (f.inMul != null) pm(f.inMul, "受到傷害");
+    if (f.atkSpeedMul != null) pm(f.atkSpeedMul, "攻擊速度");
     if (f.moveMul != null) pm(f.moveMul, "移動速度");
     if (f.defMul != null) pm(f.defMul, "防禦力");
     return L;
@@ -914,10 +920,12 @@
   const FXCOLOR = { freeze: "#7ad7ff", burn: "#ff5a3a", berserk: "#ff4d4d", weak: "#c46bff", stun: "#ffe45a", paralyze: "#fff04a" };
   function fxColorName(k) { return `<b style="color:${FXCOLOR[k] || "#fff"}">${FXNAME[k] || k}</b>`; }
   const FXTEXT_KEY = { "冰凍": "freeze", "燃燒": "burn", "狂暴": "berserk", "虛弱": "weak", "暈眩": "stun", "麻痺": "paralyze" };
-  // 把任意文字中的狀態名稱上色粗體（英雄/敵人技能說明共用）
+  // 把任意文字中的狀態名稱上色粗體＋真實傷害白色粗體（英雄/敵人技能說明共用）
   function colorFx(text) {
     if (!text) return text;
-    return String(text).replace(/(冰凍|燃燒|狂暴|虛弱|暈眩|麻痺)/g, (m) => `<b style="color:${FXCOLOR[FXTEXT_KEY[m]]}">${m}</b>`);
+    return String(text)
+      .replace(/真實傷害/g, '<b style="color:#ffffff">真實傷害</b>')
+      .replace(/(冰凍|燃燒|狂暴|虛弱|暈眩|麻痺)/g, (m) => `<b style="color:${FXCOLOR[FXTEXT_KEY[m]]}">${m}</b>`);
   }
   // 敵人技能說明（由 ENEMY_SKILLS 欄位推導；附加狀態以顏色標示）
   function enemySkillDesc(id) {
