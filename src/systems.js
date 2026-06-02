@@ -359,6 +359,50 @@
       State.party.push(id);
     }
   }
+  // ---- 3×3 陣型（lane 0..2 上中下、col 0..2 前中後；col0=前排靠敵）----
+  function setHeroPos(id, lane, col) {
+    if (!State.heroes[id]) return;
+    // 若該格已有別的出戰英雄 → 交換
+    State.party.forEach((hid) => {
+      if (hid === id) return;
+      const p = State.heroes[hid] && State.heroes[hid].pos;
+      if (p && p.lane === lane && p.col === col) State.heroes[hid].pos = State.heroes[id].pos || null;
+    });
+    State.heroes[id].pos = { lane: lane, col: col };
+  }
+  function clearHeroPos(id) { if (State.heroes[id]) State.heroes[id].pos = null; }
+  // 出戰隊伍的實際站位：先放有 pos 的（衝突先到為準），其餘無 pos 者填剩餘空格（近戰前排、遠程後排、分散三行）
+  function formationLayout() {
+    const d = D();
+    const party = State.party.slice(0, d.PARTY_MAX);
+    const used = {}; // "lane,col" -> true
+    const out = [];
+    const key = (l, c) => l + "," + c;
+    party.forEach((id) => {
+      const p = State.heroes[id] && State.heroes[id].pos;
+      if (p && p.lane >= 0 && p.lane < d.LANES && p.col >= 0 && p.col < 3 && !used[key(p.lane, p.col)]) {
+        used[key(p.lane, p.col)] = true;
+        out.push({ heroId: id, lane: p.lane, col: p.col });
+      } else {
+        out.push({ heroId: id, lane: null, col: null });
+      }
+    });
+    // 預設順序：近戰找前排空格、遠程找後排空格、再退而求其次
+    const meleeCls = { "戰士": 1, "狂戰": 1, "盜賊": 1 };
+    const lanesByPref = [1, 0, 2]; // 中、上、下
+    function findCell(prefCols) {
+      for (const c of prefCols) for (const l of lanesByPref) if (!used[key(l, c)]) return { lane: l, col: c };
+      return null;
+    }
+    out.forEach((e) => {
+      if (e.lane != null) return;
+      const cls = d.HERO_BY_ID[e.heroId] ? d.HERO_BY_ID[e.heroId].cls : "";
+      const cell = findCell(meleeCls[cls] ? [0, 1, 2] : [2, 1, 0]) || findCell([0, 1, 2]);
+      if (cell) { used[key(cell.lane, cell.col)] = true; e.lane = cell.lane; e.col = cell.col; }
+      else { e.lane = 1; e.col = 1; }
+    });
+    return out;
+  }
 
   // ---- 裝備 / 浮動數值帶 ----
   function rollRarityWeighted(weights) {
@@ -780,7 +824,7 @@
     defaultState, setState, todayStr,
     globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
     addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
-    ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty,
+    ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, formationLayout,
     rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
     enhanceItem, craftScroll, starUp, upgradeRarity, reforgeAttrs, salvageItem, salvageAllBelow, salvageWeak,

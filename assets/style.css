@@ -189,6 +189,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 
 /* ===== 出戰隊伍展示列 ===== */
 .party-bar { display: flex; gap: 8px; padding: 8px; background: linear-gradient(#241c38, #1a1430); border: 1px solid var(--line); border-radius: 2px; margin-bottom: 6px; justify-content: center; }
+/* 3×3 陣型格 */
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 240px; margin: 0 auto 6px; }
+.form-cell { position: relative; aspect-ratio: 1 / 1; border: 2px solid var(--line); border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: radial-gradient(120% 120% at 50% 0%, #241c38, #14101f 80%); }
+.form-cell.empty { border-style: dashed; }
+.form-cell:active { transform: scale(0.95); }
+.form-cell img { height: 34px; }
+.form-cell .fc-plus { color: #6f6790; font-size: 18px; font-weight: bold; }
 .pb-slot { position: relative; width: 46px; height: 46px; border: 2px solid var(--rc, #3a2f55); border-radius: 2px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--rc, #444) 40%, #16101f), #14101f 78%); }
 .pb-slot img { height: 34px; transform: translateY(2px); }
 .pb-slot.empty { color: var(--muted); font-size: 22px; border-style: dashed; background: #1a1430; }
