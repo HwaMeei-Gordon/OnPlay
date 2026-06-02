@@ -165,12 +165,14 @@
     if (chest) { maxHp = Math.floor(maxHp * 2.5); atk = Math.floor(atk * 0.6); gold = Math.floor(gold * 4); }
     else if (elite) { const E = D().ELITE; maxHp = Math.floor(maxHp * E.hpMul); atk = Math.floor(atk * E.atkMul); gold = Math.floor(gold * E.goldMul); }
     const range = boss ? D().BOSS_RANGE : D().enemyRangeRoll(stage); // 少數遠程(2~5)、多數近戰(1)
+    const eskill = D().enemySkillFor(boss, elite); // 精英/魔王才有技能
     battle.enemies.push({
       maxHp: maxHp, hp: maxHp, atk: atk, def: stx.def,
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
       range: range, moveSpeed: D().enemyMoveSpeed(range, boss),
+      eskill: eskill, eskillCD: eskill ? D().ENEMY_SKILLS[eskill].cd * (0.5 + Math.random() * 0.6) : 0,
       x: Game.view.w + 6 + slot * D().ENEMY_GAP + Math.random() * 4, targetX: 0, lane: lane, air: 0, vy: 0,
       gcol: clampCol(colOfX(Game.view.w + 6 + slot * D().ENEMY_GAP)), glane: lane, laneF: lane,
       moveTX: Game.view.w + 6 + slot * D().ENEMY_GAP,
@@ -231,8 +233,8 @@
   function addFloat(x, y, text, color, big) {
     battle.floats.push({ x: x + (Math.random() - 0.5) * 6, y, text, color, life: 0.7, vy: -14, big: !!big });
   }
-  function addProjectile(x, y, tx, ty, color) {
-    battle.projectiles.push({ x, y, tx, ty, color, life: 0.3, t: 0 });
+  function addProjectile(x, y, tx, ty, color, kind) {
+    battle.projectiles.push({ x, y, tx, ty, color, kind: kind || "orb", life: 0.3, t: 0 });
   }
   function addParticle(type, x, y, vx, vy, life, color) {
     battle.particles.push({ type, x, y, vx, vy, life, life0: life, color });
@@ -348,34 +350,84 @@
           const amt = Math.round(t.maxHp * pct);
           t.hp = Math.min(t.maxHp, t.hp + amt);
         });
-        addFloat(h.x, hy - 26, "治癒", "#5ec46b");
+        addFloat(h.x, hy - 28, def.name, "#5ec46b", true); // 技能名稱（治癒術）
+        battle.field.forEach((t) => {
+          if (t.dead) return;
+          for (let k = 0; k < 3; k++) addParticle("heal", t.x + (Math.random() - 0.5) * 8, D().laneY(gy, t.lane) - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5 + Math.random() * 0.2, "#7df09a");
+        });
         h.skillTimers[sid] = def.cooldown;
       } else if (sid === "rage") {
         if (!fe) { h.skillTimers[sid] = 0; return; }
         h.rageMul = 1 + (0.5 + 0.1 * lv);
         h.rageLeft = def.duration;
-        addFloat(h.x, hy - 28, "狂暴!", "#ff4d4d");
+        addFloat(h.x, hy - 28, def.name, "#ff4d4d", true); // 技能名稱（狂暴）
+        spark(h.x, hy - 8, 9, "#ff7a7a"); // 紅色狂暴氣焰
         h.skillTimers[sid] = def.cooldown;
       } else {
         // 傷害型技能（需在攻擊距離內）
         if (!feInRange) { h.skillTimers[sid] = 0; return; }
-        let mult = 1.5, hits = 1, forceCrit = false, color = "#ffce54";
-        if (sid === "slash") mult = 1.2 + 0.3 * lv;
-        else if (sid === "fireball") { mult = 1.5 + 0.4 * lv; color = "#ff7a3d"; }
-        else if (sid === "frost") { mult = 1.8 + 0.5 * lv; color = "#7ad7ff"; }
-        else if (sid === "multishot") { mult = 1.0 + 0.25 * lv; hits = 3; color = "#bfe24a"; }
-        else if (sid === "backstab") { mult = 2.0 + 0.5 * lv; forceCrit = true; color = "#ff4d4d"; }
-        addProjectile(h.x, hy - 16, fe.x, D().laneY(gy, fe.lane) - 8, color);
+        let mult = 1.5, hits = 1, forceCrit = false, color = "#ffce54", kind = null, melee = false;
+        if (sid === "slash") { mult = 1.2 + 0.3 * lv; color = "#ffd76a"; melee = true; }
+        else if (sid === "fireball") { mult = 1.5 + 0.4 * lv; color = "#ff7a3d"; kind = "fireball"; }
+        else if (sid === "frost") { mult = 1.8 + 0.5 * lv; color = "#7ad7ff"; kind = "frost"; }
+        else if (sid === "multishot") { mult = 1.0 + 0.25 * lv; hits = 3; color = "#bfe24a"; kind = "arrow"; }
+        else if (sid === "backstab") { mult = 2.0 + 0.5 * lv; forceCrit = true; color = "#ff4d4d"; melee = true; }
+        const ty = D().laneY(gy, fe.lane);
+        addFloat(h.x, hy - 30, def.name, color, true); // 技能名稱
+        h.lunge = melee ? 7 : 3;
         for (let k = 0; k < hits; k++) {
+          if (kind) addProjectile(h.x, hy - 16, fe.x, ty - 8, color, kind);
+          if (melee) addSlash(fe.x - 4, gy - 18);
           const isCrit = forceCrit || Math.random() < h.stats.crit;
           const raw = h.stats.atk * h.rageMul * mult * (isCrit ? h.stats.critDmg : 1);
           const dmg = Math.max(1, Math.round(raw - (fe.def || 0)));
-          damageEnemy(fe, dmg, { crit: isCrit, color: color, src: h, lifesteal: h.stats.lifesteal });
+          damageEnemy(fe, dmg, { crit: isCrit, color: color, src: h, lifesteal: h.stats.lifesteal, melee: melee });
           if (!battle.enemies.length) break;
         }
+        // 命中特效
+        if (kind === "fireball") { spark(fe.x, gy - 14, 11, "#ff9a3d"); addParticle("flash", fe.x, gy - 14, 0, 0, 0.32, "#ffce54"); }
+        else if (kind === "frost") { spark(fe.x, gy - 14, 9, "#9fe8ff"); }
         h.skillTimers[sid] = def.cooldown;
       }
     });
+  }
+
+  // ---- 敵人技能（精英/魔王）：治療自身 或 遠程重擊；名稱顯示在戰鬥畫面 ----
+  function updateEnemySkills(e, dt) {
+    if (!e.eskill) return;
+    const sk = D().ENEMY_SKILLS[e.eskill];
+    e.eskillCD -= dt;
+    if (e.eskillCD > 0 || e.pauseT > 0 || !unitSettled(e)) return;
+    const gy = Game.view.ground, ey = D().laneY(gy, e.lane);
+    if (e.eskill === "heal") {
+      if (e.hp >= e.maxHp) { e.eskillCD = 1; return; }
+      e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * sk.pct));
+      addFloat(e.x, ey - 26, sk.name, sk.color, true);
+      for (let k = 0; k < 4; k++) addParticle("heal", e.x + (Math.random() - 0.5) * 8, ey - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5, "#7df09a");
+      e.eskillCD = sk.cd;
+    } else { // bolt / flame：遠程重擊
+      const aim = nearestOpp(e, aliveHeroes());
+      if (!aim.target || aim.dist > (sk.range || 6)) { e.eskillCD = 0.3; return; } // 沒有夠近目標 → 稍後再試
+      const target = aim.target, ty = D().laneY(gy, target.lane);
+      addFloat(e.x, ey - 26, sk.name, sk.color, true);
+      addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
+      e.lunge = 5;
+      if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+        addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
+      } else {
+        const dmg = Math.max(1, Math.round(e.atk * sk.mult - target.stats.def));
+        target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
+        addFloat(target.x + 4, ty - 22, "" + dmg, sk.color);
+        spark(target.x, gy - 14, 8, sk.color);
+        if (target.stats.reflect && e.hp > 0) damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
+        if (target.hp <= 0) {
+          target.hp = 0; target.dead = true; e.pauseT = D().KILL_PAUSE;
+          addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
+          if (!battle.field.some((hh) => !hh.dead && !hh.isPet)) battle.allDeadTimer = 1.4;
+        }
+      }
+      e.eskillCD = sk.cd;
+    }
   }
 
   // ---- 格子戰術移動：朝「黏著的最近目標」逐格走、被擋才繞行（減少上下亂跑）----
@@ -605,7 +657,10 @@
           const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
           h.lunge = ranged ? 2 : 6;
           if (ranged) {
-            addProjectile(h.x, hy - 16, target.x, ty - 8, cls === "法師" ? "#b06ae0" : cls === "牧師" ? "#7adf8a" : "#ffe45a");
+            // 投射物外觀：法師＝火球、弓手＝箭(帶尾跡)、牧師＝聖光
+            const pk = cls === "法師" ? "fireball" : cls === "弓手" ? "arrow" : "holy";
+            const pc = cls === "法師" ? "#ff7a2a" : cls === "弓手" ? "#ffe45a" : "#7adf8a";
+            addProjectile(h.x, hy - 16, target.x, ty - 8, pc, pk);
           }
           if (Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
             addFloat(target.x, ty - 14, "MISS", "#cfd6e4");
@@ -630,7 +685,9 @@
 
     // 敵人攻擊：以自己為中心找最近英雄，進入攻擊距離且已就位於格才出手
     battle.enemies.forEach((e) => {
-      if (e.air > 0 || e.pauseT > 0) return; // 擊敗對手後定格 0.5 秒
+      if (e.air > 0) return;
+      updateEnemySkills(e, dt); // 精英/魔王技能（治療/遠程重擊），自有冷卻
+      if (e.pauseT > 0) return; // 擊敗對手後定格 0.5 秒
       const aim = nearestOpp(e, aliveHeroes());
       const target = aim.target;
       if (!target || aim.dist > e.range || !unitSettled(e)) return;

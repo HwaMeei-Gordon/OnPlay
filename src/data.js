@@ -70,6 +70,17 @@
     let mul = isBoss ? 0.55 : range >= 4 ? 0.66 : range >= 2 ? 0.8 : 0.96;
     return GRID_STEP_SPEED * mul * (0.9 + Math.random() * 0.2);
   }
+  // 敵人技能（精英/魔王才有）：簡單的治療或遠程重擊；名稱會顯示在戰鬥畫面
+  const ENEMY_SKILLS = {
+    heal:  { name: "治療", cd: 6.5, pct: 0.22, color: "#5ec46b" },                     // 回復自身 22% 生命
+    bolt:  { name: "暗箭", cd: 5.0, mult: 1.8, range: 6, color: "#a35bff", kind: "dark" },     // 遠程重擊（暗）
+    flame: { name: "黑炎", cd: 4.5, mult: 2.4, range: 7, color: "#ff6a2a", kind: "fireball" }, // 魔王：火球重擊
+  };
+  function enemySkillFor(isBoss, isElite) {
+    if (isBoss) return "flame";
+    if (isElite) return Math.random() < 0.5 ? "heal" : "bolt";
+    return null;
+  }
 
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
@@ -528,25 +539,25 @@
 
   // ---- 英雄技能（被動 passive / 主動 active）----
   const HERO_SKILLS = {
-    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 4, maxLevel: 20,
+    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 7, maxLevel: 20,
       desc: "對前方敵人造成額外傷害", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 傷害` },
-    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 5, maxLevel: 20,
+    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20,
       desc: "範圍火焰傷害", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 傷害` },
-    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 7, maxLevel: 20,
+    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 12, maxLevel: 20,
       desc: "凍結並重擊", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 傷害` },
-    multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 5, maxLevel: 20,
+    multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 9, maxLevel: 20,
       desc: "連射多箭", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} ×3` },
-    backstab: { name: "背刺", icon: "dagger", type: "active", cooldown: 4, maxLevel: 20,
+    backstab: { name: "背刺", icon: "dagger", type: "active", cooldown: 12, maxLevel: 20,
       desc: "高暴擊一擊", cost: (l) => Math.floor(48 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(2.0 + 0.5 * l).toFixed(1)} 必暴` },
-    heal: { name: "治癒術", icon: "heal", type: "active", cooldown: 8, maxLevel: 20,
+    heal: { name: "治癒術", icon: "heal", type: "active", cooldown: 7, maxLevel: 20,
       desc: "回復全隊生命", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
       effectText: (l) => `全隊回復 ${Math.round((0.08 + 0.02 * l) * 100)}% 生命` },
-    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 12, duration: 4, maxLevel: 20,
+    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 11, duration: 4, maxLevel: 20,
       desc: "短時間提升攻擊", cost: (l) => Math.floor(55 * Math.pow(1.5, l)),
       effectText: (l) => `4 秒 攻擊 +${50 + 10 * l}%` },
     // 被動
@@ -727,6 +738,7 @@
     GRID_STEP_SPEED, LANE_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
     ATK_INTERVAL_MUL, KILL_PAUSE, COMBAT_MOVE_MUL,
     MOVE_BY_CLS, heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
+    ENEMY_SKILLS, enemySkillFor,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
