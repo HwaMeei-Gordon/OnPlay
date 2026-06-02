@@ -26,6 +26,13 @@
   const ENEMY_DROP_H = 34;          // 天降高度
   const DROP_GRAVITY = 240;         // 天降下落加速度
   function laneY(ground, lane) { return ground + (LANE_DY[lane] || 0); }
+  // ---- 戰鬥流程（行軍→戰鬥→勝利/失敗）----
+  const MARCH_TIME = 10;        // 關卡間行軍秒數（背景捲動、無敵人）
+  const VICTORY_TIME = 1.4;     // 勝利字樣＋英雄回左
+  const DEFEAT_TIME = 1.2;      // 失敗字樣
+  const MEET_FRAC = 0.42;       // 雙方交會點 ≈ view.w × 此值
+  const ATTACK_RANGE = 32;      // 英雄線與敵人前排線的間距（本階段單一全域值）
+  const HERO_ADVANCE_SPEED = 80; // 英雄往中間/回左的滑動速度
 
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
@@ -677,6 +684,7 @@
   Game.Data = {
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
     LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY,
+    MARCH_TIME, VICTORY_TIME, DEFEAT_TIME, MEET_FRAC, ATTACK_RANGE, HERO_ADVANCE_SPEED,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,
