@@ -558,7 +558,7 @@
 
   // ---- 英雄技能（被動 passive / 主動 active）----
   const HERO_SKILLS = {
-    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 10, maxLevel: 20,
+    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 7, maxLevel: 20,
       desc: "對前方敵人造成額外傷害", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
       effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 傷害` },
     fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20, applies: "burn",

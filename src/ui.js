@@ -20,6 +20,7 @@
   let forgeUid = null;       // 鍛造坊：選中的裝備 uid
   let forgeMode = "enhance"; // 鍛造坊模式：star / enhance / reforge
   let reforgeLocks = {};     // 洗鍊：鎖定（保留）的屬性 { stat: true }
+  let handbookPage = 0;      // 說明書：目前頁碼（扁平頁面清單索引）
 
   const TABS = [
     { id: "heroes", label: "英雄", icon: "person" },
@@ -32,6 +33,7 @@
     { id: "talents", label: "天賦", icon: "star" },
     { id: "prestige", label: "轉生", icon: "soul" },
     { id: "quests", label: "任務", icon: "scroll" },
+    { id: "handbook", label: "說明書", icon: "book" },
     { id: "settings", label: "設定", icon: "gear" },
   ];
 
@@ -143,6 +145,7 @@
     if (id !== "heroes") heroDetail = null;
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
     renderPanel(false);
+    if (id === "handbook") startHbLoop(); else stopHbLoop();
   }
 
   // ============ HUD 同步（節流到 ~10/秒，避免每幀 DOM churn）============
@@ -210,6 +213,7 @@
     else if (current === "talents") html = renderTalents();
     else if (current === "prestige") html = renderPrestige();
     else if (current === "quests") html = renderQuests();
+    else if (current === "handbook") html = renderHandbook();
     else if (current === "settings") html = renderSettings();
     el.innerHTML = html;
     el.scrollTop = keep ? prev : 0;
@@ -867,6 +871,124 @@
   }
 
   // ============ 事件處理 ============
+  // ============ 說明書／圖鑑 ============
+  const FXNAME = { stun: "暈眩", freeze: "冰凍", burn: "燃燒", paralyze: "麻痺", weak: "虛弱", berserk: "狂暴" };
+  function fxDescLines(key) {
+    const f = D().FX[key], L = [];
+    if (f.blockMove) L.push("無法移動");
+    if (f.blockAct) L.push("無法攻擊");
+    if (f.dotPct) L.push("每秒損失 " + Math.round(f.dotPct * 100) + "% 最大生命");
+    const pm = (v, name) => L.push(name + " " + (v > 1 ? "提升" : "降低") + " " + Math.round(Math.abs(v - 1) * 100) + "%");
+    if (f.outMul != null) pm(f.outMul, "攻擊力");
+    if (f.inMul != null) pm(f.inMul, "受到傷害");
+    if (f.moveMul != null) pm(f.moveMul, "移動速度");
+    if (f.defMul != null) pm(f.defMul, "防禦力");
+    return L;
+  }
+  function renderHbIntro(sub) {
+    let b = "";
+    if (sub === "玩法") {
+      b = `<p>這是一款<b>放置自動戰鬥</b>遊戲：你的英雄會自動前進、迎戰怪物。你的任務是組隊、養成與配裝，讓他們打得更深。</p>
+        <p>右上角可切換 <b>推進</b>（一關關往前打）與 <b>掛機</b>（原地刷怪、陣亡會自動復活）。</p>
+        <p>每前進一段距離會進入新的 <b>區域</b>（草原、森林、沙漠⋯），怪物與掉落也隨之改變。</p>`;
+    } else if (sub === "戰鬥") {
+      b = `<p>戰場分三條橫線，隊伍採 <b>3×3 陣型</b>：靠前的英雄會先碰到敵人、先承受傷害，後排則受到保護。</p>
+        <p>每個角色有自己的 <b>攻擊距離</b>：近戰要貼身、弓手/法師可遠距離攻擊。單位會自動走位去找最近的敵人。</p>
+        <p>技能會在冷卻好時自動施放，部分技能會附加 <b>狀態效果</b>（見「狀態效果」分頁）。</p>`;
+    } else if (sub === "養成") {
+      b = `<p>強化隊伍的方式：<b>升級</b>英雄、穿戴<b>裝備</b>並到<b>鍛造坊</b>強化/升星/洗鍊、湊齊<b>套裝</b>觸發套效。</p>
+        <p>還有 <b>寵物</b>、<b>訓練</b>、<b>天賦</b> 提供額外加成；卡關時可考慮 <b>轉生</b> 換取永久成長。</p>
+        <p>金幣 ${ico("coin", 12)}、鑽石 ${ico("gem", 12)}、靈魂 ${ico("soul", 12)} 是主要資源，用於各種養成。</p>`;
+    } else {
+      b = `<p>這本說明書可以像書一樣 <b>一頁頁往後翻</b>：用下方的「← 上一頁 / 往後翻 →」，或點上方分類直接跳到該章。</p>
+        <p>章節順序：遊戲說明 → 狀態效果 → 怪物圖鑑 → 裝備圖鑑 → 套裝圖鑑。</p>
+        <p>「狀態效果」每頁會<b>實際動態示範</b>該效果套在角色身上的樣子。</p>`;
+    }
+    return `<div class="sec-title">遊戲說明 · ${sub}</div><div class="hb-prose">${b}</div>`;
+  }
+  function renderHbStatusPage(key) {
+    const f = D().FX[key];
+    const lines = fxDescLines(key).map((t) => `<div class="sl"><span>${t}</span></div>`).join("");
+    return `<div class="sec-title">狀態效果</div>
+      <div class="hb-fx-card">
+        <canvas class="fx-preview" data-effect="${key}" data-sprite="knight" width="40" height="46"></canvas>
+        <div class="hb-fx-info">
+          <div class="hb-fx-name">${FXNAME[key] || key}</div>
+          <div class="hb-fx-dur">持續 ${f.dur} 秒</div>
+          <div class="stat-box">${lines}</div>
+        </div>
+      </div>`;
+  }
+  function renderHbMonsterPage(r, theme) {
+    const tile = (spr) => `<div class="hero-card">${Game.Icons.spriteHtml(spr, 42)}</div>`;
+    const small = Game.Sprites.smallForRegion(r).map(tile).join("");
+    const boss = Game.Sprites.bossForRegion(r).map(tile).join("");
+    return `<div class="sec-title">${theme.name}　怪物</div>
+      <div class="hb-sub">小怪</div><div class="hero-grid">${small}</div>
+      <div class="hb-sub">首領</div><div class="hero-grid">${boss}</div>
+      <div class="hb-prose"><p><b>精英</b>（粉紅光環）較肉、<b>寶箱</b>（金色）容易掉裝、<b>變異/遠程</b>更棘手；越深的區域，怪物越強。</p></div>`;
+  }
+  function renderHbEquipPage() {
+    const cells = D().EQUIPMENT_SLOTS.map((sl) =>
+      `<div class="hero-card"><div class="hc-portrait">${ico(sl.id, 24)}</div><div class="hc-name">${sl.name}</div><div class="hc-sub">${STAT_NAMES[sl.stat] || sl.stat}</div></div>`).join("");
+    const leg = D().RARITIES.map((r) => `<span class="hb-rar" style="color:${r.color}">${r.name}</span>`).join("　");
+    return `<div class="sec-title">裝備圖鑑</div>
+      <div class="hb-sub">六大部位（各有主屬性）</div><div class="hero-grid">${cells}</div>
+      <div class="hb-sub">稀有度（由低到高）</div>
+      <div class="hb-prose"><p>${leg}</p><p>裝備除主屬性外可附帶<b>副屬性</b>；到<b>鍛造坊</b>可強化、升星、洗鍊來提升數值。湊齊同系列可觸發<b>套裝</b>效果。</p></div>`;
+  }
+  function renderHbSetPage(r, theme, ids) {
+    const body = ids.map((id) => {
+      const s = D().SET_BY_ID[id];
+      const rows = (s.bonuses || []).map((b) => `<div class="set-row"><span class="set-name">${b.pieces} 件</span><span class="set-eff">${b.text}</span></div>`).join("");
+      return `<div class="hb-set"><div class="hb-set-name" style="color:${s.color}">${s.name}</div>${s.main ? `<div class="hb-sub">${s.main}</div>` : ""}${rows}</div>`;
+    }).join("");
+    return `<div class="sec-title">${theme.name}　套裝</div>${body}`;
+  }
+  function handbookPages() {
+    const d = D(), pages = [], add = (section, body) => pages.push({ section, body });
+    ["玩法", "戰鬥", "養成", "圖鑑導覽"].forEach((s) => add("intro", renderHbIntro(s)));
+    Object.keys(d.FX).forEach((k) => add("status", renderHbStatusPage(k)));
+    d.THEMES.forEach((th, r) => add("monster", renderHbMonsterPage(r, th)));
+    add("equip", renderHbEquipPage());
+    d.THEMES.forEach((th, r) => { const ids = d.SETS_BY_REGION[r]; if (ids && ids.length) add("set", renderHbSetPage(r, th, ids)); });
+    return pages;
+  }
+  function hbSectionFirstPage(pages, section) { const i = pages.findIndex((p) => p.section === section); return i < 0 ? 0 : i; }
+  function renderHandbook() {
+    const pages = handbookPages();
+    handbookPage = Math.max(0, Math.min(pages.length - 1, handbookPage));
+    const pg = pages[handbookPage];
+    const SECTIONS = [["intro", "遊戲說明"], ["status", "狀態效果"], ["monster", "怪物圖鑑"], ["equip", "裝備圖鑑"], ["set", "套裝圖鑑"]];
+    const chips = `<div class="hb-chips">` + SECTIONS.map(([k, l]) => `<button class="hb-chip ${pg.section === k ? "on" : ""}" data-act="hb-section" data-section="${k}">${l}</button>`).join("") + `</div>`;
+    const nav = `<div class="hb-nav">
+      <button class="hb-arrow" data-act="hb-prev" ${handbookPage <= 0 ? "disabled" : ""}>← 上一頁</button>
+      <span class="hb-count">${handbookPage + 1} / ${pages.length}</span>
+      <button class="hb-arrow" data-act="hb-next" ${handbookPage >= pages.length - 1 ? "disabled" : ""}>往後翻 →</button>
+    </div>`;
+    return chips + `<div class="hb-page">${pg.body}</div>` + nav;
+  }
+  // 狀態效果預覽動畫（只在說明書分頁時跑，離開即自我終止）
+  let hbRaf = 0, hbClk = 0, hbLast = 0;
+  function hbRunning() { return current === "handbook" && (typeof document === "undefined" || document.visibilityState !== "hidden"); }
+  function startHbLoop() {
+    if (hbRaf || typeof requestAnimationFrame === "undefined") return;
+    hbLast = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    const step = (now) => {
+      if (!hbRunning()) { hbRaf = 0; return; }
+      hbClk += Math.max(0, (now - hbLast) / 1000); hbLast = now;
+      document.querySelectorAll("#panel-content canvas.fx-preview").forEach((cv) => {
+        const c = cv.getContext && cv.getContext("2d"); if (!c) return;
+        c.clearRect(0, 0, cv.width, cv.height);
+        const sprite = Game.Sprites.heroes[cv.dataset.sprite]; if (!sprite) return;
+        Game.Render.drawSpriteFx(c, sprite, cv.dataset.effect, hbClk, { cx: cv.width / 2, bottomY: cv.height - 3 });
+      });
+      hbRaf = requestAnimationFrame(step);
+    };
+    hbRaf = requestAnimationFrame(step);
+  }
+  function stopHbLoop() { if (hbRaf) { cancelAnimationFrame(hbRaf); hbRaf = 0; } }
+
   function onPanelClick(e) {
     const t = e.target.closest("[data-act]");
     if (!t) return;
@@ -878,6 +1000,9 @@
     switch (act) {
       case "hero-open": heroDetail = id; break;
       case "hero-back": heroDetail = null; break;
+      case "hb-prev": if (handbookPage > 0) handbookPage--; break;
+      case "hb-next": { const n = handbookPages().length; if (handbookPage < n - 1) handbookPage++; break; }
+      case "hb-section": { const ps = handbookPages(); handbookPage = hbSectionFirstPage(ps, t.dataset.section); break; }
       case "hero-party": Sy().toggleParty(id); Game.Engine.onPartyChanged(); break;
       case "form-cell": openFormModal(+t.dataset.lane, +t.dataset.col); rerender = false; break;
       case "form-set": { if (t.dataset.kind === "pet") Sy().setPetPos(id, +t.dataset.lane, +t.dataset.col); else Sy().setHeroPos(id, +t.dataset.lane, +t.dataset.col); Game.Engine.onPartyChanged(); closeModal(); break; }
