@@ -910,38 +910,38 @@
         </div>
       </div>`;
   }
+  // 敵人技能說明（由 ENEMY_SKILLS 欄位推導）
+  function enemySkillDesc(id) {
+    const s = D().ENEMY_SKILLS[id]; if (!s) return "";
+    if (id === "heal") return `回復自身 ${Math.round(s.pct * 100)}% 生命`;
+    let t = (s.range >= 2 ? "遠程" : "近戰") + "重擊（攻擊×" + s.mult + "）";
+    if (s.applies) t += "，使目標" + (FXNAME[s.applies] || s.applies);
+    return t;
+  }
   function renderHbMonsterPage(def) {
     const d = D();
     const spr = Game.Sprites.byKey(def.sprite);
     const theme = d.THEMES[def.region] ? d.THEMES[def.region].name : "";
-    const tl = (k) => { const t = d.monsterTierLabel(def.tiers[k]); return `<b style="color:${t.color}">${t.name}</b>`; };
+    const SN = { hp: "生命", def: "防禦", atk: "攻擊", hit: "命中", dodge: "閃避", critDmg: "爆傷" };
+    const tier = (k) => { const t = d.monsterTierLabel(def.tiers[k]); return `<div class="hb-mc"><span>${SN[k]}</span><b style="color:${t.color}">${t.name}</b></div>`; };
+    const val = (label, v) => `<div class="hb-mc"><span>${label}</span><b>${v}</b></div>`;
+    const skills = (def.skills || []).length
+      ? def.skills.map((id) => `<div class="hb-skill"><b>${d.ENEMY_SKILLS[id] ? d.ENEMY_SKILLS[id].name : id}</b>：${enemySkillDesc(id)}</div>`).join("")
+      : `<div class="hb-skill">—</div>`;
     const specialTxt = def.special === "split" ? `死亡分裂成 ${def.splitCount} 隻${d.MONSTER_BY_ID[def.splitInto] ? d.MONSTER_BY_ID[def.splitInto].name : "小怪"}`
       : def.special === "summon" ? `戰鬥中召喚 ${def.summonCount} 隻${d.MONSTER_BY_ID[def.summonId] ? d.MONSTER_BY_ID[def.summonId].name : "小怪"}`
-      : def.special === "enrage" ? "低血時進入狂暴（攻擊/移速提升、受傷增加）"
+      : def.special === "enrage" ? "低血時進入狂暴（攻擊/移速↑、受傷↑）"
       : def.special === "shield" ? "戰鬥中不時張開護盾（短時大幅減傷）" : "";
-    const skillTxt = (def.skills || []).map((id) => d.ENEMY_SKILLS[id] ? d.ENEMY_SKILLS[id].name : id).join("、") || "—";
-    return `<div class="sec-title">${def.name}</div>
-      <div class="hb-fx-card">
-        <div style="flex:0 0 auto">${Game.Icons.spriteHtml(spr, 56)}</div>
-        <div class="hb-fx-info">
-          <div class="hb-fx-name">${def.name}</div>
-          <div class="hb-fx-dur">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
-        </div>
+    return `<div class="hb-mon-head">
+        <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 46)}</div>
+        <div><div class="hb-mon-name">${def.name}</div><div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div></div>
       </div>
-      <div class="hb-sub">數值（相對強弱）</div>
-      <div class="stat-box">
-        ${statLine("生命", tl("hp"))}${statLine("防禦", tl("def"))}${statLine("攻擊", tl("atk"))}
-        ${statLine("命中", tl("hit"))}${statLine("閃避", tl("dodge"))}${statLine("爆傷", tl("critDmg"))}
-      </div>
-      <div class="hb-sub">明確數值</div>
-      <div class="stat-box">
-        ${statLine("爆擊率", Math.round((def.crit || 0) * 100) + "%")}
-        ${statLine("攻擊距離", def.range + " 格")}
-        ${statLine("攻擊速度", (def.atkInterval * D().ATK_INTERVAL_MUL).toFixed(2) + "s")}
-        ${statLine("移動速度", def.moveMul.toFixed(2) + "×")}
-      </div>
-      <div class="hb-sub">技能</div><div class="hb-prose"><p>${skillTxt}</p></div>
-      ${specialTxt ? `<div class="hb-sub">特殊</div><div class="hb-prose"><p>${specialTxt}</p></div>` : ""}`;
+      <div class="hb-mon-cap">數值（相對強弱）</div>
+      <div class="hb-mon-grid">${tier("hp")}${tier("def")}${tier("atk")}${tier("hit")}${tier("dodge")}${tier("critDmg")}</div>
+      <div class="hb-mon-cap">明確數值</div>
+      <div class="hb-mon-grid2">${val("爆擊率", Math.round((def.crit || 0) * 100) + "%")}${val("攻擊距離", def.range + " 格")}${val("攻擊速度", (def.atkInterval * d.ATK_INTERVAL_MUL).toFixed(2) + "s")}${val("移動速度", def.moveMul.toFixed(2) + "×")}</div>
+      <div class="hb-mon-cap">技能</div>${skills}
+      ${specialTxt ? `<div class="hb-mon-cap">特殊</div><div class="hb-skill">${specialTxt}</div>` : ""}`;
   }
   function renderHbEquipPage() {
     const cells = D().EQUIPMENT_SLOTS.map((sl) =>
