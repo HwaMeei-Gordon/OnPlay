@@ -48,12 +48,12 @@
   const COMBAT_MOVE_MUL = 0.5;  // 戰鬥時移動速度再慢一倍（×0.5；雙方）
   // ---- 狀態效果（個人 buff/debuff；資料驅動：blockMove/blockAct/各倍率/DoT）----
   const FX = {
-    stun:     { dur: 5,  blockMove: true,  blockAct: true },                       // 暈眩：不可動不可攻
-    freeze:   { dur: 5,  blockMove: true,  blockAct: true, defMul: 1.5 },          // 冰凍：不可動不可攻、防禦+50%
-    burn:     { dur: 5,  dotPct: 0.03 },                                           // 燃燒：每秒 3% 最大生命
-    paralyze: { dur: 5,  blockMove: true,  blockAct: false, inMul: 1.25 },         // 麻痺：不可動可攻、受傷+25%
-    weak:     { dur: 5,  outMul: 0.5, inMul: 1.25, moveMul: 0.5 },                 // 虛弱：攻擊-50%、受傷+25%、移速-50%
-    berserk:  { dur: 10, outMul: 1.5, inMul: 1.25, moveMul: 1.5 },                 // 狂暴：攻擊+50%、受傷+25%、移速+50%
+    stun:     { dur: 5,  blockMove: true,  blockAct: true, noDodge: true },                          // 暈眩：不可動不可攻、無法閃避
+    freeze:   { dur: 10, blockMove: true,  blockAct: true, defMul: 1.25 },                            // 冰凍：10秒、不可動不可攻、防禦+25%
+    burn:     { dur: 5,  dotPct: 0.03, dotInterval: 0.5, dotTrue: true, moveMul: 0.75 },              // 燃燒：每0.5秒 3% 真實傷害、移速-25%
+    paralyze: { dur: 5,  blockMove: true,  blockAct: false, inMul: 1.25, atkSpeedMul: 0.25 },         // 麻痺：不可動、受傷+25%、攻速-75%
+    weak:     { dur: 5,  outMul: 0.5, inMul: 1.25, moveMul: 0.5, atkSpeedMul: 0.75 },                 // 虛弱：攻擊-50%、受傷+25%、移速-50%、攻速-25%
+    berserk:  { dur: 10, outMul: 1.5, inMul: 1.5, moveMul: 1.5, atkSpeedMul: 1.5 },                   // 狂暴：攻擊+50%、受傷+50%、移速+50%、攻速+50%
   };
   // 動畫節奏（變慢、變持久）
   const PROJECTILE_LIFE = 0.45; // 投射物飛行時間（越大飛越慢、停留越久）

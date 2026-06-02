@@ -330,7 +330,7 @@
     // 同一時間只能附帶一個狀態：已有其他狀態 → 不再被附加（同狀態可刷新時間）
     for (const e in u.fx) { if (u.fx[e] > 0 && e !== k) return false; }
     u.fx[k] = Math.max(u.fx[k] || 0, dur);
-    if (k === "burn") u.burnTick = 1; // 燃燒每秒結算（首次 1 秒後）
+    if (k === "burn") u.burnTick = D().FX.burn.dotInterval || 1; // 燃燒結算間隔
     return true;
   }
   function fxHas(u, k) { return !!(u.fx && u.fx[k] > 0); }
@@ -342,6 +342,8 @@
   function fxInMul(u) { return fxMul(u, "inMul"); }
   function fxMoveMul(u) { return fxMul(u, "moveMul"); }
   function fxDefMul(u) { return fxMul(u, "defMul"); }
+  function fxAtkSpeedMul(u) { return fxMul(u, "atkSpeedMul"); } // 攻速倍率（>1快/<1慢）
+  function fxNoDodge(u) { return fxFlag(u, "noDodge"); }        // 無法閃避（暈眩）
   function effDefEnemy(t) { return (t.def || 0) * fxDefMul(t); }
   function effDefHero(t) { return (t.stats.def || 0) * fxDefMul(t); }
   // 狀態計時 + 燃燒 DoT（只在戰鬥迴圈內呼叫）
@@ -351,8 +353,8 @@
     if (fxHas(u, "burn")) {
       u.burnTick = (u.burnTick || 0) - dt;
       while (u.burnTick <= 0 && !u.dead && u.hp > 0) {
-        u.burnTick += 1;
-        const base = Math.max(1, Math.round(u.maxHp * D().FX.burn.dotPct));
+        u.burnTick += D().FX.burn.dotInterval || 1;
+        const base = Math.max(1, Math.round(u.maxHp * D().FX.burn.dotPct)); // 真實傷害(以 %最大生命計、無視防禦)
         if (isHero) {
           const dmg = Math.max(1, Math.round(base * fxInMul(u)));
           u.hp -= dmg; u.hitFlash = 0.1;
@@ -542,7 +544,7 @@
       addFloat(e.x, ey - 26, sk.name, sk.color, true);
       addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
       e.lunge = 5;
-      if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+      if (!fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
         addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
       } else {
         const isCrit = Math.random() < (e.crit || 0);
@@ -832,7 +834,7 @@
             const pc = cls === "法師" ? "#ff7a2a" : cls === "弓手" ? "#ffe45a" : "#7adf8a";
             addProjectile(h.x, hy - 16, target.x, ty - 8, pc, pk);
           }
-          if (Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
+          if (!fxNoDodge(target) && Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
             addFloat(target.x, ty - 14, "MISS", "#cfd6e4");
           } else {
             const r = rollDamage(h.stats.atk * fxOutMul(h), h.stats.crit, h.stats.critDmg, effDefEnemy(target));
@@ -849,7 +851,7 @@
             }
           }
         }
-        h.atkTimer = h.stats.atkInterval * d.ATK_INTERVAL_MUL; // 攻速放慢一倍
+        h.atkTimer = h.stats.atkInterval * d.ATK_INTERVAL_MUL / fxAtkSpeedMul(h); // 攻速放慢一倍＋狀態攻速
       }
     });
 
@@ -871,7 +873,7 @@
         {
           e.lunge = 6;
           const ty = d.laneY(v.ground, target.lane);
-          if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+          if (!fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
             addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
           } else {
             const isCrit = Math.random() < (e.crit || 0);
@@ -893,7 +895,7 @@
             }
           }
         }
-        e.atkTimer = e.atkInterval * d.ATK_INTERVAL_MUL; // 攻速放慢一倍
+        e.atkTimer = e.atkInterval * d.ATK_INTERVAL_MUL / fxAtkSpeedMul(e); // 攻速放慢一倍＋狀態攻速
       }
     });
   }
