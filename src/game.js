@@ -24,21 +24,24 @@
 
   // ---- 建立出戰隊伍 runtime ----
   function buildField() {
-    const st = Game.State;
+    const st = Game.State, d = D();
     const mods = S().globalMods();
-    battle.field = st.party.map((heroId, i) => {
+    const layout = S().formationLayout();
+    battle.field = layout.map((slot, i) => {
+      const heroId = slot.heroId;
       const stats = S().heroStats(heroId, mods);
-      const def = D().HERO_BY_ID[heroId];
+      const def = d.HERO_BY_ID[heroId];
       const actives = def.skills.filter(
-        (sid) => D().HERO_SKILLS[sid].type === "active" && (st.heroes[heroId].skills[sid] || 0) > 0
+        (sid) => d.HERO_SKILLS[sid].type === "active" && (st.heroes[heroId].skills[sid] || 0) > 0
       );
       const timers = {};
-      actives.forEach((sid) => (timers[sid] = D().HERO_SKILLS[sid].cooldown));
+      actives.forEach((sid) => (timers[sid] = d.HERO_SKILLS[sid].cooldown));
       return {
         heroId, sprite: Game.Sprites.heroes[def.sprite],
         stats, maxHp: stats.maxHp, hp: stats.maxHp,
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
-        x: D().PARTY_X - i * 11, lift: (i % 2) * 6,
+        lane: slot.lane, col: slot.col,
+        x: d.PARTY_X - slot.col * d.FORM_COL_GAP, lift: 0,
         hitFlash: 0, shake: 0, lunge: 0, dead: false, rageLeft: 0, rageMul: 1,
         actives, skillTimers: timers,
       };
@@ -73,10 +76,12 @@
     battle.phase = "walking";
   }
 
-  function spawnEnemy() {
+  function spawnEnemy(lane) {
     const st = Game.State;
     const stage = st.stage;
     const boss = D().isBossStage(stage);
+    if (boss) lane = 1; // 魔王固定中行
+    if (lane == null) lane = Math.floor(Math.random() * D().LANES);
     const r = D().regionOf(stage);
     const stx = D().makeEnemyStats(stage, boss);
     let sprite;
@@ -99,7 +104,8 @@
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: stx.atkInterval,
       hit: stx.hit, dodge: stx.dodge,
       atkTimer: stx.atkInterval * 0.7, isBoss: boss, isChest: chest, isElite: elite, sprite,
-      x: Game.view.w + 14, targetX: 0, hitFlash: 0, shake: 0, lunge: 0,
+      x: Game.view.w + 8 + Math.random() * 10, targetX: 0, lane: lane, air: D().ENEMY_DROP_H, vy: 0,
+      hitFlash: 0, shake: 0, lunge: 0,
     });
   }
 
@@ -122,16 +128,33 @@
         0.18 + Math.random() * 0.22, k % 2 ? "#ffffff" : color);
   }
 
-  function frontEnemy() {
+  // 全場最前敵（x 最小）；行內最前敵
+  function nearestEnemy() {
     let f = null;
-    for (const e of battle.enemies) if (!f || e.x < f.x) f = e;
+    for (const e of battle.enemies) if (e.air <= 0 && (!f || e.x < f.x)) f = e;
     return f;
   }
-  function frontHero() {
+  function frontEnemyInLane(lane) {
     let f = null;
-    for (const h of battle.field) if (!h.dead && (!f || h.x > f.x)) f = h;
+    for (const e of battle.enemies) if (e.lane === lane && e.air <= 0 && (!f || e.x < f.x)) f = e;
     return f;
   }
+  // 英雄目標：先打同行最前敵，該行沒敵人才打全場最近
+  function heroTarget(h) { return frontEnemyInLane(h.lane) || nearestEnemy(); }
+  // 行內最前排英雄（col 最小＝最靠敵）；全場最前英雄（fallback）
+  function frontHeroInLane(lane) {
+    let f = null;
+    for (const h of battle.field) if (!h.dead && h.lane === lane && (!f || h.col < f.col)) f = h;
+    return f;
+  }
+  function frontHeroAny() {
+    let f = null;
+    for (const h of battle.field) if (!h.dead && (!f || h.col < f.col)) f = h;
+    return f;
+  }
+  function enemyTarget(e) { return frontHeroInLane(e.lane) || frontHeroAny(); }
+  // 該敵是否為其行最前敵（排隊時只有最前者能接觸/攻擊）
+  function isLaneFront(e) { return frontEnemyInLane(e.lane) === e; }
 
   function rollDamage(atk, crit, critDmg, def) {
     const isCrit = Math.random() < crit;
@@ -206,7 +229,8 @@
       h.rageLeft -= dt;
       if (h.rageLeft <= 0) h.rageMul = 1;
     }
-    const fe = frontEnemy();
+    const gy = Game.view.ground, hy = D().laneY(gy, h.lane);
+    const fe = heroTarget(h);
     h.actives.forEach((sid) => {
       h.skillTimers[sid] -= dt;
       if (h.skillTimers[sid] > 0) return;
@@ -223,13 +247,13 @@
           const amt = Math.round(t.maxHp * pct);
           t.hp = Math.min(t.maxHp, t.hp + amt);
         });
-        addFloat(h.x, Game.view.ground - 40, "治癒", "#5ec46b");
+        addFloat(h.x, hy - 26, "治癒", "#5ec46b");
         h.skillTimers[sid] = def.cooldown;
       } else if (sid === "rage") {
         if (!fe) { h.skillTimers[sid] = 0; return; }
         h.rageMul = 1 + (0.5 + 0.1 * lv);
         h.rageLeft = def.duration;
-        addFloat(h.x, Game.view.ground - 42, "狂暴!", "#ff4d4d");
+        addFloat(h.x, hy - 28, "狂暴!", "#ff4d4d");
         h.skillTimers[sid] = def.cooldown;
       } else {
         // 傷害型技能
@@ -240,7 +264,7 @@
         else if (sid === "frost") { mult = 1.8 + 0.5 * lv; color = "#7ad7ff"; }
         else if (sid === "multishot") { mult = 1.0 + 0.25 * lv; hits = 3; color = "#bfe24a"; }
         else if (sid === "backstab") { mult = 2.0 + 0.5 * lv; forceCrit = true; color = "#ff4d4d"; }
-        addProjectile(h.x, Game.view.ground - 18 - h.lift, fe.x, Game.view.ground - 24, color);
+        addProjectile(h.x, hy - 16, fe.x, D().laneY(gy, fe.lane) - 8, color);
         for (let k = 0; k < hits; k++) {
           const isCrit = forceCrit || Math.random() < h.stats.crit;
           const raw = h.stats.atk * h.rageMul * mult * (isCrit ? h.stats.critDmg : 1);
@@ -309,16 +333,11 @@
       }
     }
 
-    // 生成敵人（掛機：持續生不停；推進：依 toSpawn）
-    const concurrency = d.isBossStage(Game.State.stage) ? 1 : d.concurrentEnemies(Game.State.stage);
-    if (idle) {
-      if (battle.enemies.length < concurrency) {
-        battle.spawnCD -= dt;
-        if (battle.spawnCD <= 0) { spawnEnemy(); battle.spawnCD = 0.3; }
-      }
-    } else if (battle.toSpawn > 0 && battle.enemies.length < concurrency) {
+    // 生成敵人（天降：從右上掉到隨機行；掛機持續、推進依 toSpawn；同屏上限）
+    const cap = d.isBossStage(Game.State.stage) ? 1 : d.MAX_CONCURRENT;
+    if ((idle || battle.toSpawn > 0) && battle.enemies.length < cap) {
       battle.spawnCD -= dt;
-      if (battle.spawnCD <= 0) { spawnEnemy(); battle.toSpawn--; battle.spawnCD = 0.3; }
+      if (battle.spawnCD <= 0) { spawnEnemy(); if (!idle) battle.toSpawn--; battle.spawnCD = d.SPAWN_INTERVAL; }
     }
 
     // 關卡清除 → 下一層（掛機不前進）
@@ -335,37 +354,41 @@
       return;
     }
 
-    // 指派敵人陣位（依 x 排序）
-    const sorted = battle.enemies.slice().sort((a, b) => a.x - b.x);
-    sorted.forEach((e, idx) => (e.targetX = contactX + idx * 18));
+    // 天降下落（air>0 在空中、落地噴塵）
+    battle.enemies.forEach((e) => {
+      if (e.air > 0) {
+        e.vy = (e.vy || 0) + d.DROP_GRAVITY * dt;
+        e.air = e.air - e.vy * dt;
+        if (e.air <= 0) {
+          e.air = 0; e.vy = 0;
+          const ly = d.laneY(v.ground, e.lane);
+          addParticle("dust", e.x, ly, -12 - Math.random() * 8, -3 - Math.random() * 6, 0.35, "#9a866a");
+          addParticle("dust", e.x, ly, 12 + Math.random() * 8, -3 - Math.random() * 6, 0.35, "#9a866a");
+        }
+      }
+    });
 
-    const fe = frontEnemy();
-    const engaged = fe && fe.x <= contactX + 2;
-
-    if (!fe) {
-      battle.phase = "walking";
-      if (!idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
-    } else if (!engaged) {
-      // 接近中：推進時捲動；掛機時背景與英雄不動，僅敵人左移
-      battle.phase = "walking";
-      if (!idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
-      battle.enemies.forEach((e) => {
-        if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
-      });
-    } else {
-      battle.phase = "fighting";
-      // 落後的敵人仍補位
-      battle.enemies.forEach((e) => {
-        if (e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.ENEMY_SPEED * dt);
-      });
+    // 逐行排隊指派陣位（只算已落地者）
+    for (let L = 0; L < d.LANES; L++) {
+      const lane = battle.enemies.filter((e) => e.lane === L && e.air <= 0).sort((a, b) => a.x - b.x);
+      lane.forEach((e, idx) => (e.targetX = contactX + idx * d.ENEMY_GAP));
     }
+
+    // 相位：任一落地敵人接觸最前線 → 戰鬥；否則前進（推進捲動）
+    const anyEngaged = battle.enemies.some((e) => e.air <= 0 && e.x <= contactX + 2);
+    battle.phase = anyEngaged ? "fighting" : "walking";
+    if (!anyEngaged && !idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
+    const espd = anyEngaged ? d.ENEMY_SPEED : d.APPROACH_SPEED;
+    battle.enemies.forEach((e) => {
+      if (e.air <= 0 && e.x > e.targetX) e.x = Math.max(e.targetX, e.x - espd * dt);
+    });
 
     // 走路塵土（前進時腳後揚塵；掛機不揚塵）
     if (battle.phase === "walking" && !idle) {
       battle.dustT = (battle.dustT || 0) - dt;
       if (battle.dustT <= 0) {
-        const fh = frontHero();
-        if (fh) addParticle("dust", fh.x - 7, Game.view.ground - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
+        const fh = frontHeroAny();
+        if (fh) addParticle("dust", fh.x - 7, d.laneY(v.ground, fh.lane) - 1, -16 - Math.random() * 10, -4 - Math.random() * 7, 0.4 + Math.random() * 0.25, "#9a866a");
         battle.dustT = 0.15;
       }
     }
@@ -380,24 +403,25 @@
       updateHeroSkills(h, dt);
       h.atkTimer -= dt;
       if (h.atkTimer <= 0) {
-        const target = frontEnemy();
+        const target = heroTarget(h);
         if (target) {
+          const hy = d.laneY(v.ground, h.lane), ty = d.laneY(v.ground, target.lane);
           const cls = D().HERO_BY_ID[h.heroId].cls;
           const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
           h.lunge = ranged ? 2 : 6;
           if (ranged) {
-            addProjectile(h.x, v.ground - 16 - h.lift, target.x, v.ground - 24, cls === "法師" ? "#b06ae0" : cls === "牧師" ? "#7adf8a" : "#ffe45a");
+            addProjectile(h.x, hy - 16, target.x, ty - 8, cls === "法師" ? "#b06ae0" : cls === "牧師" ? "#7adf8a" : "#ffe45a");
           }
           if (Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
-            addFloat(target.x, v.ground - 30, "MISS", "#cfd6e4");
+            addFloat(target.x, ty - 14, "MISS", "#cfd6e4");
           } else {
             const r = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, target.def);
             damageEnemy(target, r.dmg, { crit: r.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
-            // 套裝：連擊（再打一次最前方敵人，二擊不再觸發連擊）
+            // 套裝：連擊（再打一次同目標，二擊不再觸發連擊）
             if (h.stats.multi && Math.random() < h.stats.multi) {
-              const t2 = frontEnemy();
+              const t2 = heroTarget(h);
               if (t2) {
-                addFloat(t2.x, v.ground - 44, "連擊", "#ffe45a");
+                addFloat(t2.x, d.laneY(v.ground, t2.lane) - 28, "連擊", "#ffe45a");
                 const r2 = rollDamage(h.stats.atk * h.rageMul, h.stats.crit, h.stats.critDmg, t2.def);
                 damageEnemy(t2, r2.dmg, { crit: r2.isCrit, src: h, lifesteal: h.stats.lifesteal, melee: !ranged });
               }
@@ -408,29 +432,30 @@
       }
     });
 
-    // 敵人攻擊（攻擊最前方存活英雄）
+    // 敵人攻擊（只有各行最前敵、已落地就位者；優先打同行前排英雄）
     battle.enemies.forEach((e) => {
-      if (e.x > e.targetX + 1) return; // 尚未就位
+      if (e.air > 0 || !isLaneFront(e) || e.x > e.targetX + 1) return; // 空中/非行首/未就位
       e.atkTimer -= dt;
       if (e.atkTimer <= 0) {
-        const target = frontHero();
+        const target = enemyTarget(e);
         if (target) {
           e.lunge = 6;
+          const ty = d.laneY(v.ground, target.lane);
           if (Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
-            addFloat(target.x, v.ground - 38 - target.lift, "閃避", "#9fd0f4");
+            addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
           } else {
             const dmg = Math.max(1, Math.round(e.atk - target.stats.def));
             target.hp -= dmg;
             target.hitFlash = 0.12;
             target.shake = 0.16;
-            addFloat(target.x + 4, v.ground - 36 - target.lift, "" + dmg, "#ff6b6b");
+            addFloat(target.x + 4, ty - 22, "" + dmg, "#ff6b6b");
             // 套裝：反傷（對攻擊者造成承受傷害 × 比例）
             if (target.stats.reflect && e.hp > 0) {
               damageEnemy(e, Math.max(1, Math.round(dmg * target.stats.reflect)), { noProc: true, color: "#ff8a8a" });
             }
             if (target.hp <= 0) {
               target.hp = 0; target.dead = true;
-              addFloat(target.x, v.ground - 40, "倒下", "#ff4d4d");
+              addFloat(target.x, ty - 26, "倒下", "#ff4d4d");
               if (!battle.field.some((hh) => !hh.dead)) battle.allDeadTimer = 1.4;
             }
           }

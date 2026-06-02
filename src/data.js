@@ -16,6 +16,16 @@
   const ENEMY_SPEED = 22;
   const APPROACH_SPEED = 120; // 敵人進場接近速度（快速逼近，減少等待）
   const WALK_SPEED = 26;
+  // ---- 三線戰場（上/中/下行）＋ 英雄 3×3 陣型 ----
+  const LANES = 3;
+  const LANE_DY = [-12, 0, 12];     // 各行相對 ground 的 y 偏移（上行較後/較高）
+  const FORM_COL_GAP = 12;          // 英雄每排 x 間距（col0=前排最靠敵）
+  const ENEMY_GAP = 16;             // 同行敵人排隊間距
+  const SPAWN_INTERVAL = 0.65;      // 每隻天降間隔
+  const MAX_CONCURRENT = 9;         // 同屏最多敵人
+  const ENEMY_DROP_H = 34;          // 天降高度
+  const DROP_GRAVITY = 240;         // 天降下落加速度
+  function laneY(ground, lane) { return ground + (LANE_DY[lane] || 0); }
 
   // ---- 戰鬥 / 關卡 ----
   const PARTY_MAX = 4; // 出戰上限
@@ -666,6 +676,7 @@
 
   Game.Data = {
     WORLD_H, GROUND_FROM_BOTTOM, PARTY_X, CONTACT_RANGE, ENEMY_SPEED, APPROACH_SPEED, WALK_SPEED,
+    LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
     regionOf, isBossStage, segmentStart, concurrentEnemies, makeEnemyStats,
     DIFFICULTY_ANCHORS, difficultyMult,

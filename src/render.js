@@ -197,10 +197,11 @@
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
   }
 
-  function shadow(x, w) {
+  function shadow(x, w, gy) {
+    gy = gy == null ? Game.view.ground : gy;
     ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.fillRect(Math.round(x - w / 2), Game.view.ground, w, 1);
-    ctx.fillRect(Math.round(x - w / 3), Game.view.ground + 1, Math.round((w * 2) / 3), 1);
+    ctx.fillRect(Math.round(x - w / 2), gy, w, 1);
+    ctx.fillRect(Math.round(x - w / 3), gy + 1, Math.round((w * 2) / 3), 1);
   }
   function jitter(amp) { return amp > 0 ? Math.round((Math.random() * 2 - 1) * 1.6) : 0; }
 
@@ -222,51 +223,52 @@
     if (bgCanvas.width) mainCtx.drawImage(bgCanvas, 0, 0);
     if (!b) return;
 
-    // 腳下陰影（地面層）
-    if (Game.State.activePet && Game.State.pets[Game.State.activePet]) shadow(d.PARTY_X - 26, 8);
-    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2); });
-    b.enemies.forEach((e) => shadow(e.x, spriteWidth(e.sprite) - 2));
+    const LY = (lane) => d.laneY(v.ground, lane);
+    const walking = b.phase === "walking";
 
-    // 敵人（後排先畫）
-    const es = b.enemies.slice().sort((a, c) => c.x - a.x);
-    es.forEach((e) => {
-      const sp = e.sprite;
-      const tint = e.hitFlash > 0 ? "#ffffff" : null;
-      const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake);
-      const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
-      drawSprite(sp, ex, v.ground + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
-      const bw = Math.max(10, spriteWidth(sp) - 2);
-      drawBar(ex - bw / 2, v.ground - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
-      // 寶箱怪：頭頂金色寶箱標記
-      if (e.isChest) {
-        const my = v.ground - sp.length - 9 + ey, mx = Math.round(ex);
-        rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
-        rect(mx - 1, my + 1, 2, 5, "#ffe27a");
-      }
-      // 精英怪：頭頂紅色尖冠標記
-      else if (e.isElite) {
-        const my = v.ground - sp.length - 8 + ey, mx = Math.round(ex);
-        rect(mx - 5, my + 4, 10, 2, "#ff3b46");
-        rect(mx - 4, my + 1, 2, 4, "#ff6a8a"); rect(mx - 1, my, 2, 5, "#ffd23f"); rect(mx + 2, my + 1, 2, 4, "#ff6a8a");
-      }
-    });
+    // 腳下陰影（各自行的地面層；空中敵人不畫影）
+    if (Game.State.activePet && Game.State.pets[Game.State.activePet]) shadow(d.PARTY_X - 26, 8, LY(1));
+    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LY(h.lane)); });
+    b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LY(e.lane)); });
 
-    // 寵物
+    // 寵物（中行）
     if (Game.State.activePet && Game.State.pets[Game.State.activePet]) {
       const pdef = d.PET_BY_ID[Game.State.activePet];
       const psp = Game.Sprites.pets[pdef.sprite];
-      if (psp) drawSprite(psp, d.PARTY_X - 26, v.ground + 1, false, null);
+      if (psp) drawSprite(psp, d.PARTY_X - 26, LY(1) + 1, false, null);
     }
 
-    // 隊伍英雄（後排先畫）
-    const walking = b.phase === "walking";
-    const heroesSorted = b.field.slice().sort((a, c) => a.x - c.x);
-    heroesSorted.forEach((h, idx) => {
-      const bob = walking ? (Math.floor(b.walkPhase + idx) % 2 === 0 ? 0 : -1) : 0;
-      const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : h.rageLeft > 0 ? "#ffcaca" : null;
-      const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
-      drawSprite(h.sprite, hx, v.ground + 1 - h.lift + hy, false, tint, bob);
-      if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, v.ground - h.sprite.length - 2 - h.lift + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
+    // 英雄＋敵人合併、依行（上行較後）景深排序後繪製
+    const drawList = [];
+    b.enemies.forEach((e) => drawList.push({ y: LY(e.lane), kind: "e", o: e }));
+    b.field.forEach((h, i) => drawList.push({ y: LY(h.lane), kind: "h", o: h, i: i }));
+    drawList.sort((a, c) => a.y - c.y || (a.kind === "e" ? a.o.x : -a.o.x) - (c.kind === "e" ? c.o.x : -c.o.x));
+    drawList.forEach((dr) => {
+      if (dr.kind === "e") {
+        const e = dr.o, sp = e.sprite, gy = dr.y;
+        const tint = e.hitFlash > 0 ? "#ffffff" : null;
+        const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0);
+        const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
+        drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
+        const bw = Math.max(10, spriteWidth(sp) - 2);
+        drawBar(ex - bw / 2, gy - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+        if (e.isChest) {
+          const my = gy - sp.length - 9 + ey, mx = Math.round(ex);
+          rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
+          rect(mx - 1, my + 1, 2, 5, "#ffe27a");
+        } else if (e.isElite) {
+          const my = gy - sp.length - 8 + ey, mx = Math.round(ex);
+          rect(mx - 5, my + 4, 10, 2, "#ff3b46");
+          rect(mx - 4, my + 1, 2, 4, "#ff6a8a"); rect(mx - 1, my, 2, 5, "#ffd23f"); rect(mx + 2, my + 1, 2, 4, "#ff6a8a");
+        }
+      } else {
+        const h = dr.o, gy = dr.y;
+        const bob = walking ? (Math.floor(b.walkPhase + dr.i) % 2 === 0 ? 0 : -1) : 0;
+        const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : h.rageLeft > 0 ? "#ffcaca" : null;
+        const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
+        drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob);
+        if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - h.sprite.length - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
+      }
     });
 
     // 投射物（帶尾光）
