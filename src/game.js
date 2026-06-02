@@ -378,9 +378,9 @@
     const anyEngaged = battle.enemies.some((e) => e.air <= 0 && e.x <= contactX + 2);
     battle.phase = anyEngaged ? "fighting" : "walking";
     if (!anyEngaged && !idle) { battle.worldScroll += d.WALK_SPEED * dt; battle.walkPhase += dt * 6; }
-    const espd = anyEngaged ? d.ENEMY_SPEED : d.APPROACH_SPEED;
+    // 移動與攻擊分開：每隻怪物都持續以接近速度走向自己的陣位，戰鬥時不再整體降速
     battle.enemies.forEach((e) => {
-      if (e.air <= 0 && e.x > e.targetX) e.x = Math.max(e.targetX, e.x - espd * dt);
+      if (e.air <= 0 && e.x > e.targetX) e.x = Math.max(e.targetX, e.x - d.APPROACH_SPEED * dt);
     });
 
     // 走路塵土（前進時腳後揚塵；掛機不揚塵）
