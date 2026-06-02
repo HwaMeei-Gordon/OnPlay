@@ -241,6 +241,26 @@
     b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LYF(h)); });
     b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
 
+    // 狀態效果：動態時鐘 + 染色 + 頭頂遮罩
+    const clk = b.fxClock || 0;
+    const uhas = (o, k) => o.fx && o.fx[k] > 0;
+    function fxTint(o) {
+      if (uhas(o, "freeze")) return "#7ad7ff";
+      if (uhas(o, "burn") && Math.floor(clk * 10) % 2) return "#ff8a3d";
+      if (uhas(o, "berserk")) return "#ffb0b0";
+      if (uhas(o, "weak")) return "#9a90a8";
+      return null;
+    }
+    function drawFx(o, cx, topY, yoff) {
+      const fx = o.fx; if (!fx) return; const t = clk;
+      if (fx.freeze > 0) { ctx.fillStyle = "#cdeeff"; ctx.fillRect(cx - 4, topY + 1 + yoff, 1, 2); ctx.fillRect(cx + 3, topY + 2 + yoff, 1, 2); }
+      if (fx.burn > 0) { for (let k = 0; k < 3; k++) { const fy = topY + 6 - ((t * 22 + k * 6) % 12); ctx.fillStyle = k % 2 ? "#ffd23f" : "#ff7a2a"; ctx.fillRect(cx - 3 + k * 3, Math.round(fy + yoff), 1, 2); } }
+      if (fx.stun > 0) { for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.094; ctx.fillStyle = "#ffe45a"; ctx.fillRect(Math.round(cx + Math.cos(a) * 5), Math.round(topY - 3 + Math.sin(a) * 2 + yoff), 1, 1); } }
+      if (fx.paralyze > 0 && Math.floor(t * 16) % 2) { ctx.strokeStyle = "#fff04a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 3, topY + 3 + yoff); ctx.lineTo(cx + 1, topY + 6 + yoff); ctx.lineTo(cx - 1, topY + 9 + yoff); ctx.stroke(); }
+      if (fx.weak > 0) { ctx.globalAlpha = 0.7; ctx.fillStyle = "#9a90a8"; ctx.fillRect(cx - 1, Math.round(topY - 4 + Math.sin(t * 4) + yoff), 2, 2); ctx.globalAlpha = 1; }
+      if (fx.berserk > 0 && ctx.arc) { ctx.globalAlpha = 0.25 + 0.2 * Math.sin(t * 8); ctx.strokeStyle = "#ff4d4d"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, topY + 6 + yoff, 9, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    }
+
     // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製（小數行位→換行更平滑）
     const drawList = [];
     b.enemies.forEach((e) => drawList.push({ y: LYF(e), kind: "e", o: e }));
@@ -249,12 +269,13 @@
     drawList.forEach((dr) => {
       if (dr.kind === "e") {
         const e = dr.o, sp = e.sprite, gy = dr.y;
-        const tint = e.hitFlash > 0 ? "#ffffff" : null;
+        const tint = e.hitFlash > 0 ? "#ffffff" : fxTint(e);
         const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0);
         const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
         drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
         const bw = Math.max(10, spriteWidth(sp) - 2);
         drawBar(ex - bw / 2, gy - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+        drawFx(e, Math.round(ex), gy - sp.length, ey);
         if (e.isChest) {
           const my = gy - sp.length - 9 + ey, mx = Math.round(ex);
           rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
@@ -267,10 +288,11 @@
       } else {
         const h = dr.o, gy = dr.y;
         const bob = walking ? (Math.floor(b.walkPhase + dr.i) % 2 === 0 ? 0 : -1) : 0;
-        const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : h.rageLeft > 0 ? "#ffcaca" : null;
+        const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : fxTint(h);
         const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
         drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob);
         if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - h.sprite.length - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
+        if (!h.dead) drawFx(h, Math.round(hx), gy - h.sprite.length, hy);
       }
     });
 
