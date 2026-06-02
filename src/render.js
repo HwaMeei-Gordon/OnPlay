@@ -237,19 +237,11 @@
     const LY = (lane) => d.laneY(v.ground, lane);
     const walking = b.phase === "walking";
 
-    // 腳下陰影（各自行的地面層；空中敵人不畫影）
-    if (Game.State.activePet && Game.State.pets[Game.State.activePet]) shadow(d.PARTY_X - 26, 8, LY(1));
+    // 腳下陰影（各自行的地面層；空中敵人不畫影；寵物也在 field 內）
     b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LY(h.lane)); });
     b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LY(e.lane)); });
 
-    // 寵物（中行）
-    if (Game.State.activePet && Game.State.pets[Game.State.activePet]) {
-      const pdef = d.PET_BY_ID[Game.State.activePet];
-      const psp = Game.Sprites.pets[pdef.sprite];
-      if (psp) drawSprite(psp, d.PARTY_X - 26, LY(1) + 1, false, null);
-    }
-
-    // 英雄＋敵人合併、依行（上行較後）景深排序後繪製
+    // 英雄＋寵物＋敵人合併、依行（上行較後）景深排序後繪製
     const drawList = [];
     b.enemies.forEach((e) => drawList.push({ y: LY(e.lane), kind: "e", o: e }));
     b.field.forEach((h, i) => drawList.push({ y: LY(h.lane), kind: "h", o: h, i: i }));

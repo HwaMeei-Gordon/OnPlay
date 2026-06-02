@@ -359,45 +359,62 @@
       State.party.push(id);
     }
   }
-  // ---- 3×3 陣型（lane 0..2 上中下、col 0..2 前中後；col0=前排靠敵）----
-  function setHeroPos(id, lane, col) {
-    if (!State.heroes[id]) return;
-    // 若該格已有別的出戰英雄 → 交換
-    State.party.forEach((hid) => {
-      if (hid === id) return;
-      const p = State.heroes[hid] && State.heroes[hid].pos;
-      if (p && p.lane === lane && p.col === col) State.heroes[hid].pos = State.heroes[id].pos || null;
-    });
-    State.heroes[id].pos = { lane: lane, col: col };
+  // 寵物上場數值（坦：高生命，依等級＋稀有度，參考隊伍最強英雄生命；不攻擊）
+  function petStats(id) {
+    const d = D(), p = State.pets[id];
+    if (!p) return null;
+    const def = d.PET_BY_ID[id], lv = p.level || 1;
+    const mods = globalMods();
+    let ref = 1;
+    State.party.forEach((h) => { const hs = heroStats(h, mods); if (hs && hs.maxHp > ref) ref = hs.maxHp; });
+    const rmult = { common: 1.0, uncommon: 1.3, rare: 1.7, epic: 2.2, legendary: 3.0, mythic: 4.0 }[def.rarity] || 1;
+    const maxHp = Math.floor(ref * (0.7 + 0.25 * (lv - 1)) * rmult);
+    return { maxHp: maxHp, def: 0, dodge: 0, hit: 0, atk: 0, atkInterval: 99, crit: 0, critDmg: 1, regen: 0, lifesteal: 0 };
   }
+  // ---- 3×3 陣型（lane 0..2 上中下、col 0..2 前中後；col0=前排靠敵）----
+  function clearCell(lane, col, exceptId) {
+    State.party.forEach((hid) => {
+      if (hid === exceptId) return;
+      const p = State.heroes[hid] && State.heroes[hid].pos;
+      if (p && p.lane === lane && p.col === col) State.heroes[hid].pos = null;
+    });
+    if (State.activePet && State.activePet !== exceptId) {
+      const pp = State.pets[State.activePet] && State.pets[State.activePet].pos;
+      if (pp && pp.lane === lane && pp.col === col) State.pets[State.activePet].pos = null;
+    }
+  }
+  function setHeroPos(id, lane, col) { if (!State.heroes[id]) return; clearCell(lane, col, id); State.heroes[id].pos = { lane: lane, col: col }; }
   function clearHeroPos(id) { if (State.heroes[id]) State.heroes[id].pos = null; }
-  // 出戰隊伍的實際站位：先放有 pos 的（衝突先到為準），其餘無 pos 者填剩餘空格（近戰前排、遠程後排、分散三行）
+  function setPetPos(id, lane, col) { if (!State.pets[id]) return; clearCell(lane, col, id); State.pets[id].pos = { lane: lane, col: col }; }
+  function clearPetPos(id) { if (State.pets[id]) State.pets[id].pos = null; }
+  // 出戰名單（隊伍英雄＋出戰中寵物）的實際站位：先放有 pos 的（衝突先到為準），其餘自動補位
   function formationLayout() {
     const d = D();
-    const party = State.party.slice(0, d.PARTY_MAX);
-    const used = {}; // "lane,col" -> true
-    const out = [];
-    const key = (l, c) => l + "," + c;
-    party.forEach((id) => {
-      const p = State.heroes[id] && State.heroes[id].pos;
+    const units = [];
+    State.party.slice(0, d.PARTY_MAX).forEach((id) => units.push({ id: id, kind: "hero", pos: State.heroes[id] && State.heroes[id].pos }));
+    if (State.activePet && State.pets[State.activePet]) units.push({ id: State.activePet, kind: "pet", pos: State.pets[State.activePet].pos });
+    const used = {}, out = [], key = (l, c) => l + "," + c;
+    units.forEach((u) => {
+      const p = u.pos;
       if (p && p.lane >= 0 && p.lane < d.LANES && p.col >= 0 && p.col < 3 && !used[key(p.lane, p.col)]) {
         used[key(p.lane, p.col)] = true;
-        out.push({ heroId: id, lane: p.lane, col: p.col });
+        out.push({ id: u.id, kind: u.kind, lane: p.lane, col: p.col });
       } else {
-        out.push({ heroId: id, lane: null, col: null });
+        out.push({ id: u.id, kind: u.kind, lane: null, col: null });
       }
     });
-    // 預設順序：近戰找前排空格、遠程找後排空格、再退而求其次
     const meleeCls = { "戰士": 1, "狂戰": 1, "盜賊": 1 };
-    const lanesByPref = [1, 0, 2]; // 中、上、下
+    const lanesByPref = [1, 0, 2];
     function findCell(prefCols) {
       for (const c of prefCols) for (const l of lanesByPref) if (!used[key(l, c)]) return { lane: l, col: c };
       return null;
     }
     out.forEach((e) => {
       if (e.lane != null) return;
-      const cls = d.HERO_BY_ID[e.heroId] ? d.HERO_BY_ID[e.heroId].cls : "";
-      const cell = findCell(meleeCls[cls] ? [0, 1, 2] : [2, 1, 0]) || findCell([0, 1, 2]);
+      let prefer;
+      if (e.kind === "pet") prefer = [0, 1, 2]; // 寵物優先前排當坦
+      else { const cls = d.HERO_BY_ID[e.id] ? d.HERO_BY_ID[e.id].cls : ""; prefer = meleeCls[cls] ? [0, 1, 2] : [2, 1, 0]; }
+      const cell = findCell(prefer) || findCell([0, 1, 2]);
       if (cell) { used[key(cell.lane, cell.col)] = true; e.lane = cell.lane; e.col = cell.col; }
       else { e.lane = 1; e.col = 1; }
     });
@@ -824,7 +841,7 @@
     defaultState, setState, todayStr,
     globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
     addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
-    ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, formationLayout,
+    ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, setPetPos, clearPetPos, formationLayout, petStats,
     rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
     enhanceItem, craftScroll, starUp, upgradeRarity, reforgeAttrs, salvageItem, salvageAllBelow, salvageWeak,

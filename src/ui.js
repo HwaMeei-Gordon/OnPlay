@@ -217,13 +217,15 @@
   // 陣型：點格子選要站此格的出戰英雄
   function openFormModal(lane, col) {
     const occ = Sy().formationLayout().find((sl) => sl.lane === lane && sl.col === col);
-    let html = `<div class="modal-title">陣型位置</div><div class="empty" style="padding:4px 10px">選擇要站此格的出戰英雄</div>`;
+    let html = `<div class="modal-title">陣型位置</div><div class="empty" style="padding:4px 10px">選擇要站此格的出戰單位</div>`;
     html += `<div class="row-btns" style="flex-wrap:wrap;justify-content:center">`;
     St().party.forEach((id) => {
-      html += `<button class="act-btn" data-act="form-set" data-id="${id}" data-lane="${lane}" data-col="${col}">${heroPortrait(id, 22)} ${D().HERO_BY_ID[id].name}</button>`;
+      html += `<button class="act-btn" data-act="form-set" data-kind="hero" data-id="${id}" data-lane="${lane}" data-col="${col}">${heroPortrait(id, 22)} ${D().HERO_BY_ID[id].name}</button>`;
     });
+    const ap = St().activePet;
+    if (ap && St().pets[ap]) html += `<button class="act-btn" data-act="form-set" data-kind="pet" data-id="${ap}" data-lane="${lane}" data-col="${col}">${petPortrait(D().PET_BY_ID[ap], 22)} ${D().PET_BY_ID[ap].name}</button>`;
     html += `</div>`;
-    if (occ) html += `<div class="row-btns" style="justify-content:center;margin-top:8px"><button class="mini-btn danger" data-act="form-clear" data-id="${occ.heroId}">清空此格</button></div>`;
+    if (occ) html += `<div class="row-btns" style="justify-content:center;margin-top:8px"><button class="mini-btn danger" data-act="form-clear" data-kind="${occ.kind}" data-id="${occ.id}">清空此格</button></div>`;
     html += `<div class="row-btns" style="justify-content:center"><button class="act-btn" data-act="modal-close">取消</button></div>`;
     openModal(html);
   }
@@ -238,15 +240,16 @@
     });
     for (let i = s.party.length; i < D().PARTY_MAX; i++) pb += `<div class="pb-slot empty">+</div>`;
     let html = `<div class="party-bar">${pb}</div>`;
-    // 陣型（3×3：前排靠右、上中下行）
+    // 陣型（3×3：前排靠右、上中下行；含出戰寵物）
     const layout = Sy().formationLayout();
     const occ = {};
-    layout.forEach((sl) => { occ[sl.lane + "," + sl.col] = sl.heroId; });
+    layout.forEach((sl) => { occ[sl.lane + "," + sl.col] = sl; });
     html += `<div class="sec-title">陣型　<span style="font-size:11px;color:#9a90b5">前排靠右（先擋傷）・上中下行</span></div><div class="form-grid">`;
     for (let lane = 0; lane < 3; lane++) {
       [2, 1, 0].forEach((col) => {
-        const id = occ[lane + "," + col];
-        html += `<div class="form-cell ${id ? "" : "empty"}" data-act="form-cell" data-lane="${lane}" data-col="${col}">${id ? heroPortrait(id, 30) : "<span class='fc-plus'>＋</span>"}</div>`;
+        const sl = occ[lane + "," + col];
+        const portrait = sl ? (sl.kind === "pet" ? petPortrait(D().PET_BY_ID[sl.id], 30) : heroPortrait(sl.id, 30)) : "<span class='fc-plus'>＋</span>";
+        html += `<div class="form-cell ${sl ? "" : "empty"} ${sl && sl.kind === "pet" ? "pet" : ""}" data-act="form-cell" data-lane="${lane}" data-col="${col}">${portrait}</div>`;
       });
     }
     html += `</div>`;
@@ -866,8 +869,8 @@
       case "hero-back": heroDetail = null; break;
       case "hero-party": Sy().toggleParty(id); Game.Engine.onPartyChanged(); break;
       case "form-cell": openFormModal(+t.dataset.lane, +t.dataset.col); rerender = false; break;
-      case "form-set": Sy().setHeroPos(id, +t.dataset.lane, +t.dataset.col); Game.Engine.onPartyChanged(); closeModal(); break;
-      case "form-clear": Sy().clearHeroPos(id); Game.Engine.onPartyChanged(); closeModal(); break;
+      case "form-set": { if (t.dataset.kind === "pet") Sy().setPetPos(id, +t.dataset.lane, +t.dataset.col); else Sy().setHeroPos(id, +t.dataset.lane, +t.dataset.col); Game.Engine.onPartyChanged(); closeModal(); break; }
+      case "form-clear": { if (t.dataset.kind === "pet") Sy().clearPetPos(id); else Sy().clearHeroPos(id); Game.Engine.onPartyChanged(); closeModal(); break; }
       case "hero-level": Sy().levelUpHero(id, 1); break;
       case "hero-level10": Sy().levelUpHero(id, 10); break;
       case "hero-auto": Sy().autoEquipBest(id); break;
@@ -921,7 +924,7 @@
         break;
       }
       case "pet-up": Sy().upgradePet(id); break;
-      case "pet-active": Sy().setActivePet(id); break;
+      case "pet-active": Sy().setActivePet(id); Game.Engine.onPartyChanged(); break;
       case "train-buy": Sy().buyTraining(id); break;
       case "talent-buy": Sy().buyTalent(id); break;
       case "prestige-node": Sy().buyPrestigeNode(id); break;
