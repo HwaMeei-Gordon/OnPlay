@@ -357,27 +357,18 @@
       </div>`;
     }
 
-    // 具名套裝（顯示 2/4/6 進度；未達階段灰階）
-    const setCounts = {};
-    D().EQUIPMENT_SLOTS.forEach((sl) => {
-      const it = Sy().itemByUid(hs.equip[sl.id]);
-      if (it && it.setId) setCounts[it.setId] = (setCounts[it.setId] || 0) + 1;
-    });
-    const ownedSetIds = Object.keys(setCounts);
-    if (ownedSetIds.length) {
+    // 具名套裝（只顯示已啟用的層級）
+    const namedSets = Sy().heroNamedSets(id);
+    if (namedSets.length) {
       html += `<div class="sec-title">具名套裝</div>`;
-      ownedSetIds.forEach((sid) => {
-        const sdef = D().SET_BY_ID[sid];
-        if (!sdef) return;
-        const pc = setCounts[sid];
-        html += `<div style="font-size:12px;font-weight:bold;margin:6px 0 3px;color:${sdef.color}">${sdef.name} <span style="color:#8a8fa0">${pc}/6</span></div>`;
-        sdef.bonuses.forEach((b) => {
-          const on = pc >= b.pieces;
-          html += `<div class="set-row ${on ? "on" : ""}" style="--rc:${sdef.color}">
+      namedSets.forEach((ns) => {
+        html += `<div style="font-size:12px;font-weight:bold;margin:6px 0 3px;color:${ns.color}">${ns.name} <span style="color:#8a8fa0">${ns.pieces}/6</span></div>`;
+        ns.stages.forEach((b) => {
+          html += `<div class="set-row on" style="--rc:${ns.color}">
             <span class="set-dot"></span>
             <span class="set-name">${b.pieces} 件</span>
             <span class="set-eff">${b.text}</span>
-            <span class="set-tag">${on ? "啟動" : "未達"}</span>
+            <span class="set-tag">啟動</span>
           </div>`;
         });
       });
@@ -919,14 +910,38 @@
         </div>
       </div>`;
   }
-  function renderHbMonsterPage(r, theme) {
-    const tile = (spr) => `<div class="hero-card">${Game.Icons.spriteHtml(spr, 42)}</div>`;
-    const small = Game.Sprites.smallForRegion(r).map(tile).join("");
-    const boss = Game.Sprites.bossForRegion(r).map(tile).join("");
-    return `<div class="sec-title">${theme.name}　怪物</div>
-      <div class="hb-sub">小怪</div><div class="hero-grid">${small}</div>
-      <div class="hb-sub">首領</div><div class="hero-grid">${boss}</div>
-      <div class="hb-prose"><p><b>精英</b>（粉紅光環）較肉、<b>寶箱</b>（金色）容易掉裝、<b>變異/遠程</b>更棘手；越深的區域，怪物越強。</p></div>`;
+  function renderHbMonsterPage(def) {
+    const d = D();
+    const spr = Game.Sprites.byKey(def.sprite);
+    const theme = d.THEMES[def.region] ? d.THEMES[def.region].name : "";
+    const tl = (k) => { const t = d.monsterTierLabel(def.tiers[k]); return `<b style="color:${t.color}">${t.name}</b>`; };
+    const specialTxt = def.special === "split" ? `死亡分裂成 ${def.splitCount} 隻${d.MONSTER_BY_ID[def.splitInto] ? d.MONSTER_BY_ID[def.splitInto].name : "小怪"}`
+      : def.special === "summon" ? `戰鬥中召喚 ${def.summonCount} 隻${d.MONSTER_BY_ID[def.summonId] ? d.MONSTER_BY_ID[def.summonId].name : "小怪"}`
+      : def.special === "enrage" ? "低血時進入狂暴（攻擊/移速提升、受傷增加）"
+      : def.special === "shield" ? "戰鬥中不時張開護盾（短時大幅減傷）" : "";
+    const skillTxt = (def.skills || []).map((id) => d.ENEMY_SKILLS[id] ? d.ENEMY_SKILLS[id].name : id).join("、") || "—";
+    return `<div class="sec-title">${def.name}</div>
+      <div class="hb-fx-card">
+        <div style="flex:0 0 auto">${Game.Icons.spriteHtml(spr, 56)}</div>
+        <div class="hb-fx-info">
+          <div class="hb-fx-name">${def.name}</div>
+          <div class="hb-fx-dur">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
+        </div>
+      </div>
+      <div class="hb-sub">數值（相對強弱）</div>
+      <div class="stat-box">
+        ${statLine("生命", tl("hp"))}${statLine("防禦", tl("def"))}${statLine("攻擊", tl("atk"))}
+        ${statLine("命中", tl("hit"))}${statLine("閃避", tl("dodge"))}${statLine("爆傷", tl("critDmg"))}
+      </div>
+      <div class="hb-sub">明確數值</div>
+      <div class="stat-box">
+        ${statLine("爆擊率", Math.round((def.crit || 0) * 100) + "%")}
+        ${statLine("攻擊距離", def.range + " 格")}
+        ${statLine("攻擊速度", (def.atkInterval * D().ATK_INTERVAL_MUL).toFixed(2) + "s")}
+        ${statLine("移動速度", def.moveMul.toFixed(2) + "×")}
+      </div>
+      <div class="hb-sub">技能</div><div class="hb-prose"><p>${skillTxt}</p></div>
+      ${specialTxt ? `<div class="hb-sub">特殊</div><div class="hb-prose"><p>${specialTxt}</p></div>` : ""}`;
   }
   function renderHbEquipPage() {
     const cells = D().EQUIPMENT_SLOTS.map((sl) =>
@@ -949,7 +964,8 @@
     const d = D(), pages = [], add = (section, body) => pages.push({ section, body });
     ["玩法", "戰鬥", "養成", "圖鑑導覽"].forEach((s) => add("intro", renderHbIntro(s)));
     Object.keys(d.FX).forEach((k) => add("status", renderHbStatusPage(k)));
-    d.THEMES.forEach((th, r) => add("monster", renderHbMonsterPage(r, th)));
+    d.MONSTERS.slice().sort((a, b) => a.region - b.region || (a.kind === "boss" ? 1 : 0) - (b.kind === "boss" ? 1 : 0))
+      .forEach((m) => add("monster", renderHbMonsterPage(m)));
     add("equip", renderHbEquipPage());
     d.THEMES.forEach((th, r) => { const ids = d.SETS_BY_REGION[r]; if (ids && ids.length) add("set", renderHbSetPage(r, th, ids)); });
     return pages;

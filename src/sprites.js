@@ -105,6 +105,29 @@
   const B_WRAITH = ["...77777....","..7777777...",".77q777q7...",".7777777....",".7777777....",".87777778...",".7777777....","..7.7.7.....",".7.....7...."];
   const GENERIC_BOSS = [B_OGRE, B_GOLEM, B_WRAITH];
 
+  // ===== 各區在地化小怪（名冊用，逐區獨特、避免重複）=====
+  const M_BEE = ["..k..k..", ".wkyykw.", ".wkKKkw.", "wwkyykww", ".kKyyKk.", ".kyKKyk.", "..kkk..."];          // 草原 野蜂
+  const M_MANEATER = ["..rrrr..", ".rqqqqr.", ".rqWWqr.", ".rqqqqr.", "..rGGr..", "...GG...", "..GGGG.."]; // 森林 食人花
+  const M_SANDWORM = ["...nn...", "..nuun..", "..nKKn..", "..nuun..", ".nnuunn.", "nnuuuunn", "n.nuun.n"]; // 沙漠 沙蟲
+  const M_ICEWISP = ["...i....", "..iIi...", ".iIWIi..", ".iIIIi..", ".iIWIi..", "..iIi...", "...i...."];   // 雪地 冰靈
+  const M_MAGMA = ["..ffff..", ".fqRqf..", ".fRYRf..", "ffRRRff.", "fqRYRqf.", ".fRRRf..", "..fqf..."];     // 熔岩 熔岩獸
+  const M_OCTO = ["..cccc..", ".cCWWCc.", ".cCccCc.", ".cccccc.", ".c.c.c.c", "c.c.c.c.", ".c...c.."];     // 深海 章魚
+  const M_CLOUDLET = ["..wwww..", ".wwwwww.", "wwTwwTww", "wwwwwwww", ".wwwwww.", "..w..w..", ".w....w."];  // 天空 雲精
+  const M_GARGOYLE = ["5.5..5.5", "55q55q55", ".555555.", "5.5555.5", "55.55.55", ".5.55.5.", "..5..5.."]; // 遺跡 石像鬼
+  const M_DARKBAT = ["v......v", "vv.vv.vv", "vV2qq2Vv", "vv2222vv", ".v2222v.", "..vVVv..", "...vv..."];   // 魔王城 暗影蝠
+  const M_WRAITHLING = ["..788...", ".78887..", ".7qWq7..", ".788887.", ".788887.", "..7887..", ".7.7.7.."]; // 深層 怨靈
+  const MONSTER_SPRITES = {
+    bee: M_BEE, maneater: M_MANEATER, sandworm: M_SANDWORM, icewisp: M_ICEWISP, magma: M_MAGMA,
+    octo: M_OCTO, cloudlet: M_CLOUDLET, gargoyle: M_GARGOYLE, darkbat: M_DARKBAT, wraithling: M_WRAITHLING,
+  };
+  const SPRITE_GROUPS = { themedSmall: THEMED_SMALL, genericSmall: GENERIC_SMALL, themedBoss: THEMED_BOSS, genericBoss: GENERIC_BOSS };
+  // 以字串 key 取精靈陣列："group:index"（既有圖）或命名鍵（新圖）
+  function byKey(key) {
+    if (!key) return null;
+    if (key.indexOf(":") >= 0) { const p = key.split(":"); const arr = SPRITE_GROUPS[p[0]]; return arr ? arr[+p[1]] : null; }
+    return MONSTER_SPRITES[key] || null;
+  }
+
   function smallForRegion(r) {
     return [THEMED_SMALL[r], GENERIC_SMALL[r % GENERIC_SMALL.length], GENERIC_SMALL[(r + 2) % GENERIC_SMALL.length]];
   }
@@ -117,6 +140,7 @@
     pets: PETS,
     smallForRegion,
     bossForRegion,
-    THEMED_SMALL, THEMED_BOSS, GENERIC_SMALL, GENERIC_BOSS,
+    byKey,
+    THEMED_SMALL, THEMED_BOSS, GENERIC_SMALL, GENERIC_BOSS, MONSTER_SPRITES,
   };
 })();
