@@ -14,6 +14,10 @@
   let current = "heroes";
   let heroDetail = null; // 選中的英雄 id
   let bagFilter = "all"; // 背包部位篩選
+  let bagTab = "gear";   // 背包分頁：gear 裝備 / mat 素材
+  let craftTab = "scroll"; // 合成分頁：scroll 升星卷軸 / set 套裝合成
+  let setSel = null;     // 套裝合成：選中的套裝 id
+  let setSlot = "weapon"; // 套裝合成：選中的部位
   let craftSel = 1;      // 合成目標卷軸 index（1..9）
   let craftPlaced = 0;   // 五芒星已放入的卷軸數（0..5）
   let craftBatch = 1;    // 批次合成：要產出的目標卷軸張數
@@ -406,8 +410,37 @@
   }
   function statLine(k, v) { return `<div class="sl"><span>${k}</span><b>${v}</b></div>`; }
 
-  // ---- 背包（格子收納）----
+  // ---- 背包（裝備 / 素材 兩個分頁，皆不限格）----
   function renderBag() {
+    const tabs = `<div class="seg-toggle">
+      <button class="seg ${bagTab === "gear" ? "on" : ""}" data-act="bag-tab" data-v="gear">裝備</button>
+      <button class="seg ${bagTab === "mat" ? "on" : ""}" data-act="bag-tab" data-v="mat">素材</button>
+    </div>`;
+    return tabs + (bagTab === "mat" ? renderBagMaterials() : renderBagGear());
+  }
+  // ---- 素材背包：依區分組、堆疊顯示（上限 999），長按看名稱 ----
+  function renderBagMaterials() {
+    const d = D(), mats = St().materials || {};
+    const owned = d.MATERIALS.filter((m) => (mats[m.id] || 0) > 0);
+    let html = `<div class="sec-title">素材　${owned.length} 種</div>`;
+    if (!owned.length) return html + `<div class="empty">還沒有素材，去打怪掉素材吧！</div>`;
+    for (let r = 0; r < 10; r++) {
+      const list = (d.MATERIALS_BY_REGION[r] || []).filter((m) => (mats[m.id] || 0) > 0);
+      if (!list.length) continue;
+      const rn = d.THEMES[r] ? d.THEMES[r].name : "區" + r;
+      html += `<div class="mat-region">${rn}</div><div class="mat-grid">`;
+      list.forEach((m) => {
+        const rc = d.RARITY_BY_ID[m.rarity];
+        const icoHtml = m.tint ? Game.Icons.tinted(m.icon, m.tint, 34) : Game.Icons.html(m.icon, 34);
+        const style = rc ? ` style="border-color:${rc.color}"` : "";
+        html += `<div class="mat-cell"${style} data-name="${m.name}" title="${m.name}">${icoHtml}<span class="mat-count">${mats[m.id]}</span></div>`;
+      });
+      html += `</div>`;
+    }
+    return html;
+  }
+  // ---- 裝備背包（格子收納）----
+  function renderBagGear() {
     const s = St();
     let html = `<div class="sec-title">背包　${s.inventory.length} 件</div>`;
     // 整理工具
@@ -546,6 +579,56 @@
   // ---- 卷軸合成（五芒星）----
   // 目標卷軸 index = craftSel（1..9）；五個支點各放 1 張「來源卷軸」(index craftSel-1)，5 張 → 1 張目標
   function renderCraft() {
+    const tabs = `<div class="seg-toggle">
+      <button class="seg ${craftTab === "scroll" ? "on" : ""}" data-act="craft-tab" data-v="scroll">升星卷軸</button>
+      <button class="seg ${craftTab === "set" ? "on" : ""}" data-act="craft-tab" data-v="set">套裝合成</button>
+    </div>`;
+    return tabs + (craftTab === "set" ? renderSetCraft() : renderCraftScroll());
+  }
+  // 套裝合成：選套裝 → 選部位 → 顯示配方素材(need/have) → 合成（產出稀有度隨機 普通~稀有）
+  function renderSetCraft() {
+    const d = D(), mats = St().materials || {};
+    // 依區列出所有套裝（區1-9）
+    let sets = [];
+    for (let r = 1; r < 10; r++) (d.SETS_BY_REGION[r] || []).forEach((id) => sets.push(d.SET_BY_ID[id]));
+    if (!sets.length) return `<div class="empty">目前沒有可合成的套裝。</div>`;
+    if (!setSel || !d.SET_BY_ID[setSel]) setSel = sets[0].id;
+    const set = d.SET_BY_ID[setSel];
+    let html = `<div class="sec-title">套裝合成<span style="font-size:11px;color:#9a90b5"> （產出稀有度隨機 普通~稀有）</span></div>`;
+    // 套裝選單
+    html += `<div class="setcraft-list">`;
+    sets.forEach((s) => {
+      const rn = d.THEMES[s.region] ? d.THEMES[s.region].name : "";
+      html += `<button class="setcraft-item ${s.id === setSel ? "on" : ""}" data-act="set-select" data-id="${s.id}">
+        <b style="color:${s.color}">${s.name}</b><span class="sci-sub">${rn}・${s.main}</span></button>`;
+    });
+    html += `</div>`;
+    // 部位選擇
+    html += `<div class="filter-chips">`;
+    d.EQUIPMENT_SLOTS.forEach((sl) => {
+      html += `<button class="chip ${setSlot === sl.id ? "on" : ""}" data-act="set-slot" data-slot="${sl.id}">${ico(sl.id, 14)}</button>`;
+    });
+    html += `</div>`;
+    // 配方
+    const recipe = d.setRecipe(setSel, setSlot);
+    const slotName = d.SLOT_BY_ID[setSlot].name;
+    html += `<div class="sec-title">${set.name}・${slotName} 配方</div><div class="recipe-list">`;
+    let enough = true;
+    for (const mid in (recipe ? recipe.materials : {})) {
+      const m = d.MATERIAL_BY_ID[mid]; if (!m) continue;
+      const need = recipe.materials[mid], have = mats[mid] || 0, ok = have >= need;
+      if (!ok) enough = false;
+      const icoHtml = m.tint ? Game.Icons.tinted(m.icon, m.tint, 30) : Game.Icons.html(m.icon, 30);
+      html += `<div class="recipe-row${m.bossOnly ? " boss" : ""}"><span class="rr-ic">${icoHtml}</span>
+        <span class="rr-name">${m.name}${m.bossOnly ? " <span class='rr-boss'>王</span>" : ""}</span>
+        <span class="rr-qty" style="color:${ok ? "var(--text)" : "#e84141"}">${have}/${need}</span></div>`;
+    }
+    html += `</div>`;
+    html += `<div class="row-btns" style="justify-content:center;margin-top:8px">
+      <button class="primary-btn ${enough ? "" : "dim"}" ${enough ? "" : "disabled"} data-act="setcraft-do">合成 ${set.name}・${slotName}</button></div>`;
+    return html;
+  }
+  function renderCraftScroll() {
     const d = D(), sc = St().scrolls || {};
     const need = d.CRAFT_RATIO;                 // 5
     if (craftSel < 1) craftSel = 1;
@@ -679,9 +762,10 @@
     });
     // 卷軸 / 道具 / 每日
     const groups = [
+      { t: "鑽石（測試）", f: (s) => /^buy_gems_/.test(s.id) },
       { t: "卷軸", f: (s) => s.give.scroll !== undefined },
       { t: "道具", f: (s) => s.give.guardian },
-      { t: "每日特惠", f: (s) => s.daily },
+      { t: "每日特惠", f: (s) => s.daily && !/^buy_gems_/.test(s.id) },
     ];
     groups.forEach((grp) => {
       const list = D().SHOP.filter(grp.f);
@@ -1099,7 +1183,7 @@
       tip.style.top = (r.top - 6) + "px";
     };
     const start = (e) => {
-      const cell = e.target.closest(".hb-drop[data-name]"); if (!cell) return;
+      const cell = e.target.closest(".hb-drop[data-name], .mat-cell[data-name]"); if (!cell) return;
       const pt = e.touches ? e.touches[0] : e;
       clear(); timer = setTimeout(() => { show(cell, pt.clientX); }, 420);
     };
@@ -1140,6 +1224,16 @@
       case "bag-enhance": Sy().enhanceItem(uid); break;
       case "bag-salvage": Sy().salvageItem(uid); break;
       case "bag-filter": bagFilter = t.dataset.f; break;
+      case "bag-tab": bagTab = t.dataset.v; break;
+      case "craft-tab": craftTab = t.dataset.v; break;
+      case "set-select": setSel = id; break;
+      case "set-slot": setSlot = slot; break;
+      case "setcraft-do": {
+        const r = Sy().craftSetPiece(setSel, setSlot);
+        if (r.ok) toast("合成成功！獲得 " + rarName(r.rarity) + D().SLOT_BY_ID[setSlot].name);
+        else toast(r.msg || "合成失敗");
+        break;
+      }
       case "salvage-below": { const r = Sy().salvageAllBelow(t.dataset.rarity); toast(`分解 ${r.count} 件，獲得金幣 ${fmt(r.gold)}`); break; }
       case "salvage-weak": { const r = Sy().salvageWeak(); toast(r.count ? `分解 ${r.count} 件多餘裝備，獲得金幣 ${fmt(r.gold)}` : "沒有可清理的多餘裝備"); break; }
       case "auto-equip-party": { St().party.forEach((h) => Sy().autoEquipBest(h)); toast("全隊已換上最強裝備"); break; }

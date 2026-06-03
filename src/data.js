@@ -851,6 +851,31 @@
     b_lord: ["m_void_crystal", "m_chaos_shard", "m_blood_pearl", "m_lord_crown"],
   };
 
+  // 可被掉落取得的素材（用於套裝配方只挑「拿得到」的素材）
+  const DROPPABLE_MATERIALS = new Set();
+  Object.keys(MONSTER_DROPS).forEach((mid) => MONSTER_DROPS[mid].forEach((id) => DROPPABLE_MATERIALS.add(id)));
+
+  // ---- 套裝合成配方（程序化生成；可被 SET_RECIPE_OVERRIDE 手動覆寫）----
+  // 依該套裝所屬區的「可掉落素材池」，為每部件決定性配出不同材料，且一定含該區王專屬素材。
+  const SET_RECIPE_OVERRIDE = {}; // SET_RECIPE_OVERRIDE[setId][slot] = { materials: { id: qty } }
+  function _hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function setRecipe(setId, slot) {
+    if (SET_RECIPE_OVERRIDE[setId] && SET_RECIPE_OVERRIDE[setId][slot]) return SET_RECIPE_OVERRIDE[setId][slot];
+    const set = SET_BY_ID[setId]; if (!set) return null;
+    const pool = (MATERIALS_BY_REGION[set.region] || []).filter((m) => DROPPABLE_MATERIALS.has(m.id));
+    const boss = pool.find((m) => m.bossOnly);
+    const byR = (rar) => pool.filter((m) => !m.bossOnly && m.rarity === rar);
+    const commons = byR("common"), uncommons = byR("uncommon"), rares = byR("rare");
+    const h = _hashStr(setId + "|" + slot);
+    const pick = (arr, shift) => (arr.length ? arr[(h >>> shift) % arr.length] : null);
+    const mats = {};
+    const c = pick(commons, 0); if (c) mats[c.id] = 8 + (h % 7);             // common 8..14（量多）
+    const u = pick(uncommons, 7); if (u) mats[u.id] = 4 + ((h >>> 4) % 5);    // uncommon 4..8
+    if (rares.length && ((h >>> 11) % 2 === 0)) { const ra = pick(rares, 13); if (ra) mats[ra.id] = 2 + ((h >>> 9) % 3); } // 部分部位需 rare 2..4
+    if (boss) mats[boss.id] = 1 + ((h >>> 17) % 3);                            // 該區王專屬 1..3（必需）
+    return { materials: mats };
+  }
+
   // ---- 掉寶率參數（全可調）----
   // 裝備/卷軸只從怪物掉落、一次 1 張。傳說/神話永不掉落（只能升稀有度取得）。
   const DROP = {
@@ -864,6 +889,11 @@
     dropTable: { common: 40, uncommon: 10, rare: 5, scroll0: 30, scroll1: 10, scroll2: 5 },
     // 寶箱怪：100% 掉裝、不掉卷（無傳說/神話）
     chestTable: { common: 50, uncommon: 35, rare: 10, epic: 5 },
+    // ── 素材掉落（隱藏、不公開）：依素材稀有度的每隻獨立掉率，越稀越難 ──
+    materialRate: { common: 0.5, uncommon: 0.25, rare: 0.1, epic: 0.03, legendary: 0.012, mythic: 0.004 },
+    bossMatBonus: 1.6,       // 王/精英的素材掉率加成倍率
+    chestMatRolls: 4,        // 寶箱怪多擲幾輪素材
+    scrollDropChance: 0.08,  // 每殺一隻掉 1 張卷軸(tier0-2)的機率
   };
 
   // ---- 精英怪：出現比率由 0 關起指數成長，900 關封頂固定 33% ----
@@ -1032,6 +1062,11 @@
     // 每日特惠
     { id: "daily_gold", name: "每日金幣包", icon: "coin", cur: "gems", cost: 10, give: { gold: 2000 }, daily: true, limit: 3 },
     { id: "daily_gem", name: "每日鑽石（看廣告免費）", icon: "gem", cur: "gold", cost: 0, give: { gems: 15 }, daily: true, limit: 2 },
+    // 鑽石包（測試用，售價 NT$0／免費）
+    { id: "buy_gems_1k", name: "鑽石包 1K", icon: "gem", cur: "gems", cost: 0, give: { gems: 1000 }, desc: "測試用免費鑽石包（NT$0）" },
+    { id: "buy_gems_10k", name: "鑽石包 10K", icon: "gem", cur: "gems", cost: 0, give: { gems: 10000 }, desc: "測試用免費鑽石包（NT$0）" },
+    { id: "buy_gems_100k", name: "鑽石包 100K", icon: "gem", cur: "gems", cost: 0, give: { gems: 100000 }, desc: "測試用免費鑽石包（NT$0）" },
+    { id: "buy_gems_1m", name: "鑽石包 1M", icon: "gem", cur: "gems", cost: 0, give: { gems: 1000000 }, desc: "測試用免費鑽石包（NT$0）" },
   ];
 
   // ---- 成就 ----
@@ -1151,7 +1186,7 @@
     ENHANCE_MAX, EVADE_K, evadeChance,
     EQUIPMENT_SLOTS, SLOT_BY_ID, itemStatValue, itemMainStat, itemSubStat, itemTierForStage, enhanceCost, salvageValue,
     SUB_BASE, SETS, SET_BY_ID, SETS_BY_REGION, DROP, ELITE, eliteRatio,
-    MATERIALS, MATERIAL_BY_ID, MATERIALS_BY_REGION, MONSTER_DROPS,
+    MATERIALS, MATERIAL_BY_ID, MATERIALS_BY_REGION, MONSTER_DROPS, DROPPABLE_MATERIALS, setRecipe, SET_RECIPE_OVERRIDE,
     STAGE_BOX, stageBoxGold, commonGearCost, COMMON_GEAR_COST, GODDESS_GUARD_COST,
     HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,
     HERO_SKILLS, TRAININGS, TALENTS, PRESTIGE,
