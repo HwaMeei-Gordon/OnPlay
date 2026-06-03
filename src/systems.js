@@ -38,6 +38,7 @@
       stats: { totalKills: 0, bossKills: 0, boxesOpened: 0, prestiges: 0 },
       shop: { date: todayStr(), bought: {} },
       scrolls: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
+      materials: {},
       guardians: 0,
       useGuardian: false,
       goldPerSec: 0, gemPerSec: 0,
@@ -256,19 +257,39 @@
       State.stats.bossKills++;
       State.daily.counters.bossToday++;
     }
-    // 裝備/卷軸只從怪物掉落（101 關後）；一次 1 件，傳說/神話不掉
+    // 怪物只掉「素材」（依各怪 MONSTER_DROPS、隱藏掉率）；裝備改由套裝合成/商店取得
+    return grantMaterialDrops(enemy);
+  }
+
+  // 加素材（堆疊上限 999）
+  function addMaterial(id, n) {
+    State.materials = State.materials || {};
+    State.materials[id] = Math.min(999, (State.materials[id] || 0) + (n || 1));
+  }
+  // 依該怪 MONSTER_DROPS 掉素材：每素材依稀有度獨立擲隱藏掉率；bossOnly 只在王掉；另低機率掉卷軸
+  function grantMaterialDrops(enemy) {
     const d = D();
-    const stage = State.stage;
-    if (d.regionOf(stage) < d.DROP.minRegion) return null;
-    if (enemy.isChest) {
-      // 寶箱怪：100% 掉落，全裝備
-      return grantDrop(d.DROP.chestTable, stage, true);
+    const ids = d.MONSTER_DROPS[enemy.monsterId];
+    const got = [];
+    if (ids && ids.length) {
+      const rates = d.DROP.materialRate;
+      const mul = (enemy.isBoss || enemy.isElite) ? d.DROP.bossMatBonus : 1;
+      const rolls = enemy.isChest ? d.DROP.chestMatRolls : 1;
+      for (let k = 0; k < rolls; k++) {
+        for (let i = 0; i < ids.length; i++) {
+          const mat = d.MATERIAL_BY_ID[ids[i]]; if (!mat) continue;
+          if (mat.bossOnly && !enemy.isBoss) continue;
+          const rate = mat.bossOnly ? 0.6 : Math.min(1, (rates[mat.rarity] || 0.3) * mul);
+          if (Math.random() < rate) { addMaterial(ids[i], 1); got.push(ids[i]); }
+        }
+      }
     }
-    const rate = enemy.isBoss ? d.DROP.bossRate : enemy.isElite ? d.DROP.eliteRate : d.DROP.normalRate;
-    if (Math.random() < rate) {
-      return grantDrop(d.DROP.dropTable, stage, false);
+    if (Math.random() < d.DROP.scrollDropChance) {
+      const t = Math.random() < 0.7 ? 0 : Math.random() < 0.66 ? 1 : 2;
+      State.scrolls[t] = (State.scrolls[t] || 0) + 1;
+      got.push("scroll" + t);
     }
-    return null;
+    return got.length ? { materials: got } : null;
   }
 
   // 依掉落權重表給予：卷軸（scrollN）→scrolls[N]++（回傳 {scroll:true,tier:N}）；裝備→push 並回傳物件
@@ -487,6 +508,28 @@
     const slot = d.EQUIPMENT_SLOTS[Math.floor(Math.random() * d.EQUIPMENT_SLOTS.length)].id;
     const tier = d.itemTierForStage(stage) + (isChest ? d.DROP.chestTierBonus : 0);
     return makeItem(slot, rarity, tier, setId);
+  }
+  // 套裝合成：生成指定 套裝×部位×稀有度 的具名裝
+  function rollGearForSet(setId, slot, rarity) {
+    const d = D();
+    if (!d.SET_BY_ID[setId] || !d.SLOT_BY_ID[slot]) return null;
+    return makeItem(slot, rarity, d.itemTierForStage(State.stage), setId);
+  }
+  // 套裝合成：消耗素材 → 產出 1 件（稀有度隨機 普通~稀有）
+  function craftSetPiece(setId, slot) {
+    const d = D();
+    const recipe = d.setRecipe(setId, slot);
+    if (!recipe || !recipe.materials) return { ok: false, msg: "無此配方" };
+    State.materials = State.materials || {};
+    for (const mid in recipe.materials) {
+      if ((State.materials[mid] || 0) < recipe.materials[mid]) return { ok: false, msg: "素材不足" };
+    }
+    for (const mid in recipe.materials) State.materials[mid] -= recipe.materials[mid];
+    const rarity = ["common", "uncommon", "rare"][Math.floor(Math.random() * 3)];
+    const item = rollGearForSet(setId, slot, rarity);
+    if (!item) return { ok: false, msg: "生成失敗" };
+    State.inventory.push(item);
+    return { ok: true, item, rarity };
   }
   // 商店：購買普通（不具名）裝備
   function buyCommonGear(slot) {
@@ -843,6 +886,7 @@
     addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
     ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, setPetPos, clearPetPos, formationLayout, petStats,
     rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
+    addMaterial, grantMaterialDrops, rollGearForSet, craftSetPiece,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,
     enhanceItem, craftScroll, starUp, upgradeRarity, reforgeAttrs, salvageItem, salvageAllBelow, salvageWeak,
     trainingCost, buyTraining, buyTalent, prestigeNodeCost, buyPrestigeNode,
