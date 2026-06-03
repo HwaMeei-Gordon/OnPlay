@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '【對話日誌】最新進度（docs/對話日誌/進度日誌.md，越新越上面）：\\n'; head -n 80 docs/對話日誌/進度日誌.md 2>/dev/null"
+          }
+        ]
+      }
+    ]
+  }
+}
