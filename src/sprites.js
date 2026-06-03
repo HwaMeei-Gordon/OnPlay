@@ -69,7 +69,7 @@
   };
 
   // ===== 小怪（themed 10 + 通用 4）=====
-  const SLIME = ["....SGGS....","..SGGGGGGS..",".GGGGGGGGGG.",".GGGGGGGGGG.",".GWWGGGGWWG.",".GWeGGGGWeG.","GGGGGGGGGGGG","9GGGGGGGGGG9","9GGGGGGGGGG9",".99DDDDDD99."];
+  const SLIME = ["....SGGS....","..SGGGGGGS..",".SGGGGGGGGG.",".GGGGGGGGGG.","GGGGGGGGGGGG","GGWWGGGGWWGG","GGWKGGGGWKGG","GGGGGGGGGGGG","GGGGGGGGGGGG","DGGGGGGGGGGD",".DD999999DD."];
   const SPIDER = ["1.1......1.1",".11......11.","..PP2222PP..",".2222222222.",".2q2222q22..",".2211112222.","..22222222..",".11......11.","1.1......1.1"];
   const SCORPION = [".........NN.",".u......NNn.","un.unnnnnN..",".unnnnnnnN..","unnnnnnnnn..",".unnnnnn....","nn.nnnn.nn..",".n......n..."];
   const SNOWMAN = ["....ii......","...iWWi.....","..iieeii....","..iillii....","..iiiiii....","...iIIi.....","..iiiiii....",".iiiieiii...",".iIiiiiiI...",".iiiieiii...","..iIiiii...."];
@@ -88,7 +88,7 @@
   const GENERIC_SMALL = [BAT, GHOST, RAT, WISP];
 
   // ===== 魔王（themed 10 + 通用 3）=====
-  const B_SLIME = ["....................",".....yy.yy.yy.......",".....yyyyyyyy.......","....GGGGGGGGGG......","...GGGGGGGGGGGG.....","..GGGGGGGGGGGGGG....",".GGGGGGGGGGGGGGGG...",".GGWWGGGGGGGGWWGG...",".GGWWGGGGGGGGWWGG...",".GGeeGGGGGGGGeeGG...","GGGGGGGGGGGGGGGGGG..","GGGGGGGGGGGGGGGGGG..","GGGGGGGGGGGGGGGGGG..",".DDDDDDDDDDDDDDDD...","..DDDDDDDDDDDDDD...."];
+  const B_SLIME = [".....yy.yy.yy.....","....yYYyYYyYY.....","...SSGGGGGGSS.....","..SGGGGGGGGGGS....",".SGGGGGGGGGGGGS...",".GGGGGGGGGGGGGG...","GGGGGGGGGGGGGGGG..","GGWWGGGGGGGGWWGG..","GGWKGGGGGGGGWKGG..","GGGGGGGGGGGGGGGG..","GGGGGGGGGGGGGGGG..","GGGGGGGGGGGGGGGG..","DGGGGGGGGGGGGGGD..",".DD99999999999D...","..DDDDDDDDDDDD...."];
   const B_SPIDER = ["1...1......1...1....",".1..1......1..1.....","..PP2222222PP.......",".222222222222.......","22q2222222q22.......",".2221111112222......","..222222222222......","...2222222222.......","1...1......1...1....",".1..1......1..1....."];
   const B_SCORPION = ["..............NN....","N...........uNNN....","NN..unnnnnu..NN.....",".unnnnnnnnnnnN......","unnnnnnnnnnnnn......",".unnnnnnnnnnn.......",".nnnnnnnnnnn........","nn..nnnnn..nn.......",".n...n.n...n........"];
   const B_ICE = ["....IIIIII........","...IIIIIIII.......","..IIiiiiiiII......","..Iieiiieiii......","..Iiiiiiiii.......","...Iiiiiii........","..IIIIIIIIII......",".IIiiiiiiiiII.....",".Iiiiiiiiiiii.....",".Iiiiiiiiiiii.....",".IIiiiiiiiiII.....","..III....III......",".III......III....."];
@@ -106,7 +106,11 @@
   const GENERIC_BOSS = [B_OGRE, B_GOLEM, B_WRAITH];
 
   // ===== 各區在地化小怪（名冊用，逐區獨特、避免重複）=====
-  const M_BEE = ["..k..k..", ".wkyykw.", ".wkKKkw.", "wwkyykww", ".kKyyKk.", ".kyKKyk.", "..kkk..."];          // 草原 野蜂
+  const M_BEE = ["..w.....w...",".www...www..","..wW...Ww...","..yyKyKyy...",".yKyyyyyKy..",".yyKyyyKyy..","..yyKyKyy...","...yyyyy....","....KK......"]; // 草原 野蜂
+  const M_RABBIT = [".h......h...",".hh....hh...",".hjh..hjh...",".hHh..hHh...","..hHHHHh....","..HHHHHH....",".HHWKHWKH...",".HHHHHHHH...","..HHjHHH....","..hHHHHh....","..hh..hh...."]; // 草原 野兔
+  const M_MUSHROOM = ["...rrrr.....","..rqqqqr....",".rqWqqWqr...",".rqqqqqqr...","rqqWqqqWqr..","rqqqqqqqqr..",".rrrrrrrr...","..aaaaaa....","..aKaaKa....","..aaaaaa....","...a..a....."]; // 草原 蘑菇怪
+  const M_FLOWERSP = ["...j.j.....","..jJjJj....",".jJYWYJj...",".jJWYWJj...",".jJYYYJj...","..jJjJj....","...GDG.....","..GGDGG....","..oGDGo....","...GDG.....","..D...D...."]; // 草原 花精靈
+  const M_GRASSWOLF = ["6..........6","66........66","6D6......6D6",".6DDDDDDDD6.",".DDDDDDDDDD.","DDWKDDDDKWDD","DDDDDDDDDDDD",".DDDhhhhDDD.",".DDhWWWWhDD.","..9hhhhhh9..","...K....K..."]; // 草原 草狼
   const M_MANEATER = ["..rrrr..", ".rqqqqr.", ".rqWWqr.", ".rqqqqr.", "..rGGr..", "...GG...", "..GGGG.."]; // 森林 食人花
   const M_SANDWORM = ["...nn...", "..nuun..", "..nKKn..", "..nuun..", ".nnuunn.", "nnuuuunn", "n.nuun.n"]; // 沙漠 沙蟲
   const M_ICEWISP = ["...i....", "..iIi...", ".iIWIi..", ".iIIIi..", ".iIWIi..", "..iIi...", "...i...."];   // 雪地 冰靈
@@ -119,6 +123,7 @@
   const MONSTER_SPRITES = {
     bee: M_BEE, maneater: M_MANEATER, sandworm: M_SANDWORM, icewisp: M_ICEWISP, magma: M_MAGMA,
     octo: M_OCTO, cloudlet: M_CLOUDLET, gargoyle: M_GARGOYLE, darkbat: M_DARKBAT, wraithling: M_WRAITHLING,
+    rabbit: M_RABBIT, mushroom: M_MUSHROOM, flowersp: M_FLOWERSP, grasswolf: M_GRASSWOLF,
   };
   const SPRITE_GROUPS = { themedSmall: THEMED_SMALL, genericSmall: GENERIC_SMALL, themedBoss: THEMED_BOSS, genericBoss: GENERIC_BOSS };
   // 以字串 key 取精靈陣列："group:index"（既有圖）或命名鍵（新圖）
