@@ -500,8 +500,15 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-drop-grid { display: grid; grid-template-columns: repeat(3, 42px); grid-auto-rows: 42px; gap: 6px; }
 .hb-drop { width: 42px; height: 42px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 5px; background: #1a1626; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .hb-drop.empty { background: #14101e; opacity: .55; cursor: default; }
-.hb-drop .ico { width: 32px; height: 32px; display: block; image-rendering: pixelated; }
+.hb-drop .ico { display: block; image-rendering: pixelated; }
 .hb-drop-ph { width: 32px; height: 32px; display: block; }
+/* 卷軸圖示＋中央「數字＋星」徽章 */
+.scroll-ic { position: relative; display: inline-block; line-height: 0; }
+.scroll-ic > .ico { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.scroll-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 1px; line-height: 1; pointer-events: none; }
+.scroll-badge b { color: #1a1228; font-weight: 800; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 1px #fff; }
+.scroll-badge .ico { image-rendering: pixelated; }
+.ct-name .scroll-ic { vertical-align: middle; margin-right: 5px; }
 /* 長按提示泡泡 */
 #drop-tip { position: fixed; z-index: 999; background: #2a2440; color: #fff; font-size: 11px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 #drop-tip.hidden { display: none; }

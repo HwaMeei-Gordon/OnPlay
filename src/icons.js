@@ -63,6 +63,14 @@
     weapons: ["................","................",".......ww.HHM...","..bB...wa..gHM..","..BbH..wa..aHM..","....MH.Ba..aHHM.",".....MHwa..a.HM.","......Mwa..a.HM.","......Mwa..a.HM.",".....gYYYg.a.HM.",".......MHH.a.HM.",".......MHMHaHHM.",".......MH.gaHM..",".......YY..gHM..","..........HHM...","................"],
   };
 
+  // 卷軸分色變體：4-6 星藍色調、7-9 星紫色調、10 星紅色調（整體換調）
+  (function () {
+    const recolor = (map) => I.scroll.map((row) => row.replace(/[mMw]/g, (ch) => map[ch] || ch));
+    I.scroll_b = recolor({ m: "B", M: "d", w: "b" }); // 藍
+    I.scroll_p = recolor({ m: "P", M: "u", w: "p" }); // 紫
+    I.scroll_r = recolor({ m: "R", M: "x", w: "r" }); // 紅
+  })();
+
   // 別名（多個用途共用一個圖示）
   const ALIAS = {
     atk: "sword", weapon: "weapons", might: "sword", slash: "sword", p_atk: "sword", killAch: "sword",
