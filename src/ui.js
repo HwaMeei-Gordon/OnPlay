@@ -583,50 +583,44 @@
       <button class="seg ${craftTab === "scroll" ? "on" : ""}" data-act="craft-tab" data-v="scroll">升星卷軸</button>
       <button class="seg ${craftTab === "set" ? "on" : ""}" data-act="craft-tab" data-v="set">套裝合成</button>
     </div>`;
-    return tabs + (craftTab === "set" ? renderSetCraft() : renderCraftScroll());
+    const body = craftTab === "set" ? renderSetCraft() : renderCraftScroll();
+    return `<div class="craft-page">${tabs}<div class="craft-body">${body}</div></div>`;
   }
-  // 套裝合成：選套裝 → 選部位 → 顯示配方素材(need/have) → 合成（產出稀有度隨機 普通~稀有）
+  // 套裝合成：左側可滾清單選套裝、右側選部位＋素材＋合成鈕（整頁鎖高、只有左側清單滾）
   function renderSetCraft() {
     const d = D(), mats = St().materials || {};
-    // 依區列出所有套裝（區1-9）
     let sets = [];
     for (let r = 1; r < 10; r++) (d.SETS_BY_REGION[r] || []).forEach((id) => sets.push(d.SET_BY_ID[id]));
     if (!sets.length) return `<div class="empty">目前沒有可合成的套裝。</div>`;
     if (!setSel || !d.SET_BY_ID[setSel]) setSel = sets[0].id;
     const set = d.SET_BY_ID[setSel];
-    let html = `<div class="sec-title">套裝合成<span style="font-size:11px;color:#9a90b5"> （產出稀有度隨機 普通~稀有）</span></div>`;
-    // 套裝選單
-    html += `<div class="setcraft-list">`;
+    // 左側：可滾的套裝清單（唯一可滾區）
+    let side = `<div class="setcraft-side"><div class="cs-title">套裝（產出 普通~稀有）</div><div class="setcraft-scroll">`;
     sets.forEach((s) => {
       const rn = d.THEMES[s.region] ? d.THEMES[s.region].name : "";
-      html += `<button class="setcraft-item ${s.id === setSel ? "on" : ""}" data-act="set-select" data-id="${s.id}">
-        <b style="color:${s.color}">${s.name}</b><span class="sci-sub">${rn}・${s.main}</span></button>`;
+      side += `<div class="craft-target ${s.id === setSel ? "on" : ""}" data-act="set-select" data-id="${s.id}">
+        <span class="ct-name" style="color:${s.color}">${s.name}</span><span class="ct-sub">${rn}・${s.main}</span></div>`;
     });
-    html += `</div>`;
-    // 部位選擇
-    html += `<div class="filter-chips">`;
+    side += `</div></div>`;
+    // 右側：部位 + 配方 + 合成鈕（固定、不滾）
+    const recipe = d.setRecipe(setSel, setSlot), slotName = d.SLOT_BY_ID[setSlot].name;
+    let main = `<div class="setcraft-main"><div class="filter-chips">`;
     d.EQUIPMENT_SLOTS.forEach((sl) => {
-      html += `<button class="chip ${setSlot === sl.id ? "on" : ""}" data-act="set-slot" data-slot="${sl.id}">${ico(sl.id, 14)}</button>`;
+      main += `<button class="chip ${setSlot === sl.id ? "on" : ""}" data-act="set-slot" data-slot="${sl.id}">${ico(sl.id, 14)}</button>`;
     });
-    html += `</div>`;
-    // 配方
-    const recipe = d.setRecipe(setSel, setSlot);
-    const slotName = d.SLOT_BY_ID[setSlot].name;
-    html += `<div class="sec-title">${set.name}・${slotName} 配方</div><div class="recipe-list">`;
+    main += `</div><div class="sc-recipe-title"><b style="color:${set.color}">${set.name}</b>・${slotName} 配方</div><div class="recipe-list">`;
     let enough = true;
     for (const mid in (recipe ? recipe.materials : {})) {
       const m = d.MATERIAL_BY_ID[mid]; if (!m) continue;
       const need = recipe.materials[mid], have = mats[mid] || 0, ok = have >= need;
       if (!ok) enough = false;
-      const icoHtml = m.tint ? Game.Icons.tinted(m.icon, m.tint, 30) : Game.Icons.html(m.icon, 30);
-      html += `<div class="recipe-row${m.bossOnly ? " boss" : ""}"><span class="rr-ic">${icoHtml}</span>
+      const icoHtml = m.tint ? Game.Icons.tinted(m.icon, m.tint, 28) : Game.Icons.html(m.icon, 28);
+      main += `<div class="recipe-row${m.bossOnly ? " boss" : ""}"><span class="rr-ic">${icoHtml}</span>
         <span class="rr-name">${m.name}${m.bossOnly ? " <span class='rr-boss'>王</span>" : ""}</span>
         <span class="rr-qty" style="color:${ok ? "var(--text)" : "#e84141"}">${have}/${need}</span></div>`;
     }
-    html += `</div>`;
-    html += `<div class="row-btns" style="justify-content:center;margin-top:8px">
-      <button class="primary-btn ${enough ? "" : "dim"}" ${enough ? "" : "disabled"} data-act="setcraft-do">合成 ${set.name}・${slotName}</button></div>`;
-    return html;
+    main += `</div><button class="primary-btn sc-craft ${enough ? "" : "dim"}" ${enough ? "" : "disabled"} data-act="setcraft-do">合成（${slotName}）</button></div>`;
+    return `<div class="setcraft-wrap">${side}${main}</div>`;
   }
   function renderCraftScroll() {
     const d = D(), sc = St().scrolls || {};
