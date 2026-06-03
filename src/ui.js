@@ -863,9 +863,10 @@
 
   // ============ 事件處理 ============
   // ============ 說明書／圖鑑 ============
-  const FXNAME = { stun: "暈眩", freeze: "冰凍", burn: "燃燒", paralyze: "麻痺", weak: "虛弱", berserk: "狂暴" };
+  const FXNAME = { stun: "暈眩", freeze: "冰凍", burn: "燃燒", paralyze: "麻痺", weak: "虛弱", berserk: "狂暴", seal: "封印" };
   function fxDescLines(key) {
     const f = D().FX[key], L = [];
+    if (f.blockSkill) L.push("無法施放技能");
     if (f.blockMove) L.push("無法移動");
     if (f.blockAct) L.push("無法攻擊");
     if (f.noDodge) L.push("無法閃避");
@@ -881,6 +882,7 @@
     if (f.moveMul != null) pm(f.moveMul, "移動速度");
     if (f.defMul != null) pm(f.defMul, "防禦力");
     if (key === "freeze") L.push("可重置效果秒數");
+    if (f.onExpire) L.push("結束後進入" + (FXNAME[f.onExpire] || f.onExpire));
     return L;
   }
   function renderHbIntro(sub) {
@@ -918,20 +920,22 @@
       </div>`;
   }
   // 狀態名稱上色（粗體）
-  const FXCOLOR = { freeze: "#7ad7ff", burn: "#ff5a3a", berserk: "#ff4d4d", weak: "#c46bff", stun: "#ffe45a", paralyze: "#fff04a" };
+  const FXCOLOR = { freeze: "#7ad7ff", burn: "#ff5a3a", berserk: "#ff4d4d", weak: "#c46bff", stun: "#ffe45a", paralyze: "#fff04a", seal: "#ff2a3a" };
   function fxColorName(k) { return `<b style="color:${FXCOLOR[k] || "#fff"}">${FXNAME[k] || k}</b>`; }
-  const FXTEXT_KEY = { "冰凍": "freeze", "燃燒": "burn", "狂暴": "berserk", "虛弱": "weak", "暈眩": "stun", "麻痺": "paralyze" };
+  const FXTEXT_KEY = { "冰凍": "freeze", "燃燒": "burn", "狂暴": "berserk", "虛弱": "weak", "暈眩": "stun", "麻痺": "paralyze", "封印": "seal" };
   // 把任意文字中的狀態名稱上色粗體＋真實傷害白色粗體（英雄/敵人技能說明共用）
   function colorFx(text) {
     if (!text) return text;
     return String(text)
       .replace(/真實傷害/g, '<b style="color:#ffffff">真實傷害</b>')
-      .replace(/(冰凍|燃燒|狂暴|虛弱|暈眩|麻痺)/g, (m) => `<b style="color:${FXCOLOR[FXTEXT_KEY[m]]}">${m}</b>`);
+      .replace(/(冰凍|燃燒|狂暴|虛弱|暈眩|麻痺|封印)/g, (m) => `<b style="color:${FXCOLOR[FXTEXT_KEY[m]]}">${m}</b>`);
   }
   // 敵人技能說明（由 ENEMY_SKILLS 欄位推導；附加狀態以顏色標示）
   function enemySkillDesc(id) {
     const s = D().ENEMY_SKILLS[id]; if (!s) return "";
     if (id === "heal") return `回復自身 ${Math.round(s.pct * 100)}% 生命`;
+    if (s.aoe) return `對全體地面英雄造成 攻擊×${s.mult} 傷害`;
+    if (s.blink) return `瞬移到最後排英雄旁`;
     let t = (s.range >= 2 ? "遠程" : "近戰") + "重擊（攻擊×" + s.mult + "）";
     if (s.applies) t += "，使目標" + fxColorName(s.applies);
     return t;
@@ -954,8 +958,12 @@
       const note = cd != null ? `<span class="hb-cd">冷卻 ${cd}s</span>` : (once ? `<span class="hb-cd">僅觸發一次</span>` : "");
       return `<div class="hb-skill"><b class="${strong ? "hb-sk-strong" : ""}">${name}</b>${tag}${note}<div class="hb-skill-d">${desc}</div></div>`;
     };
+    const AIMTXT = { lowHp: "生命最低", far: "最遠", back: "最後排" };
     const rows = [];
     (def.skills || []).forEach((id) => { const s = d.ENEMY_SKILLS[id]; if (s) rows.push(row(s.name, "主動", s.cd, enemySkillDesc(id))); });
+    if (def.aim) rows.push(row("鎖定", "被動", null, `優先攻擊${AIMTXT[def.aim] || ""}的目標`));
+    if (def.onHit) rows.push(row("附帶", "被動", null, `攻擊命中附帶${fxColorName(def.onHit)}`));
+    if (def.lifesteal) rows.push(row("吸血", "被動", null, `造成傷害時回復其 ${Math.round(def.lifesteal * 100)}%`));
     // 特殊＝強力技能（名稱紅字、更高規格）
     if (def.special === "split") rows.push(row("分裂", "被動", null, `死亡時分裂成 ${def.splitCount} 隻${mname(def.splitInto)}`, true, true));
     else if (def.special === "summon") rows.push(row("召喚", "主動", 9, `召喚 ${def.summonCount} 隻${mname(def.summonId)}`, false, true));
@@ -963,11 +971,20 @@
     else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷", false, true));
     while (rows.length < 4) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 4 格、不足補空
     const skills = rows.slice(0, 4).join("");
+    // 衍生標籤：飛行/召喚/鎖定/控制
+    const ctrl = (def.skills || []).some((id) => d.ENEMY_SKILLS[id] && ["stun", "freeze", "paralyze"].indexOf(d.ENEMY_SKILLS[id].applies) >= 0)
+      || ["stun", "freeze", "paralyze"].indexOf(def.onHit) >= 0;
+    const tags = [];
+    if (def.fly) tags.push(`<span class="hb-mtag" style="color:#7ad7ff">飛行</span>`);
+    if (def.child) tags.push(`<span class="hb-mtag" style="color:#c79bff">召喚</span>`);
+    if (def.aim) tags.push(`<span class="hb-mtag" style="color:#ffd23f">鎖定</span>`);
+    if (ctrl) tags.push(`<span class="hb-mtag" style="color:#ff5a5a">控制</span>`);
     return `<div class="hb-mon2">
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
           <div class="hb-mon-name">${def.name}</div>
-          <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}${def.fly ? "・飛行類" : ""}</div>
+          <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
+          ${tags.length ? `<div class="hb-mon-tags">${tags.join("")}</div>` : ""}
         </div>
         <div class="hb-mon-grid">${stats}</div>
       </div>

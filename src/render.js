@@ -144,6 +144,14 @@
     }
     // 暈眩：頭上 3 顆黃色星星繞圈 ⭐
     if (fx.stun > 0) { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.094, sx = Math.round(cx + Math.cos(a) * 5), sy = Math.round(topY - 4 + Math.sin(a) * 2 + yoff); ctx.fillStyle = "#ffe45a"; ctx.fillRect(sx, sy, 1, 1); ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); } }
+    // 封印：身上紅色 ❌ 叉叉
+    if (fx.seal > 0) {
+      const cy = midY, r = Math.max(w, h) / 2;
+      ctx.strokeStyle = "#ff2a3a"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
   }
   // 說明書預覽：把效果套在範例精靈上畫到指定 ctx（用後還原模組 ctx，戰鬥不受影響）
   function drawSpriteFx(targetCtx, sprite, fxKey, clk, opts) {

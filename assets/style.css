@@ -487,3 +487,7 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-tag.act { background: #3a2a5a; color: #c9a8ff; }
 .hb-tag.pas { background: #243a26; color: #9fd0a0; }
 .hb-cd { font-size: 10px; color: var(--muted); margin-left: 6px; }
+
+/* 怪物標籤行（飛行/召喚/鎖定/控制；不斷字、獨立一行） */
+.hb-mon-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 3px; }
+.hb-mtag { font-size: 10px; font-weight: bold; white-space: nowrap; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
