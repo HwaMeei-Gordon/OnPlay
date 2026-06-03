@@ -986,14 +986,15 @@
     // 攻擊偏好（每隻都顯示）
     const prefTxt = AIMTXT[def.aim] || "最近";
     // 掉落物（2×3 共 6 格）。內容為暫時佔位：1/2/3 星卷軸（不放裝備），之後再調整。
-    const dropTiers = [0, 1, 2]; // 卷軸星階 index（0=1星…）；長按顯示名稱
+    // 不顯示數字；空格放同尺寸透明佔位，確保每格大小一致。長按顯示名稱。
+    const dropTiers = [0, 1, 2]; // 卷軸星階 index（0=1星…）
     const dropCells = [];
     for (let i = 0; i < 6; i++) {
       if (i < dropTiers.length) {
-        const ti = dropTiers[i], nm = d.scrollTierName(ti);
-        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 32)}<span class="hb-drop-star">${ti + 1}</span></div>`);
+        const nm = d.scrollTierName(dropTiers[i]);
+        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 32)}</div>`);
       } else {
-        dropCells.push(`<div class="hb-drop empty"></div>`);
+        dropCells.push(`<div class="hb-drop empty"><span class="hb-drop-ph"></span></div>`);
       }
     }
     return `<div class="hb-mon2">
