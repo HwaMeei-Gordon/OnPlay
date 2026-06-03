@@ -492,5 +492,3 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-mon-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 3px; }
 .hb-mtag { font-size: 10px; font-weight: bold; white-space: nowrap; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
 .hb-mon-pref { font-size: 10px; color: var(--muted); margin-top: 4px; }
-.hb-mon-trait { font-size: 10px; color: var(--muted); line-height: 1.35; margin: 1px 0; }
-.hb-mon-trait b { margin-right: 4px; }
