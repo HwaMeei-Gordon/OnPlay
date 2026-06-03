@@ -970,14 +970,17 @@
     else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷", false, true));
     while (rows.length < 4) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 4 格、不足補空
     const skills = rows.slice(0, 4).join("");
-    // 標籤：戰鬥特性（飛行/隱身/吸引/潛入）＋ 召喚（能召喚者）
+    // 標籤：戰鬥特性。召喚＝被召喚出來的單位(child)；王必有魔王；無任何特性→普通
     const tags = [];
     if (def.fly) tags.push(`<span class="hb-mtag" style="color:#7ad7ff">飛行</span>`);
     if (def.stealth) tags.push(`<span class="hb-mtag" style="color:#9fb0c8">隱身</span>`);
     if (def.taunt) tags.push(`<span class="hb-mtag" style="color:#ff8c42">吸引</span>`);
     if (def.burrow) tags.push(`<span class="hb-mtag" style="color:#c8a06a">潛入</span>`);
-    if (def.special === "summon" || def.special === "split") tags.push(`<span class="hb-mtag" style="color:#c79bff">召喚</span>`);
-    const tags2 = tags.slice(0, 2); // 特性最多 2 顆
+    if (def.revive) tags.push(`<span class="hb-mtag" style="color:#5ec46b">復活</span>`);
+    if (def.child) tags.push(`<span class="hb-mtag" style="color:#c79bff">召喚</span>`);
+    if (def.kind === "boss") tags.push(`<span class="hb-mtag" style="color:#e0457a">魔王</span>`); // 王皆有魔王特性
+    else if (!tags.length) tags.push(`<span class="hb-mtag" style="color:#9aa3b2">普通</span>`); // 無特性→普通
+    const tags2 = tags.slice(0, 2); // 特性最多 2 顆（王＝魔王＋1）
     // 攻擊偏好（每隻都顯示）
     const prefTxt = AIMTXT[def.aim] || "最近";
     return `<div class="hb-mon2">
