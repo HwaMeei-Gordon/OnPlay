@@ -127,19 +127,19 @@
     { id: "b_slime", name: "史萊姆王", region: 0, sprite: "themedBoss:0", kind: "boss", tiers: { hp: 5, def: 2, atk: 3, hit: 2, dodge: 1, critDmg: 3 }, crit: 0.05, range: 1, atkInterval: 1.5, moveMul: 0.6, skills: ["aoe", "stunbolt", "flame"], special: "split", splitInto: "slime_small", splitCount: 3 },
     // 區1 森林
     { id: "spider", name: "狼蛛", region: 1, sprite: "themedSmall:1", kind: "small", tiers: { hp: 1, def: 1, atk: 2, hit: 2, dodge: 2, critDmg: 2 }, crit: 0.06, range: 1, atkInterval: 1.0, moveMul: 1.1, skills: ["shock"], special: null },
-    { id: "maneater", name: "食人花", region: 1, sprite: "maneater", kind: "small", tiers: { hp: 3, def: 2, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.03, range: 1, atkInterval: 1.4, moveMul: 0.5, lifesteal: 0.15, skills: ["curse"], special: null },
+    { id: "maneater", name: "食人花", region: 1, sprite: "maneater", kind: "small", tiers: { hp: 3, def: 2, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.03, range: 1, atkInterval: 1.4, moveMul: 0.5, lifesteal: 0.15, taunt: true, skills: ["curse"], special: null },
     { id: "b_spider", name: "巨蛛女王", region: 1, sprite: "themedBoss:1", kind: "boss", tiers: { hp: 5, def: 2, atk: 3, hit: 3, dodge: 2, critDmg: 2 }, crit: 0.06, range: 2, atkInterval: 1.4, moveMul: 0.8, skills: ["stunbolt", "shock", "aoe"], special: "summon", summonId: "spider", summonCount: 2 },
     // 區2 沙漠
     { id: "scorpion", name: "沙蠍", region: 2, sprite: "themedSmall:2", kind: "small", tiers: { hp: 1, def: 3, atk: 2, hit: 2, dodge: 1, critDmg: 3 }, crit: 0.1, range: 1, atkInterval: 1.0, moveMul: 1.0, aim: "lowHp", skills: [], special: null },
-    { id: "sandworm", name: "沙蟲", region: 2, sprite: "sandworm", kind: "small", tiers: { hp: 4, def: 1, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.02, range: 1, atkInterval: 1.3, moveMul: 0.6, skills: [], special: null },
-    { id: "b_scorpion", name: "蠍王", region: 2, sprite: "themedBoss:2", kind: "boss", tiers: { hp: 5, def: 4, atk: 3, hit: 2, dodge: 1, critDmg: 4 }, crit: 0.12, range: 1, atkInterval: 1.4, moveMul: 0.7, skills: ["emberbolt", "curse", "aoe"], special: "enrage" },
+    { id: "sandworm", name: "沙蟲", region: 2, sprite: "sandworm", kind: "small", tiers: { hp: 4, def: 1, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.02, range: 1, atkInterval: 1.3, moveMul: 0.6, burrow: true, skills: [], special: null },
+    { id: "b_scorpion", name: "蠍王", region: 2, sprite: "themedBoss:2", kind: "boss", tiers: { hp: 5, def: 4, atk: 3, hit: 2, dodge: 1, critDmg: 4 }, crit: 0.12, range: 1, atkInterval: 1.4, moveMul: 0.7, burrow: true, skills: ["emberbolt", "curse", "aoe"], special: "enrage" },
     // 區3 雪地
     { id: "snowman", name: "雪人", region: 3, sprite: "themedSmall:3", kind: "small", tiers: { hp: 3, def: 2, atk: 1, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.02, range: 1, atkInterval: 1.3, moveMul: 0.7, skills: ["icebolt"], special: "shield" },
-    { id: "icewisp", name: "冰靈", region: 3, sprite: "icewisp", kind: "small", fly: true, tiers: { hp: 0, def: 0, atk: 2, hit: 3, dodge: 4, critDmg: 2 }, crit: 0.06, range: 3, atkInterval: 1.1, moveMul: 1.0, skills: ["icebolt"], special: null },
+    { id: "icewisp", name: "冰靈", region: 3, sprite: "icewisp", kind: "small", fly: true, tiers: { hp: 0, def: 0, atk: 2, hit: 3, dodge: 4, critDmg: 2 }, crit: 0.06, range: 3, atkInterval: 1.1, moveMul: 1.0, aim: "far", skills: ["icebolt"], special: null },
     { id: "b_ice", name: "冰霜領主", region: 3, sprite: "themedBoss:3", kind: "boss", tiers: { hp: 5, def: 3, atk: 3, hit: 2, dodge: 1, critDmg: 3 }, crit: 0.06, range: 4, atkInterval: 1.5, moveMul: 0.7, skills: ["icebolt", "stunbolt", "aoe"], special: "shield" },
     // 區4 熔岩山
     { id: "fire", name: "火靈", region: 4, sprite: "themedSmall:4", kind: "small", tiers: { hp: 1, def: 0, atk: 3, hit: 2, dodge: 2, critDmg: 3 }, crit: 0.08, range: 2, atkInterval: 0.9, moveMul: 1.2, onHit: "burn", skills: ["emberbolt"], special: null },
-    { id: "magma", name: "熔岩獸", region: 4, sprite: "magma", kind: "small", tiers: { hp: 4, def: 3, atk: 3, hit: 1, dodge: 0, critDmg: 2 }, crit: 0.04, range: 1, atkInterval: 1.3, moveMul: 0.6, skills: ["flame"], special: "enrage" },
+    { id: "magma", name: "熔岩獸", region: 4, sprite: "magma", kind: "small", tiers: { hp: 4, def: 3, atk: 3, hit: 1, dodge: 0, critDmg: 2 }, crit: 0.04, range: 1, atkInterval: 1.3, moveMul: 0.6, taunt: true, skills: ["flame"], special: "enrage" },
     { id: "b_flame", name: "烈焰魔", region: 4, sprite: "themedBoss:4", kind: "boss", tiers: { hp: 5, def: 3, atk: 4, hit: 2, dodge: 1, critDmg: 4 }, crit: 0.08, range: 5, atkInterval: 1.5, moveMul: 0.65, skills: ["flame", "emberbolt", "aoe"], special: "enrage" },
     // 區5 深海
     { id: "jelly", name: "水母", region: 5, sprite: "themedSmall:5", kind: "small", tiers: { hp: 2, def: 1, atk: 1, hit: 2, dodge: 3, critDmg: 2 }, crit: 0.05, range: 2, atkInterval: 1.1, moveMul: 0.9, skills: ["shock"], special: null },
@@ -151,15 +151,15 @@
     { id: "b_harpy", name: "鷹身女妖", region: 6, sprite: "themedBoss:6", kind: "boss", fly: true, tiers: { hp: 5, def: 2, atk: 4, hit: 4, dodge: 3, critDmg: 3 }, crit: 0.1, range: 3, atkInterval: 1.3, moveMul: 0.9, skills: ["stunbolt", "bolt", "blink"], special: "enrage" },
     // 區7 遺跡
     { id: "skeleton", name: "骷髏兵", region: 7, sprite: "themedSmall:7", kind: "small", tiers: { hp: 2, def: 2, atk: 3, hit: 2, dodge: 1, critDmg: 2 }, crit: 0.06, range: 1, atkInterval: 1.0, moveMul: 1.0, skills: ["bolt"], special: null },
-    { id: "gargoyle", name: "石像鬼", region: 7, sprite: "gargoyle", kind: "small", tiers: { hp: 4, def: 4, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.03, range: 1, atkInterval: 1.3, moveMul: 0.6, skills: [], special: "shield" },
-    { id: "b_colossus", name: "遺跡巨像", region: 7, sprite: "themedBoss:7", kind: "boss", tiers: { hp: 5, def: 5, atk: 4, hit: 2, dodge: 0, critDmg: 3 }, crit: 0.05, range: 1, atkInterval: 1.6, moveMul: 0.55, skills: ["stunbolt", "aoe", "seal"], special: "shield" },
+    { id: "gargoyle", name: "石像鬼", region: 7, sprite: "gargoyle", kind: "small", tiers: { hp: 4, def: 4, atk: 2, hit: 1, dodge: 0, critDmg: 1 }, crit: 0.03, range: 1, atkInterval: 1.3, moveMul: 0.6, taunt: true, skills: [], special: "shield" },
+    { id: "b_colossus", name: "遺跡巨像", region: 7, sprite: "themedBoss:7", kind: "boss", tiers: { hp: 5, def: 5, atk: 4, hit: 2, dodge: 0, critDmg: 3 }, crit: 0.05, range: 1, atkInterval: 1.6, moveMul: 0.55, taunt: true, skills: ["stunbolt", "aoe", "seal"], special: "shield" },
     // 區8 魔王城
     { id: "imp", name: "小惡魔", region: 8, sprite: "themedSmall:8", kind: "small", tiers: { hp: 1, def: 1, atk: 3, hit: 3, dodge: 3, critDmg: 3 }, crit: 0.1, range: 2, atkInterval: 0.9, moveMul: 1.2, aim: "lowHp", skills: ["emberbolt"], special: null },
     { id: "darkbat", name: "暗影蝠", region: 8, sprite: "darkbat", kind: "small", fly: true, tiers: { hp: 1, def: 0, atk: 2, hit: 4, dodge: 5, critDmg: 3 }, crit: 0.12, range: 1, atkInterval: 0.7, moveMul: 1.4, aim: "lowHp", lifesteal: 0.2, skills: ["bolt"], special: null },
     { id: "b_demon", name: "魔王", region: 8, sprite: "themedBoss:8", kind: "boss", tiers: { hp: 6, def: 4, atk: 5, hit: 3, dodge: 2, critDmg: 5 }, crit: 0.1, range: 3, atkInterval: 1.4, moveMul: 0.8, skills: ["seal", "stunbolt", "aoe"], special: "summon", summonId: "imp", summonCount: 2 },
     // 區9 深層
-    { id: "shadow", name: "暗影", region: 9, sprite: "themedSmall:9", kind: "small", tiers: { hp: 2, def: 2, atk: 4, hit: 3, dodge: 3, critDmg: 4 }, crit: 0.12, range: 1, atkInterval: 0.9, moveMul: 1.1, aim: "lowHp", skills: ["curse"], special: null },
-    { id: "wraithling", name: "怨靈", region: 9, sprite: "wraithling", kind: "small", fly: true, tiers: { hp: 2, def: 1, atk: 4, hit: 3, dodge: 4, critDmg: 4 }, crit: 0.12, range: 3, atkInterval: 1.0, moveMul: 1.1, skills: ["bolt", "curse"], special: null },
+    { id: "shadow", name: "暗影", region: 9, sprite: "themedSmall:9", kind: "small", tiers: { hp: 2, def: 2, atk: 4, hit: 3, dodge: 3, critDmg: 4 }, crit: 0.12, range: 1, atkInterval: 0.9, moveMul: 1.1, aim: "lowHp", stealth: true, skills: ["curse"], special: null },
+    { id: "wraithling", name: "怨靈", region: 9, sprite: "wraithling", kind: "small", fly: true, tiers: { hp: 2, def: 1, atk: 4, hit: 3, dodge: 4, critDmg: 4 }, crit: 0.12, range: 3, atkInterval: 1.0, moveMul: 1.1, aim: "far", skills: ["bolt", "curse"], special: null },
     { id: "b_lord", name: "深淵領主", region: 9, sprite: "themedBoss:9", kind: "boss", tiers: { hp: 6, def: 5, atk: 6, hit: 4, dodge: 3, critDmg: 6 }, crit: 0.12, range: 5, atkInterval: 1.4, moveMul: 0.8, skills: ["seal", "icebolt", "aoe"], special: "summon", summonId: "wraithling", summonCount: 3 },
   ];
   const MONSTER_BY_ID = {}; MONSTERS.forEach((m) => (MONSTER_BY_ID[m.id] = m));

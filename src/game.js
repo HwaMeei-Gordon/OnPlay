@@ -79,17 +79,32 @@
     for (const o of list) { const dd = gridDist(l, c, o.glane, o.gcol); if (dd < m) m = dd; }
     return m;
   }
+  // 不可被指定：隱身中（invis）或潛入地下（under）
+  function untargetable(o) { return o.invis || o.burrowState === "under"; }
+  // 隱身：解除隱身並回傳「此攻擊是否為隱身突襲」（必中必爆）
+  function consumeStealth(e) { if (e.invis) { e.invis = false; e.noAtkT = 0; return true; } e.noAtkT = 0; return false; }
+  // 吸引：英雄選目標時，攻擊範圍內的吸引怪優先；否則最近
+  function heroPickTarget(h, list) {
+    let bestT = null, bestD = Infinity;
+    for (const o of list) {
+      if (!o.taunt) continue;
+      const dd = gridDist(h.glane, h.gcol, o.glane, o.gcol);
+      if (dd <= h.range && dd < bestD) { bestD = dd; bestT = o; }
+    }
+    if (bestT) return { target: bestT, dist: bestD };
+    return nearestOpp(h, list);
+  }
   function aliveEnemies() { return battle.enemies.filter((e) => e.air <= 0); }
   function aliveHeroes() { return battle.field.filter((h) => !h.dead && !h.isPet); }
   // ---- 空中層：目標篩選（誰能打到空中）----
   function heroRanged(h) { const c = D().HERO_BY_ID[h.heroId].cls; return c === "法師" || c === "弓手" || c === "牧師"; }
   function heroTargetList(h) {
-    const all = aliveEnemies();
+    const all = aliveEnemies().filter((e) => !untargetable(e)); // 隱身/潛入不可被指定
     if (!heroRanged(h)) return all.filter((e) => !(e.gz > 0)); // 近戰只打地面
     if (D().HERO_BY_ID[h.heroId].cls === "弓手") { const air = all.filter((e) => e.gz > 0); if (air.length) return air; } // 射手絕對優先空中
     return all; // 法師/牧師可打全部
   }
-  function petTargetList() { return aliveEnemies().filter((e) => !(e.gz > 0)); } // 寵物只地面
+  function petTargetList() { return aliveEnemies().filter((e) => !(e.gz > 0) && !untargetable(e)); } // 寵物只地面、不打隱身/潛入
   function unitSettled(u) {
     const d = D();
     return Math.abs(u.x - cellX(u.gcol)) <= d.CELL_ALIGN_EPS && Math.abs(u.laneF - u.glane) <= d.LANE_ALIGN_EPS
@@ -249,8 +264,10 @@
       summonId: def.summonId, summonCount: def.summonCount, splitDepth: opts.depth || 0,
       specT: (def.special === "summon" || def.special === "shield") ? (3 + Math.random() * 4) : 0, enraged: false, shieldT: 0,
       fx: {}, burnTick: 0,
-      fly: !!def.fly, gz: 0, zF: 0, ascCol: null,
+      fly: !!def.fly, gz: def.fly ? 1 : 0, zF: 0, ascCol: null,
       aim: def.aim || null, onHit: def.onHit || null, lifesteal: def.lifesteal || 0,
+      stealth: !!def.stealth, taunt: !!def.taunt, invis: false, noAtkT: 0,
+      burrow: !!def.burrow, burrowState: def.burrow ? "pre" : "done", burrowT: 0,
       x: baseX, targetX: 0, lane: glane, air: 0, vy: 0,
       gcol: gcol, glane: glane, laneF: glane, moveTX: cellX(gcol),
       hitFlash: 0, shake: 0, lunge: 0,
@@ -275,6 +292,7 @@
     e.maxHp = 1e9; e.hp = 1e9; e.dodge = 0; e.atk = 0; e.range = 1;
     e.eskill = null; e.eskillCD = 0; e.eskills = []; e.special = null;
     e.fly = false; e.gz = 0; e.zF = 0;
+    e.stealth = false; e.invis = false; e.burrow = false; e.burrowState = "done";
   }
   function spawnEnemyRoom() {
     if (DEMO) { if (!battle.enemies.length) { spawnEnemy(1); makeDummy(); } return; }
@@ -403,6 +421,7 @@
 
   function damageEnemy(target, dmg, opts) {
     if (!target) return;
+    if (target.burrowState === "under") return; // 潛入地下：完全無敵（含範圍/濺射）
     opts = opts || {};
     dmg = Math.max(1, Math.round(dmg * fxInMul(target))); // 受傷倍率（狂暴/虛弱/麻痺）
     if (target.shieldT > 0) dmg = Math.max(1, Math.round(dmg * 0.4)); // 護盾：減傷 60%
@@ -474,7 +493,7 @@
   function updateHeroSkills(h, dt) {
     if (fxBlockAct(h) || fxBlockSkill(h)) return false; // 暈眩/冰凍/封印：不能放技
     const gy = Game.view.ground, hy = D().laneY(gy, h.lane);
-    const tgt = nearestOpp(h, heroTargetList(h));
+    const tgt = heroPickTarget(h, heroTargetList(h));
     const fe = tgt.target;
     const feInRange = !!fe && tgt.dist <= h.range; // 傷害型技能需在攻擊距離內
     let fired = false;
@@ -542,11 +561,28 @@
   // 旋風/瞬移特效
   function whirlAt(x, lane) { const y = D().laneY(Game.view.ground, lane) - 8; for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283; addParticle("spark", x + Math.cos(a) * 3, y + Math.sin(a) * 2, Math.cos(a) * 80, Math.sin(a) * 50 - 18, 0.42, k % 2 ? "#eaffd0" : "#bfe24a"); } }
   function poofAt(x, lane) { const y = D().laneY(Game.view.ground, lane) - 8; for (let k = 0; k < 9; k++) addParticle("spark", x, y, (Math.random() - 0.5) * 55, -8 - Math.random() * 34, 0.42, k % 2 ? "#d8b8ff" : "#b06ae0"); }
+  function dustAt(x, lane) { const y = D().laneY(Game.view.ground, lane) - 4; for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; addParticle("spark", x, y, Math.cos(a) * 60, -6 - Math.random() * 30, 0.45, k % 2 ? "#d8c098" : "#a8865a"); } }
+  // 潛入鑽出：定位到鎖定目標旁、對出現格十字相鄰格造成一次必中突襲
+  function burrowEmerge(e) {
+    const d = D(), gy = Game.view.ground;
+    e.burrowState = "done"; e.burrowT = 0;
+    const heroes = aliveHeroes();
+    if (heroes.length) {
+      const aimT = pickTarget(e, heroes).target || heroes[0];
+      e.glane = -1; e.gcol = -1; // 先移出格盤，避免 freeCellNear 把自身舊格算成佔用
+      const fc = freeCellNear(aimT.glane, clampCol(aimT.gcol + 1));
+      e.glane = fc.lane; e.gcol = fc.gcol; e.lane = e.glane; e.laneF = e.glane;
+      e.gz = 0; e.ascCol = null; e.x = cellX(e.gcol); e.moveTX = e.x; e._tgt = null;
+    }
+    dustAt(e.x, e.lane); addFloat(e.x, D().laneY(gy, e.lane) - 26, "潛襲", "#c8a06a", true); e.lunge = 6;
+    heroes.forEach((h) => { if (Math.abs(h.glane - e.glane) + Math.abs(h.gcol - e.gcol) <= 1) enemyHitHero(e, h, 1, "#c8a06a", null, { forceHit: true }); });
+  }
   // 敵人對單一英雄結算（閃避/爆擊/傷害/附帶/吸血/反傷/死亡）；旋風與彈共用
-  function enemyHitHero(e, target, mult, color, applies) {
+  function enemyHitHero(e, target, mult, color, applies, opts) {
+    opts = opts || {};
     const gy = Game.view.ground, ty = D().laneY(gy, target.lane);
-    if (!fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) { addFloat(target.x, ty - 24, "閃避", "#9fd0f4"); return; }
-    const isCrit = Math.random() < (e.crit || 0);
+    if (!opts.forceHit && !fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) { addFloat(target.x, ty - 24, "閃避", "#9fd0f4"); return; }
+    const isCrit = opts.forceCrit || Math.random() < (e.crit || 0);
     let dmg = Math.max(1, Math.round(e.atk * mult * fxOutMul(e) * (isCrit ? e.critDmg : 1) - effDefHero(target)));
     dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
     target.hp -= dmg; target.hitFlash = 0.12; target.shake = 0.18;
@@ -578,8 +614,9 @@
       if (sk.aoe) { // 旋風：打全部地面英雄
         const heroes = aliveHeroes();
         if (!heroes.length) continue;
+        const sneak = consumeStealth(e); // 隱身突襲：此擊必中必爆
         addFloat(e.x, ey - 26, sk.name, sk.color, true); whirlAt(e.x, e.lane); e.lunge = 5;
-        heroes.forEach((target) => enemyHitHero(e, target, sk.mult, sk.color, sk.applies));
+        heroes.forEach((target) => enemyHitHero(e, target, sk.mult, sk.color, sk.applies, { forceHit: sneak, forceCrit: sneak }));
         entry.cd = sk.cd; return true;
       }
       if (sk.blink) { // 瞬移到最後排英雄旁
@@ -596,10 +633,11 @@
       const aim = pickTarget(e, aliveHeroes());
       if (!aim.target || aim.dist > (sk.range || 6)) continue; // 無目標在範圍 → 換下一個
       const target = aim.target, ty = D().laneY(gy, target.lane);
+      const sneak = consumeStealth(e); // 隱身突襲：此擊必中必爆
       addFloat(e.x, ey - 26, sk.name, sk.color, true);
       addProjectile(e.x, ey - 14, target.x, ty - 8, sk.color, sk.kind);
       e.lunge = 5;
-      enemyHitHero(e, target, sk.mult, sk.color, sk.applies);
+      enemyHitHero(e, target, sk.mult, sk.color, sk.applies, { forceHit: sneak, forceCrit: sneak });
       entry.cd = sk.cd; return true;
     }
     return false;
@@ -634,6 +672,7 @@
     u.glane = cd.l; u.gcol = cd.c; u.moveTX = cellX(cd.c);
   }
   function decideStep(u, opp, dir, NCOLS, reserved, key) {
+    if (u.burrowState === "under") return; // 潛入地下：不移動
     if (u.pauseT > 0 || fxBlockMove(u) || !unitSettled(u) || !opp.length) return; // 擊殺定格/暈眩/冰凍/麻痺中不移動
     // 黏著目標：除非出現「明顯更近」的目標，否則不換（避免在兩個等距目標間上下擺動）
     let t = u._tgt;
@@ -644,15 +683,8 @@
     u._tgt = t;
     if (!t) return;
     const curD = gridDist(u.glane, u.gcol, t.glane, t.gcol);
-    if (curD <= u.range) return; // 進入攻擊距離 → 停（飛行怪在空中也照常攻擊地面）
-    const z = u.gz || 0;
-    // 飛行·空中：已比起飛欄更靠近目標、且下方地面空 → 降落
-    if (u.fly && z === 1) {
-      const asc = (u.ascCol != null) ? u.ascCol : u.gcol;
-      if (Math.abs(t.gcol - u.gcol) < Math.abs(t.gcol - asc) && !reserved[key(u.glane, u.gcol, 0)]) {
-        reserved[key(u.glane, u.gcol, 0)] = true; u.gz = 0; u.ascCol = null; return;
-      }
-    }
+    if (curD <= u.range) return; // 進入攻擊距離 → 停（飛行怪恆在空中也照常攻擊地面）
+    const z = u.gz || 0; // 飛行怪 gz 恆 1，在空中層移動；不再起飛/降落
     const dCol = t.gcol - u.gcol, dLane = t.glane - u.glane;
     const sCol = dCol > 0 ? 1 : dCol < 0 ? -1 : 0;
     const sLane = dLane > 0 ? 1 : dLane < 0 ? -1 : 0;
@@ -670,8 +702,6 @@
       if (!inb(cd) || reserved[key(cd.l, cd.c, z)]) continue;
       if (gridDist(cd.l, cd.c, t.glane, t.gcol) <= curD + 1 + 1e-6) { commitStep(u, cd, reserved, key); return; }
     }
-    // 被擋且為飛行地面單位 → 起飛到空中同格（第二層空著時）
-    if (u.fly && z === 0 && !reserved[key(u.glane, u.gcol, 1)]) { reserved[key(u.glane, u.gcol, 1)] = true; u.gz = 1; u.ascCol = u.gcol; }
   }
   function gridCombatStep(dt, NCOLS) {
     const heroes = aliveHeroes();
@@ -860,7 +890,7 @@
       const fired = updateHeroSkills(h, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
       h.atkTimer -= dt;
       if (h.atkTimer <= 0 && !fired && !fxBlockAct(h)) { // 本幀沒放技、未被暈眩/冰凍才普攻
-        const aim = nearestOpp(h, heroTargetList(h));
+        const aim = heroPickTarget(h, heroTargetList(h));
         const target = aim.target;
         if (target && aim.dist <= h.range && unitSettled(h)) { // 在攻擊距離內、已就位於格才出手
           const hy = d.laneY(v.ground, h.lane), ty = d.laneY(v.ground, target.lane) - (target.gz ? d.AIR_LIFT : 0);
@@ -900,6 +930,14 @@
       fxTick(e, dt, false); // 狀態計時 + 燃燒（可能致死並 splice）
       if (e.isDummy) return; // 假人不攻擊、不放技
       if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
+      // 潛入：地下期間完全不動作（無敵由 damageEnemy 擋）；5 秒後鑽出突襲
+      if (e.burrowState === "under") { e.burrowT += dt; if (e.burrowT >= 5) burrowEmerge(e); return; }
+      if (e.burrow && e.burrowState === "pre") {
+        e.burrowT += dt;
+        if (e.burrowT >= 1) { e.burrowState = "under"; e.burrowT = 0; dustAt(e.x, e.lane); addFloat(e.x, d.laneY(v.ground, e.lane) - 26, "潛入", "#c8a06a", true); return; }
+      }
+      // 隱身：累計未攻擊時間，達 3 秒進入隱身
+      if (e.stealth) { e.noAtkT += dt; if (e.noAtkT >= 3) e.invis = true; }
       updateEnemySpecials(e, dt); // 召喚/狂暴/護盾
       if (e.hp <= 0 || battle.enemies.indexOf(e) < 0) return;
       const fired = updateEnemySkills(e, dt); // 有技能就優先放（內部已擋暈眩/冰凍）
@@ -910,12 +948,13 @@
       e.atkTimer -= dt;
       if (e.atkTimer <= 0) {
         {
+          const sneak = consumeStealth(e); // 隱身突襲：此擊必中必爆，並解除隱身
           e.lunge = 6;
           const ty = d.laneY(v.ground, target.lane);
-          if (!fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
+          if (!sneak && !fxNoDodge(target) && Math.random() < D().evadeChance(e.hit, target.stats.dodge)) {
             addFloat(target.x, ty - 24, "閃避", "#9fd0f4");
           } else {
-            const isCrit = Math.random() < (e.crit || 0);
+            const isCrit = sneak || Math.random() < (e.crit || 0);
             let dmg = Math.max(1, Math.round(e.atk * fxOutMul(e) * (isCrit ? e.critDmg : 1) - effDefHero(target)));
             dmg = Math.max(1, Math.round(dmg * fxInMul(target)));
             target.hp -= dmg;
