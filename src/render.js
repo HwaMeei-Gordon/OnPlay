@@ -206,19 +206,14 @@
     }
   }
 
-  function lighten(hex, a) {
-    const m = hex.replace("#", "");
-    if (m.length < 6) return hex;
-    let r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
-    r = Math.min(255, r + a); g = Math.min(255, g + a); b = Math.min(255, b + a);
-    return "rgb(" + r + "," + g + "," + b + ")";
+  // 解析 "#rgb" / "#rrggbb" / "rgb(r,g,b)" → [r,g,b]；輸出一律回傳 hex，避免鏈式呼叫解析失敗
+  function parseRGB(s) {
+    if (s[0] === "#") { let m = s.slice(1); if (m.length < 6) m = m.split("").map((c) => c + c).join(""); return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)]; }
+    const mm = s.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return mm ? [+mm[1], +mm[2], +mm[3]] : [0, 0, 0];
   }
-  function lerpColor(a, b, t) {
-    a = a.replace("#", ""); b = b.replace("#", "");
-    const ar = parseInt(a.slice(0, 2), 16), ag = parseInt(a.slice(2, 4), 16), ab = parseInt(a.slice(4, 6), 16);
-    const br = parseInt(b.slice(0, 2), 16), bg = parseInt(b.slice(2, 4), 16), bb = parseInt(b.slice(4, 6), 16);
-    return "rgb(" + Math.round(ar + (br - ar) * t) + "," + Math.round(ag + (bg - ag) * t) + "," + Math.round(ab + (bb - ab) * t) + ")";
-  }
+  function toHex(r, g, b) { const h = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0"); return "#" + h(r) + h(g) + h(b); }
+  function lighten(hex, a) { const c = parseRGB(hex); return toHex(c[0] + a, c[1] + a, c[2] + a); }
+  function lerpColor(a, b, t) { const A = parseRGB(a), B = parseRGB(b); return toHex(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t); }
 
   // 預先建立「與捲動無關」的顏色查表（每主題/尺寸只算一次）→ 繪製時不再逐像素配置字串
   function buildLUT(theme) {
@@ -262,22 +257,108 @@
     }
   }
 
+  // ===== 各區專屬遠景輪廓 / 中景 / 氛圍粒子（道路網格不在此，於 draw() 另畫）=====
+  function triWave(period, x) { const m = ((x % period) + period) % period; return 1 - Math.abs(m / period - 0.5) * 2; }
+  // 填滿單列剪影（ty→bottom）＋頂緣亮邊
+  function fillCol(x, ty, bottom, ramp, RN, rim) {
+    if (x < 0 || x >= Game.view.w) return;
+    ty = Math.round(ty); if (ty >= bottom) return; const hh = bottom - ty;
+    for (let y = ty; y < bottom; y++) { let i = (((y - ty) / hh) * RN) | 0; if (i >= RN) i = RN - 1; ctx.fillStyle = ramp[i]; ctx.fillRect(x, y, 1, 1); }
+    ctx.fillStyle = rim; ctx.fillRect(x, ty, 1, 1);
+  }
+  // 遠景：依 theme.far 畫出該區獨特剪影
+  function drawFar(type, ramp, RN, rim, base, scroll, accent) {
+    const v = Game.view, bottom = base + 12;
+    if (type === "pillars") { // 遺跡：斷裂石柱（縫隙露天）
+      const cw = 6, period = 11, off = Math.round(scroll) % period;
+      for (let bx = -period; bx < v.w + period; bx += period) {
+        const seed = (((bx * 37) % 11) + 11) % 11, x0 = bx - off, top = base - 2 - (seed % 5) * 3;
+        for (let x = x0; x < x0 + cw; x++) { const edge = (x === x0 || x === x0 + cw - 1) ? 2 : 0; fillCol(x, top + edge + (seed % 2), bottom, ramp, RN, rim); }
+      }
+      return;
+    }
+    if (type === "battlements") { // 魔王城：城牆雉堞＋塔樓
+      for (let x = 0; x < v.w; x++) fillCol(x, base - 4 + (((Math.floor((x + scroll) / 4) % 2) + 2) % 2 ? 0 : 3), bottom, ramp, RN, rim);
+      const tp = 72, toff = Math.round(scroll * 0.5) % tp;
+      for (let tx = -tp; tx < v.w + tp; tx += tp) for (let x = tx - toff; x < tx - toff + 10; x++) fillCol(x, base - 15 + (((Math.floor(x / 3) % 2) + 2) % 2 ? 0 : 3), bottom, ramp, RN, rim);
+      return;
+    }
+    if (type === "skycity") { // 天空之城：浮空島＋塔（下方露天）
+      const ip = 80, off = Math.round(scroll * 0.4) % ip;
+      for (let ix = -ip; ix < v.w + ip; ix += ip) {
+        const cx = ix - off, seed = (((ix * 29) % 7) + 7) % 7, top = base - 17 - seed, iw = 24 + seed * 2;
+        for (let x = cx; x < cx + iw; x++) { const e = Math.abs(x - (cx + iw / 2)) / (iw / 2); fillCol(x, top + Math.round(e * e * 6), base - 1 - Math.round((1 - e) * 8), ramp, RN, rim); }
+        for (let x = Math.round(cx + iw / 2) - 2; x < cx + iw / 2 + 2; x++) fillCol(x, top - 7, top + 2, ramp, RN, rim);
+      }
+      return;
+    }
+    for (let x = 0; x < v.w; x++) { // 全幅地形型
+      const t = x + scroll; let ty;
+      switch (type) {
+        case "trees": ty = base - 2 - 4 * (0.5 + 0.5 * Math.sin(t * 0.05)) - 7 * triWave(10, t); break;
+        case "dunes": ty = base - 3 - 6 * (0.5 + 0.5 * Math.sin(t * 0.03)) - 2 * Math.sin(t * 0.013 + 2); break;
+        case "peaks": ty = base - 2 - 16 * triWave(Math.max(40, Math.round(v.w / 2.3)), t); break;
+        case "volcano": { const d0 = Math.abs(((t + v.w * 0.5) % (v.w * 1.5)) - v.w * 0.75); ty = base - Math.max(0, 20 - d0 * 0.5); if (d0 < 2) ty += 3; break; }
+        case "seaweed": ty = base - 3 - 4 * (0.5 + 0.5 * Math.sin(t * 0.06)); break;
+        case "abyss": ty = base - 2 - 13 * Math.abs(Math.sin(t * 0.13 + Math.sin(t * 0.05))); break;
+        case "hills": default: ty = base - 7 * (0.55 + 0.45 * Math.sin(t * 0.045)) - 2 * Math.sin(t * 0.12 + 1.3); break;
+      }
+      fillCol(x, ty, bottom, ramp, RN, rim);
+      if (type === "peaks" && ty < base - 9) { ctx.fillStyle = "#ffffff"; ctx.fillRect(x, Math.round(ty), 1, 2); }
+      if (type === "volcano" && accent && ty <= base - 17) { ctx.fillStyle = accent; ctx.fillRect(x, Math.round(ty), 1, 3); }
+    }
+  }
+  // 中景：海草/浮島留空，其餘畫近景丘陵脊
+  function drawMid(theme, ramp, RN, rim, base, scroll) {
+    const v = Game.view, type = theme.far;
+    if (type === "seaweed") {
+      const sp = 9, off = Math.round(scroll) % sp;
+      for (let bx = -sp; bx < v.w + sp; bx += sp) { const cx = bx - off, seed = (((bx * 23) % 7) + 7) % 7, h = 8 + seed * 2; for (let k = 0; k < h; k++) { const sway = Math.round(Math.sin(k * 0.6 + bx) * 1.5), col = ramp[Math.min(RN - 1, ((k / h) * RN) | 0)]; ctx.fillStyle = col; ctx.fillRect(cx + sway, base + 1 - k, 1, 1); ctx.fillRect(cx + sway + 1, base + 1 - k, 1, 1); } }
+      return;
+    }
+    if (type === "skycity") return;
+    drawHills(ramp, RN, rim, 13, base, 0.07, scroll);
+  }
+  // 氛圍粒子（飄雪/餘燼/氣泡/光塵/落葉/沙塵）
+  function drawAmbience(theme, scroll) {
+    const v = Game.view, g = v.ground, type = theme.far; let col, n = 0, rising = false, lowOnly = false;
+    switch (type) {
+      case "peaks": col = "rgba(255,255,255,0.7)"; n = 46; break;
+      case "volcano": col = "rgba(255,120,40,0.85)"; n = 30; rising = true; break;
+      case "abyss": col = "rgba(255,70,80,0.7)"; n = 30; rising = true; break;
+      case "seaweed": col = "rgba(180,230,255,0.5)"; n = 34; rising = true; break;
+      case "skycity": col = "rgba(255,255,255,0.6)"; n = 28; break;
+      case "trees": col = "rgba(150,200,90,0.5)"; n = 22; break;
+      case "dunes": col = "rgba(220,200,150,0.4)"; n = 18; lowOnly = true; break;
+      default: return;
+    }
+    for (let i = 0; i < n; i++) {
+      const sx = (i * 67) % v.w, sy0 = (i * 91) % g, drift = ((sx - Math.round(scroll * 0.05 + i * 13)) % v.w + v.w) % v.w;
+      let y = lowOnly ? g - 4 - ((i * 91) % 36) : sy0;
+      if (rising) y = g - ((sy0 + Math.round(scroll * 0.6)) % g);
+      ctx.fillStyle = col; ctx.fillRect(Math.round(drift), Math.round(y), 1, 1);
+    }
+  }
+
   // 繪製整個背景到目前的 ctx（呼叫前 ctx 已指向離屏快取）
   function drawBackground(scroll, theme) {
     const v = Game.view, g = v.ground, L = buildLUT(theme);
     // 天空（查表）
     for (let y = 0; y < g; y++) { ctx.fillStyle = L.skyRow[y]; ctx.fillRect(0, y, v.w, 1); }
-    // 雲
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
-    const cl = (scroll * 0.04) % 150;
-    const puffs = [[10, 14], [62, 24], [118, 10], [176, 28], [232, 18], [288, 12]];
-    puffs.forEach((p) => {
-      let x = Math.round(p[0] - cl); while (x < -30) x += 300; const y = p[1];
-      ctx.fillRect(x, y, 16, 3); ctx.fillRect(x + 4, y - 2, 9, 3); ctx.fillRect(x + 2, y + 3, 12, 2);
-    });
-    // 遠/中景丘陵
-    drawHills(L.farRamp, L.RN, L.farRim, 7, g - 13, 0.045, scroll * 0.08);
-    drawHills(L.midRamp, L.RN, L.midRim, 13, g - 1, 0.07, scroll * 0.3);
+    // 雲（僅天空型地區；火山/深海/魔王城/深層改用氛圍粒子）
+    const noClouds = (theme.far === "volcano" || theme.far === "seaweed" || theme.far === "battlements" || theme.far === "abyss");
+    if (!noClouds) {
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      const cl = (scroll * 0.04) % 150;
+      const puffs = [[10, 14], [62, 24], [118, 10], [176, 28], [232, 18], [288, 12]];
+      puffs.forEach((p) => {
+        let x = Math.round(p[0] - cl); while (x < -30) x += 300; const y = p[1];
+        ctx.fillRect(x, y, 16, 3); ctx.fillRect(x + 4, y - 2, 9, 3); ctx.fillRect(x + 2, y + 3, 12, 2);
+      });
+    }
+    // 遠景專屬輪廓 + 中景
+    drawFar(theme.far, L.farRamp, L.RN, L.farRim, g - 11, scroll * 0.08, theme.groundLine);
+    drawMid(theme, L.midRamp, L.RN, L.midRim, g - 1, scroll * 0.3);
     // 地面（查表）
     for (let y = g; y < v.h; y++) { ctx.fillStyle = L.groundRow[y - g]; ctx.fillRect(0, y, v.w, 1); }
     // 泥土碎石
@@ -289,17 +370,23 @@
       ctx.fillRect(rx, yy, 2, 1);
       if (seed % 4 === 0) ctx.fillRect(rx + 3, yy + 4, 1, 1);
     }
-    // 表層草皮
-    const tof = Math.floor(scroll) % 5;
-    for (let x = -5; x < v.w + 5; x += 5) {
-      const hgt = 3 + ((((x * 7) % 4) + 4) % 4), rx = x - tof;
-      ctx.fillStyle = L.grassBase; ctx.fillRect(rx, g - hgt, 1, hgt + 1);
-      ctx.fillStyle = theme.decoColor; ctx.fillRect(rx, g - hgt, 1, 2);
-      ctx.fillStyle = L.grassTip; ctx.fillRect(rx, g - hgt, 1, 1);
+    // 表層草皮（僅有植被的地區：草原/森林；沙漠/雪地/熔岩/海/空/遺跡/城/深淵不長草）
+    if (theme.deco === "grass" || theme.deco === "bush") {
+      const tof = Math.floor(scroll) % 5;
+      for (let x = -5; x < v.w + 5; x += 5) {
+        const hgt = 3 + ((((x * 7) % 4) + 4) % 4), rx = x - tof;
+        ctx.fillStyle = L.grassBase; ctx.fillRect(rx, g - hgt, 1, hgt + 1);
+        ctx.fillStyle = theme.decoColor; ctx.fillRect(rx, g - hgt, 1, 2);
+        ctx.fillStyle = L.grassTip; ctx.fillRect(rx, g - hgt, 1, 1);
+      }
     }
+    // 地面上緣亮邊（各區專屬 groundLine 色，讓地平線更分明）
+    if (theme.groundLine) { ctx.globalAlpha = 0.55; ctx.fillStyle = theme.groundLine; ctx.fillRect(0, g, v.w, 1); ctx.globalAlpha = 1; }
     // 近景裝飾
     const dgap = 64, doff = scroll % dgap;
     for (let bx = -dgap; bx < v.w + dgap; bx += dgap) drawDecoUnit(theme.deco, Math.round(bx - doff), g, theme.decoColor);
+    // 氛圍粒子（飄雪/餘燼/氣泡/光塵…）
+    drawAmbience(theme, scroll);
   }
 
   function shadow(x, w, gy) {
@@ -511,5 +598,5 @@
     }
   }
 
-  Game.Render = { init, resize, draw, drawSpriteFx };
+  Game.Render = { init, resize, draw, drawSpriteFx, drawBackground };
 })();
