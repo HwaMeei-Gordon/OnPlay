@@ -994,18 +994,19 @@
     const tags2 = tags.slice(0, 2); // 特性最多 2 顆（王＝魔王＋1）
     // 攻擊偏好（每隻都顯示）
     const prefTxt = AIMTXT[def.aim] || "最近";
-    // 掉落物（2×3 共 6 格）。內容為暫時佔位：1/2/3 星卷軸（不放裝備），之後再調整。
-    // 不顯示數字；空格放同尺寸透明佔位，確保每格大小一致。長按顯示名稱。
-    const dropTiers = [0, 1, 2]; // 卷軸星階 index（0=1星…）
+    // 掉落物（2×3 共 6 格）。第一格＝1-3星卷軸（金色、不顯示 N★）；其後為素材；補空到 6。長按顯示名稱。
     const dropCells = [];
-    for (let i = 0; i < 6; i++) {
-      if (i < dropTiers.length) {
-        const nm = d.scrollTierName(dropTiers[i]);
-        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${scrollHtml(dropTiers[i], 34)}</div>`);
-      } else {
-        dropCells.push(`<div class="hb-drop empty"><span class="hb-drop-ph"></span></div>`);
-      }
-    }
+    dropCells.push(`<div class="hb-drop" data-name="1-3星卷軸" title="1-3星卷軸">${scrollIcon(0, 34)}</div>`);
+    const mats = (d.MONSTER_DROPS && d.MONSTER_DROPS[def.id]) || [];
+    mats.slice(0, 5).forEach((mid) => {
+      const mat = d.MATERIAL_BY_ID[mid];
+      if (!mat) return;
+      const rc = d.RARITY_BY_ID[mat.rarity];
+      const icoHtml = mat.tint ? Game.Icons.tinted(mat.icon, mat.tint, 34) : Game.Icons.html(mat.icon, 34);
+      const style = rc ? ` style="border-color:${rc.color}"` : "";
+      dropCells.push(`<div class="hb-drop"${style} data-name="${mat.name}" title="${mat.name}">${icoHtml}</div>`);
+    });
+    while (dropCells.length < 6) dropCells.push(`<div class="hb-drop empty"><span class="hb-drop-ph"></span></div>`);
     return `<div class="hb-mon2">
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>

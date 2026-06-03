@@ -61,6 +61,35 @@
     goddess: ["....oYYo....","....owwo....","....owwo....","..ooYYYYoo..",".oYwwwwwwYo.",".oYwwwwwwYo.","..ooYYYYoo..","....owwo....","....owwo....","....owwo....","....oYYo....","....oooo...."],
     lock: ["............","...oooo.....","..o.aa.o....","..o.aa.o....",".oooooooo...",".oYYYYYYo...",".oYYooYYo...",".oYYooYYo...",".oYYYYYYo...",".oooooooo...","............","............"],
     weapons: ["................","................",".......ww.HHM...","..bB...wa..gHM..","..BbH..wa..aHM..","....MH.Ba..aHHM.",".....MHwa..a.HM.","......Mwa..a.HM.","......Mwa..a.HM.",".....gYYYg.a.HM.",".......MHH.a.HM.",".......MHMHaHHM.",".......MH.gaHM..",".......YY..gHM..","..........HHM...","................"],
+    // ===== 掉落素材形狀（可染色：o 外框 + M深/m中/w亮）=====
+    slimeball: ["............","....oooo....","...ommmmo...","..ommwwmmo..","..ommwmmmo..",".ommmmmmmmo.",".ommmmmmmmo.",".oMmmmmmmMo.","..oMmmmmMo..","..oMMmmMMo..","...oMMMMo...","....oooo...."],
+    crystal: ["............","....oo......","...owwo.....","..omwmmo....",".ommwmmmo...","ommmwmmmMo..",".oMmwmmMo...","..oMwmMo....","...oMmMo....","....oMo.....",".....o......","............"],
+    droplet: [".....o......",".....o......","....omo.....","....omo.....","...ommwo....","...ommwo....","..ommwmo....","..ommmmo....","..oMmmmo....","...oMmMo....","....ooo.....","............"],
+    leaf: ["............","........oo..",".......omMo.","......ommMo.",".....ommwo..","....ommwmo..","...ommwmmo..","..ommwmmo...",".ommwmmo....",".oMwmmo.....","..oMmo......","...oo......."],
+    flower: ["............","....oo......","...oMMo.oo..","..oMmmMoMMo.","..oMmwmmmMo.",".oMmmwYwmmMo",".oMmmwmmmMo.","..oMmmmmMo..","...oMmmMo...","....oMMo....",".....oo.....","............"],
+    seed: ["............",".....o......","....oEo.....","....oEo.....","...omMo.....","..ommwo.....","..ommwo.....","..oMmmo.....","..oMmmo.....","...oMo......","............","............"],
+    mushcap: ["............","...oooo.....","..omwwmo....",".ommwmmmo...","ommmmmmmmo..","oMmmwmmmMo..",".oMMMMMMo...","...oaao.....","...oaao.....","...oaao.....","...oooo.....","............"],
+    fang: ["............","...oo.......","..owwo......","..omwo......","..ommo......","..ommo......","..oMmo......","...oMmo.....","...oMmo.....","....oMo.....",".....oo.....","............"],
+    horn: ["..........o.",".........oMo","........oMmo",".......oMmwo","......oMmwo.",".....oMmwo..","....oMmmo...","...oMmmo....","..oMmmo.....",".oMmmo......",".oMMo.......","..oo........"],
+    claw: ["............",".o..o..o....",".oM.oM.oM...",".om.om.om...",".om.om.om...",".omoomoom...",".ommmmmmo...",".ommwmmmo...",".oMmmmmMo...","..oMmmMo....","...oMMo.....","....oo......"],
+    bark: [".oooooooo...",".omwmmmmo...",".ommMmmmo...",".ommmMmmo...",".oMmmmmwo...",".ommMmmmo...",".ommmmMmo...",".oMwmmmmo...",".ommmMmmo...",".ommmmmwo...",".oooooooo...","............"],
+    scale: ["............","...oooo.....","..ommmmo....",".ommwmmmo...",".ommmmmmo...","ommmmmmmmo..","oMmmmmmmMo..",".oMmmmmMo...","..oMooMo....","...o..o.....","............","............"],
+    feather: [".........o..","........oMo.",".......oMwo.","......oMmwo.",".....oMmwo..","....oMmwo...","...oMmwmo...","..oMmwmo....",".oMmwmo.....",".omwmo......","..oMo.......","...o........"],
+    fur: ["............","..o.o.o.o...",".oMoMoMoMo..",".ommmmmmmo..","ommwmmmmmmo.","ommmmmwmmmo.","oMmmmmmmmMo.",".oMmmmmmMo..","..oMmmmMo...","...oMoMo....","....o.o.....","............"],
+    rock: ["............","....ooo.....","...ommmoo...","..ommwmmmo..",".ommwmmmmmo.",".ommmmmmmmo.","ommmmmmMmMo.","oMmmmMmmMmo.","oMMmMMMmMMo.",".oMMMMMMMo..","..ooooooo...","............"],
+    shell: ["............",".....oo.....","....ommo....","...ommmmo...","..ommwmmmo..",".ommwmmmmmo.",".omwmMmMmmo.","ommmMmMmMmo.","oMmMmMmMmMo.",".oMMMMMMMo..","..ooooooo...","............"],
+    orb: ["............","....oooo....","..oommmmoo..",".ommwwmmmmo.",".omwwmmmmmo.","ommwmmmmmmmo","ommmmmmmmmmo","oMmmmmmmmmMo",".oMmmmmmmMo.","..oMMmmMMo..","...oooooo...","............"],
+    eye: ["............","....oooo....","..oommmmoo..",".ommmmmmmmo.",".ommcccmmmo.","ommmcwcmmmmo","ommmcccmmmmo","oMmmmmmmmmMo",".oMmmmmmmMo.","..oMMmmMMo..","...oooooo...","............"],
+    tentacle: ["....oooo....","...ommmmo...","..ommwmmmo..","..ommmmmMo..","...oMmmMo...","....oMmo....","...ommMo....","..oMmwo.....","..omMo......","...omMo.....","....oMo.....",".....o......"],
+    rune: ["............",".oooooooo...",".ommmmmmo...",".omwYYwmo...",".ommYmmmo...",".ommYYmmo...",".ommYmmmo...",".omwYYwmo...",".ommmmmmo...",".oMMMMMMo...",".oooooooo...","............"],
+    crown: ["............","............",".o..o..o....","oMo.M.oMMo..","oMooMooMMo..","oMmoMomMmo..","ommYmmYmmo..","ommmmmmmmo..","oMmmmmmmMo..","oMMMMMMMMo..","oooooooooo..","............"],
+    // ===== 固定色素材形狀 =====
+    web: ["............",".....a......","....aaa.....","...a.a.a....","..a..a..a...",".aaaaaaaaa..","..a..a..a...","...a.a.a....","....aaa.....",".....a......","............","............"],
+    bandage: ["............","..oooooo....",".oaaaaaao...",".oahaahao...",".oahaahao...",".oaaaaaao...",".oahaahao...",".oahaahao...",".oaaaaaao...","..oooooo....","............","............"],
+    ember: ["............","............","....rr......","...rRRr.....","..rRYYRr....","..rRYYRr....","..rRRRRr....","...rRRr.....","....rr......","............","............","............"],
+    ash: ["............","............","............",".....s......","....sks.....","...sksks....","..skssksk...",".skssksskk..",".sksskskss..",".kssksskks..","............","............"],
+    cloud_wisp: ["............","............","....www.....","..wwwwwww...",".wwwawwwww..","wwwwwwwwwww.",".wwwwwwwww..","..wwwwww....","............","............","............","............"],
+    sand: ["............","............","............",".....H......","....HhH.....","...HhHhH....","..hHhHhHh...",".HhHhHhHhH..",".hHhHhHhHh..",".HhgHhHghH..","............","............"],
   };
 
   // 卷軸分色變體：4-6 星藍色調、7-9 星紫色調、10 星紅色調（整體換調）
@@ -136,6 +165,29 @@
     } catch (e) { return ""; }
   }
 
+  // ── 素材染色：由單一 hex 推導 暗/中/亮 三階，覆蓋可染色形狀的 M/m/w ──
+  const tintCache = {}; // key = shape + "@" + hex → dataURL
+  function shade(hex, f) { // f<1 變暗、f>1 變亮
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    if (f <= 1) { r *= f; g *= f; b *= f; }
+    else { const t = f - 1; r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
+    const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+    return "#" + ((cl(r) << 16) | (cl(g) << 8) | cl(b)).toString(16).padStart(6, "0");
+  }
+  function tintedURL(shape, hex) {
+    const key = shape + "@" + hex;
+    if (tintCache[key] !== undefined) return tintCache[key];
+    const def = I[ALIAS[shape] || shape];
+    if (!def) return (tintCache[key] = "");
+    const merged = Object.assign({}, P, { M: shade(hex, 0.5), m: hex, w: shade(hex, 1.5) });
+    return (tintCache[key] = render(def, merged, true));
+  }
+  function tinted(shape, hex, px) {
+    px = px || 16;
+    return `<img class="ico" src="${tintedURL(shape, hex)}" width="${px}" height="${px}" alt="" draggable="false">`;
+  }
+
   function url(name) {
     name = ALIAS[name] || name;
     if (urlCache[name] !== undefined) return urlCache[name];
@@ -160,5 +212,5 @@
     return `<img class="ico spr" src="${u}" height="${px}" alt="" draggable="false">`;
   }
 
-  Game.Icons = { url, html, spriteURL, spriteHtml, _defs: I };
+  Game.Icons = { url, html, tinted, tintedURL, spriteURL, spriteHtml, _defs: I };
 })();
