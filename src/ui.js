@@ -39,6 +39,15 @@
 
   // 圖示輔助（全部自製像素圖示，不用 emoji）
   function ico(name, px) { return Game.Icons.html(name, px || 16); }
+  // 卷軸圖示：依星階(0..9)分色 —— 1-3星金(現狀)/4-6星藍/7-9星紫/10星紅
+  function scrollBand(tier) { return tier <= 2 ? "" : tier <= 5 ? "_b" : tier <= 8 ? "_p" : "_r"; }
+  function scrollIcon(tier, px) { return Game.Icons.html("scroll" + scrollBand(tier), px || 20); }
+  // 卷軸＋中央「數字＋星」徽章（給沒有文字標籤的地方，如掉落格）
+  function scrollHtml(tier, px) {
+    px = px || 32;
+    return `<span class="scroll-ic" style="width:${px}px;height:${px}px">${scrollIcon(tier, px)}` +
+      `<span class="scroll-badge" style="font-size:${Math.round(px * 0.4)}px"><b>${tier + 1}</b>${Game.Icons.html("star", Math.round(px * 0.33))}</span></span>`;
+  }
   function curIco(cur) { return ico(cur === "gold" ? "coin" : cur === "gems" ? "gem" : "soul", 14); }
   function heroPortrait(id, px) {
     const def = D().HERO_BY_ID[id];
@@ -553,7 +562,7 @@
     for (let t = 1; t < d.SCROLL_TIERS; t++) {
       const own = sc[t] || 0;
       side += `<div class="craft-target ${t === craftSel ? "on" : ""}" data-act="craft-select" data-t="${t}">
-        <span class="ct-name">${d.scrollTierName(t)}</span>
+        <span class="ct-name">${scrollIcon(t, 18)}${d.scrollTierName(t)}</span>
         <span class="ct-sub">持有 ${own}</span>
       </div>`;
     }
@@ -567,7 +576,7 @@
       const filled = k < craftPlaced;
       points += `<div class="penta-point ${filled ? "filled" : ""}" style="left:${pts[k][0]}%;top:${pts[k][1]}%"
         data-act="${filled ? "craft-unplace" : "craft-place"}">
-        ${filled ? ico("scroll", 20) : "<span class='pp-plus'>＋</span>"}
+        ${filled ? scrollIcon(srcIdx, 20) : "<span class='pp-plus'>＋</span>"}
       </div>`;
     }
     const canCraft = craftPlaced >= need;
@@ -992,7 +1001,7 @@
     for (let i = 0; i < 6; i++) {
       if (i < dropTiers.length) {
         const nm = d.scrollTierName(dropTiers[i]);
-        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 32)}</div>`);
+        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${scrollHtml(dropTiers[i], 34)}</div>`);
       } else {
         dropCells.push(`<div class="hb-drop empty"><span class="hb-drop-ph"></span></div>`);
       }
