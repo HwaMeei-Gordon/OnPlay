@@ -133,7 +133,7 @@
   // —— 區3 雪地 ——
   const M_FROSTWOLF = ["w....w....", "ww..ww....", "wIwwwIw...", "wwwwwwww..", "wWewwwww..", "wwwwwwww..", ".ww.ww.w..", "I..I.I...."]; // 雪地 雪狼
   const M_YETI = ["w.wwww.w..", "wwwwwwww..", "wIwwwwIw..", "wwWeeWww..", "wwwwwwww..", "wwKKKKww..", "wwwwwwww..", "ww.ww.ww.."]; // 雪地 雪怪
-  const M_ICEARCHER = ["..iiii....", ".iIWeIi...", "..iIIi....", "c.iIIi.c..", "c.iIIi.c..", "c.iiii.c..", "..i..i....", "..i..i...."]; // 雪地 霜射手
+  const M_YUKIONNA = ["..7777....", ".77wwww7..", ".7wWKWw7..", ".7wwwww7..", "..iIIIi...", ".iIwwwIi..", ".iIwwwIi..", "..iwwwi...", "..ii.ii..."]; // 雪地 雪女（黑髮白和服·冰系施法）
   const M_SNOWOWL = ["wTw...wTw.", ".wwwwww...", "wWeWWeWw..", "wwwYwwww..", "wwwwwwww..", ".wwwwww...", "wT....Tw..", "w......w.."]; // 雪地 雪鴞
   // —— 區4 熔岩山 ——
   const M_EMBERHOUND = ["f....f....", "rf..fr....", ".rRrrRr...", "rrrrrrrr..", "rqrrrrrr..", "rrrrrrrr..", ".rr.rr.r..", "R..R.R...."]; // 熔岩 炎犬
@@ -171,7 +171,7 @@
     rabbit: M_RABBIT, mushroom: M_MUSHROOM, flowersp: M_FLOWERSP, grasswolf: M_GRASSWOLF,
     deer: M_DEER, treant: M_TREANT, toadstool: M_TOADSTOOL, forestmoth: M_FORESTMOTH,
     jackal: M_JACKAL, mummy: M_MUMMY, sandhawk: M_SANDHAWK, cobra: M_COBRA,
-    frostwolf: M_FROSTWOLF, yeti: M_YETI, icearcher: M_ICEARCHER, snowowl: M_SNOWOWL,
+    frostwolf: M_FROSTWOLF, yeti: M_YETI, yukionna: M_YUKIONNA, snowowl: M_SNOWOWL,
     emberhound: M_EMBERHOUND, cindergolem: M_CINDERGOLEM, flamewing: M_FLAMEWING, lavaserpent: M_LAVASERPENT,
     seaturtle: M_SEATURTLE, eel: M_EEL, anglerfish: M_ANGLERFISH, reefshark: M_REEFSHARK,
     hawk: M_HAWK, thunderbird: M_THUNDERBIRD, skyguard: M_SKYGUARD, windwisp: M_WINDWISP,
