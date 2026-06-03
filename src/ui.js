@@ -961,7 +961,6 @@
     const AIMTXT = { lowHp: "生命最低", far: "最遠", back: "最後排" };
     const rows = [];
     (def.skills || []).forEach((id) => { const s = d.ENEMY_SKILLS[id]; if (s) rows.push(row(s.name, "主動", s.cd, enemySkillDesc(id))); });
-    if (def.aim) rows.push(row("鎖定", "被動", null, `優先攻擊${AIMTXT[def.aim] || ""}的目標`));
     if (def.onHit) rows.push(row("附帶", "被動", null, `攻擊命中附帶${fxColorName(def.onHit)}`));
     if (def.lifesteal) rows.push(row("吸血", "被動", null, `造成傷害時回復其 ${Math.round(def.lifesteal * 100)}%`));
     // 特殊＝強力技能（名稱紅字、更高規格）
@@ -971,23 +970,39 @@
     else if (def.special === "shield") rows.push(row("護盾", "主動", 7, "張開護盾，短時大幅減傷", false, true));
     while (rows.length < 4) rows.push(`<div class="hb-skill hb-skill-empty">－</div>`); // 固定 4 格、不足補空
     const skills = rows.slice(0, 4).join("");
-    // 衍生標籤：飛行/召喚/鎖定/控制
-    const ctrl = (def.skills || []).some((id) => d.ENEMY_SKILLS[id] && ["stun", "freeze", "paralyze"].indexOf(d.ENEMY_SKILLS[id].applies) >= 0)
-      || ["stun", "freeze", "paralyze"].indexOf(def.onHit) >= 0;
+    // 標籤：戰鬥特性（飛行/隱身/吸引/潛入）＋ 召喚（能召喚者）
     const tags = [];
     if (def.fly) tags.push(`<span class="hb-mtag" style="color:#7ad7ff">飛行</span>`);
-    if (def.child) tags.push(`<span class="hb-mtag" style="color:#c79bff">召喚</span>`);
-    if (def.aim) tags.push(`<span class="hb-mtag" style="color:#ffd23f">鎖定</span>`);
-    if (ctrl) tags.push(`<span class="hb-mtag" style="color:#ff5a5a">控制</span>`);
+    if (def.stealth) tags.push(`<span class="hb-mtag" style="color:#9fb0c8">隱身</span>`);
+    if (def.taunt) tags.push(`<span class="hb-mtag" style="color:#ff8c42">吸引</span>`);
+    if (def.burrow) tags.push(`<span class="hb-mtag" style="color:#c8a06a">潛入</span>`);
+    if (def.special === "summon" || def.special === "split") tags.push(`<span class="hb-mtag" style="color:#c79bff">召喚</span>`);
+    // 攻擊偏好（每隻都顯示）
+    const prefTxt = AIMTXT[def.aim] || "最近";
+    // 特性簡述（若有對應特性各列一句，不佔技能格）
+    const TRAITDESC = {
+      fly: "恆在空中第二層，僅遠程打得到",
+      stealth: "未攻擊3秒後隱形，無法被指定，僅能被範圍攻擊",
+      taunt: "在攻擊範圍內會被優先鎖定",
+      burrow: "開戰1秒下潛，5秒後於目標旁鑽出，對十字範圍必中突襲",
+    };
+    const traitLines = [];
+    if (def.fly) traitLines.push(["飛行", "#7ad7ff", TRAITDESC.fly]);
+    if (def.stealth) traitLines.push(["隱身", "#9fb0c8", TRAITDESC.stealth]);
+    if (def.taunt) traitLines.push(["吸引", "#ff8c42", TRAITDESC.taunt]);
+    if (def.burrow) traitLines.push(["潛入", "#c8a06a", TRAITDESC.burrow]);
+    const traits = traitLines.map(([n, c, t]) => `<div class="hb-mon-trait"><b style="color:${c}">${n}</b>${t}</div>`).join("");
     return `<div class="hb-mon2">
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
           <div class="hb-mon-name">${def.name}</div>
           <div class="hb-mon-sub">${theme}・${def.kind === "boss" ? "首領" : "小怪"}</div>
           ${tags.length ? `<div class="hb-mon-tags">${tags.join("")}</div>` : ""}
+          <div class="hb-mon-pref">攻擊偏好：<b>${prefTxt}</b></div>
         </div>
         <div class="hb-mon-grid">${stats}</div>
       </div>
+      ${traits ? `<div class="hb-mon-cap">特性</div>${traits}` : ""}
       <div class="hb-mon-cap">技能</div>${skills}`;
   }
   function renderHbEquipPage() {

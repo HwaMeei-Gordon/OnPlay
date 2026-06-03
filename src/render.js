@@ -41,7 +41,7 @@
     for (let i = 0; i < sp.length; i++) if (sp[i].length > w) w = sp[i].length;
     return w;
   }
-  function drawSprite(sprite, cx, bottomY, flip, tint, yoff) {
+  function drawSprite(sprite, cx, bottomY, flip, tint, yoff, outlineOnly) {
     const pal = D().PALETTE;
     const h = sprite.length, w = spriteWidth(sprite);
     const sx = Math.round(cx - w / 2), sy = Math.round(bottomY - h + (yoff || 0));
@@ -55,6 +55,20 @@
       }
     }
     const px = (c) => (flip ? sx + (w - 1 - c) : sx + c);
+    // 隱身：只畫邊緣 filled 像素（半透明淺色空心輪廓），中間透明
+    if (outlineOnly) {
+      ctx.globalAlpha = 0.55; ctx.fillStyle = "#aab4cc";
+      for (let r = 0; r < h; r++)
+        for (let c = 0; c < w; c++) {
+          if (!filled[r][c]) continue;
+          if (r === 0 || r === h - 1 || c === 0 || c === w - 1 ||
+              !filled[r - 1][c] || !filled[r + 1][c] || !filled[r][c - 1] || !filled[r][c + 1]) {
+            ctx.fillRect(px(c), sy + r, 1, 1);
+          }
+        }
+      ctx.globalAlpha = 1;
+      return;
+    }
     // 自動描邊（在輪廓外緣的空白格畫深色）→ 一線像素遊戲的清晰外框
     ctx.fillStyle = "#0d0a14";
     for (let r = 0; r < h; r++)
@@ -343,9 +357,11 @@
     drawList.forEach((dr) => {
       if (dr.kind === "e") {
         const e = dr.o, sp = e.sprite, gy = dr.y;
+        if (e.burrowState === "under") return; // 潛入地下：本體不繪製
         const tint = e.hitFlash > 0 ? "#ffffff" : fxTint(e);
         const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0) - (e.zF || 0) * d.AIR_LIFT;
         const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
+        if (e.invis) { drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, null, 0, true); return; } // 隱身：只剩外輪廓、不畫血條/特效
         drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
         const bw = Math.max(10, spriteWidth(sp) - 2);
         drawBar(ex - bw / 2, gy - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
