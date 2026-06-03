@@ -222,6 +222,10 @@
     const sc = opts.scale || 1;
     let maxHp = stx.maxHp * tm("hp") * sc, atk = stx.atk * tm("atk") * sc;
     let def_ = stx.def * tm("def"), hit = stx.hit * tm("hit"), dodge = stx.dodge * tm("dodge");
+    // 普通特性：無任何特性的小怪 → 生命/防禦/攻擊 +10%
+    const hasTrait = !!(def.fly || def.stealth || def.taunt || def.burrow || def.revive || def.child);
+    const isNormalMon = !boss && !hasTrait;
+    if (isNormalMon) { maxHp *= 1.1; atk *= 1.1; def_ *= 1.1; }
     const critDmg = 1.5 * tm("critDmg");
     let gold = stx.gold;
     // 精英/寶箱（分裂/召喚子體不套）
@@ -268,6 +272,7 @@
       aim: def.aim || null, onHit: def.onHit || null, lifesteal: def.lifesteal || 0,
       stealth: !!def.stealth, taunt: !!def.taunt, invis: false, noAtkT: 0,
       burrow: !!def.burrow, burrowState: def.burrow ? "pre" : "done", burrowT: 0,
+      revive: !!def.revive, revived: false, demonLord: boss,
       x: baseX, targetX: 0, lane: glane, air: 0, vy: 0,
       gcol: gcol, glane: glane, laneF: glane, moveTX: cellX(gcol),
       hitFlash: 0, shake: 0, lunge: 0,
@@ -293,6 +298,7 @@
     e.eskill = null; e.eskillCD = 0; e.eskills = []; e.special = null;
     e.fly = false; e.gz = 0; e.zF = 0;
     e.stealth = false; e.invis = false; e.burrow = false; e.burrowState = "done";
+    e.revive = false; e.revived = true; e.demonLord = false;
   }
   function spawnEnemyRoom() {
     if (DEMO) { if (!battle.enemies.length) { spawnEnemy(1); makeDummy(); } return; }
@@ -425,6 +431,7 @@
     opts = opts || {};
     dmg = Math.max(1, Math.round(dmg * fxInMul(target))); // 受傷倍率（狂暴/虛弱/麻痺）
     if (target.shieldT > 0) dmg = Math.max(1, Math.round(dmg * 0.4)); // 護盾：減傷 60%
+    if (target.demonLord) dmg = Math.max(1, Math.round(dmg * 0.5)); // 魔王特性：受到所有傷害減半
     target.hp -= dmg;
     target.hitFlash = 0.12;
     target.shake = 0.14;
@@ -458,6 +465,18 @@
   function killEnemy(target) {
     const i = battle.enemies.indexOf(target);
     if (i < 0) return;
+    // 復活特性：死亡時原地復活一次（50% 最大生命 + 狂暴），每場僅一次
+    if (target.revive && !target.revived) {
+      target.revived = true;
+      target.hp = Math.max(1, Math.round(target.maxHp * 0.5));
+      target.dead = false;
+      fxAdd(target, "berserk", 8);
+      target.hitFlash = 0.12; target.shake = 0.16;
+      addFloat(target.x, Game.view.ground - 40, "復活", "#5ec46b", true);
+      for (let k = 0; k < 8; k++)
+        addParticle("heal", target.x + (Math.random() - 0.5) * 10, Game.view.ground - 8, (Math.random() - 0.5) * 12, -18 - Math.random() * 14, 0.6, "#7df09a");
+      return;
+    }
     const drop = S().onKill(target);
     if (drop) {
       if (drop.scroll) {
