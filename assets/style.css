@@ -492,3 +492,16 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .hb-mon-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 3px; }
 .hb-mtag { font-size: 10px; font-weight: bold; white-space: nowrap; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
 .hb-mon-pref { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+/* 怪物頁下半：左技能、右掉落（並排，避免增加頁面高度） */
+.hb-mon-bottom { display: flex; gap: 10px; align-items: flex-start; }
+.hb-mon-skills { flex: 1 1 auto; min-width: 0; }
+.hb-mon-drops { flex: 0 0 auto; }
+.hb-drop-grid { display: grid; grid-template-columns: repeat(3, 24px); grid-auto-rows: 24px; gap: 4px; }
+.hb-drop { position: relative; width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 4px; background: #1a1626; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.hb-drop.empty { background: #14101e; opacity: .55; cursor: default; }
+.hb-drop .ico { image-rendering: pixelated; }
+.hb-drop-star { position: absolute; right: -2px; bottom: -3px; font-size: 8px; font-weight: bold; color: #ffd23f; background: #1a1626; border-radius: 3px; padding: 0 1px; line-height: 1.2; }
+/* 長按提示泡泡 */
+#drop-tip { position: fixed; z-index: 999; background: #2a2440; color: #fff; font-size: 11px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+#drop-tip.hidden { display: none; }

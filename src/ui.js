@@ -116,6 +116,8 @@
     $("panel-content").addEventListener("click", onPanelClick);
     // modal 內按鈕也用同一套委派（裝備選擇/卸下等）
     $("modal-content").addEventListener("click", onPanelClick);
+    // 掉落物長按 → 顯示名稱泡泡
+    initDropLongPress($("panel-content"));
     // modal 點背景關閉（鎖定的彈窗除外，需按確定／✕）
     $("modal-layer").addEventListener("click", (e) => {
       if (e.target.id === "modal-layer" && !modalLocked) closeModal();
@@ -983,6 +985,17 @@
     const tags2 = tags.slice(0, 2); // 特性最多 2 顆（王＝魔王＋1）
     // 攻擊偏好（每隻都顯示）
     const prefTxt = AIMTXT[def.aim] || "最近";
+    // 掉落物（2×3 共 6 格）。內容為暫時佔位：1/2/3 星卷軸（不放裝備），之後再調整。
+    const dropTiers = [0, 1, 2]; // 卷軸星階 index（0=1星…）；長按顯示名稱
+    const dropCells = [];
+    for (let i = 0; i < 6; i++) {
+      if (i < dropTiers.length) {
+        const ti = dropTiers[i], nm = d.scrollTierName(ti);
+        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 18)}<span class="hb-drop-star">${ti + 1}</span></div>`);
+      } else {
+        dropCells.push(`<div class="hb-drop empty"></div>`);
+      }
+    }
     return `<div class="hb-mon2">
         <div class="hb-mon-left">
           <div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 52)}</div>
@@ -993,7 +1006,10 @@
         </div>
         <div class="hb-mon-grid">${stats}</div>
       </div>
-      <div class="hb-mon-cap">技能</div>${skills}`;
+      <div class="hb-mon-bottom">
+        <div class="hb-mon-skills"><div class="hb-mon-cap">技能</div>${skills}</div>
+        <div class="hb-mon-drops"><div class="hb-mon-cap">掉落</div><div class="hb-drop-grid">${dropCells.join("")}</div></div>
+      </div>`;
   }
   function renderHbEquipPage() {
     const cells = D().EQUIPMENT_SLOTS.map((sl) =>
@@ -1056,6 +1072,33 @@
     hbRaf = requestAnimationFrame(step);
   }
   function stopHbLoop() { if (hbRaf) { cancelAnimationFrame(hbRaf); hbRaf = 0; } }
+
+  // 掉落物長按：按住 ~420ms 顯示名稱泡泡（手機/桌面通用，移動或放開即取消）
+  function initDropLongPress(root) {
+    if (!root) return;
+    let timer = null, tip = null;
+    const hide = () => { if (tip) tip.classList.add("hidden"); };
+    const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    const show = (cell, px, py) => {
+      const name = cell.getAttribute("data-name"); if (!name) return;
+      if (!tip) { tip = document.createElement("div"); tip.id = "drop-tip"; document.body.appendChild(tip); }
+      tip.textContent = name; tip.classList.remove("hidden");
+      const r = cell.getBoundingClientRect();
+      tip.style.left = (px || r.left + r.width / 2) + "px";
+      tip.style.top = (r.top - 6) + "px";
+    };
+    const start = (e) => {
+      const cell = e.target.closest(".hb-drop[data-name]"); if (!cell) return;
+      const pt = e.touches ? e.touches[0] : e;
+      clear(); timer = setTimeout(() => { show(cell, pt.clientX); }, 420);
+    };
+    root.addEventListener("touchstart", start, { passive: true });
+    root.addEventListener("touchend", () => { clear(); setTimeout(hide, 1200); }, { passive: true });
+    root.addEventListener("touchmove", () => { clear(); hide(); }, { passive: true });
+    root.addEventListener("mousedown", start);
+    document.addEventListener("mouseup", () => { clear(); setTimeout(hide, 1200); });
+    root.addEventListener("scroll", () => { clear(); hide(); }, { passive: true });
+  }
 
   function onPanelClick(e) {
     const t = e.target.closest("[data-act]");
