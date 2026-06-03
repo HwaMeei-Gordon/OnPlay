@@ -991,7 +991,7 @@
     for (let i = 0; i < 6; i++) {
       if (i < dropTiers.length) {
         const ti = dropTiers[i], nm = d.scrollTierName(ti);
-        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 18)}<span class="hb-drop-star">${ti + 1}</span></div>`);
+        dropCells.push(`<div class="hb-drop" data-name="${nm}" title="${nm}">${Game.Icons.html("scroll", 32)}<span class="hb-drop-star">${ti + 1}</span></div>`);
       } else {
         dropCells.push(`<div class="hb-drop empty"></div>`);
       }
