@@ -120,10 +120,64 @@
   const M_GARGOYLE = ["5.5..5.5", "55q55q55", ".555555.", "5.5555.5", "55.55.55", ".5.55.5.", "..5..5.."]; // 遺跡 石像鬼
   const M_DARKBAT = ["v......v", "vv.vv.vv", "vV2qq2Vv", "vv2222vv", ".v2222v.", "..vVVv..", "...vv..."];   // 魔王城 暗影蝠
   const M_WRAITHLING = ["..788...", ".78887..", ".7qWq7..", ".788887.", ".788887.", "..7887..", ".7.7.7.."]; // 深層 怨靈
+  // —— 區1 森林 ——
+  const M_DEER = ["N.N....N.N", ".NhN..NhN.", "..hhHHhh..", "..hHWehh..", "..hhhhhh..", ".hhhhhhhh.", "hhhhhhhhhh", "m.m.mm.m.m"]; // 森林 角鹿
+  const M_TREANT = ["..GDDGDG..", ".GDGGGGDG.", "GDGGGGGGDG", ".GGGGGGGG.", "...mmmm...", "..mWeWmm..", "..mmmmmm..", ".hm.mm.mh."]; // 森林 樹妖
+  const M_TOADSTOOL = [".z...z.z..", "..rrrrr...", ".rWrrrWr..", "rrrrrrrrr.", "rWrrrrrWr.", "..aaaaa...", "..aWeWa...", "..aa.aa..."]; // 森林 毒蕈
+  const M_FORESTMOTH = ["o.o...o.o.", "ozzo.ozzo.", "ozzzoozzz.", ".ozmmzzo..", "..mWeWm...", ".ozmmzzo..", "ozzzoozzz.", "o.o...o.o."]; // 森林 林蛾
+  // —— 區2 沙漠 ——
+  const M_JACKAL = ["N....N....", "NN..NN....", ".NnnnN....", "nnnnnnnn..", "nWennnnn..", "nnnnnnnn..", ".nn.nn.n..", "N..N.N...."]; // 沙漠 胡狼
+  const M_MUMMY = ["..uuuu....", ".uUaaUu...", ".uaKKau...", ".uUaaUu...", ".uaaaau...", ".uUaaUu...", "..uaau....", "..u..u...."]; // 沙漠 木乃伊
+  const M_SANDHAWK = ["N......N..", "NN....NN..", "nNN..NNn..", "nnNWeNnn..", ".nnnYnnn..", ".nnnnnnn..", "nNN..NNn..", "N......N.."]; // 沙漠 沙鷹
+  const M_COBRA = ["..nNn.....", ".nNzNn....", ".nzqzn....", ".nNzNn....", "..nnn.....", "..znz.....", "...nz.....", "....nz...."]; // 沙漠 沙蛇
+  // —— 區3 雪地 ——
+  const M_FROSTWOLF = ["w....w....", "ww..ww....", "wIwwwIw...", "wwwwwwww..", "wWewwwww..", "wwwwwwww..", ".ww.ww.w..", "I..I.I...."]; // 雪地 雪狼
+  const M_YETI = ["w.wwww.w..", "wwwwwwww..", "wIwwwwIw..", "wwWeeWww..", "wwwwwwww..", "wwKKKKww..", "wwwwwwww..", "ww.ww.ww.."]; // 雪地 雪怪
+  const M_ICEARCHER = ["..iiii....", ".iIWeIi...", "..iIIi....", "c.iIIi.c..", "c.iIIi.c..", "c.iiii.c..", "..i..i....", "..i..i...."]; // 雪地 霜射手
+  const M_SNOWOWL = ["wTw...wTw.", ".wwwwww...", "wWeWWeWw..", "wwwYwwww..", "wwwwwwww..", ".wwwwww...", "wT....Tw..", "w......w.."]; // 雪地 雪鴞
+  // —— 區4 熔岩山 ——
+  const M_EMBERHOUND = ["f....f....", "rf..fr....", ".rRrrRr...", "rrrrrrrr..", "rqrrrrrr..", "rrrrrrrr..", ".rr.rr.r..", "R..R.R...."]; // 熔岩 炎犬
+  const M_CINDERGOLEM = ["..kkkk....", ".kkkkkk...", "kKrkkrKk..", "kKqkkqKk..", "kkkkkkkk..", "kkfffkkk..", "kkkkkkkk..", "kk.kk.kk.."]; // 熔岩 炭岩魔
+  const M_FLAMEWING = ["r.r...r.r.", "rfr..rfr..", "rffr.rffr.", ".rfqqfr...", "..rffr....", ".rfqqfr...", "rffr.rffr.", "r.r...r.r."]; // 熔岩 炎蝠
+  const M_LAVASERPENT = ["..RRR.....", ".RfqfR....", ".RfffR....", "..RRR.....", "...Rf.....", "..fR......", ".Rf.......", "Rf........"]; // 熔岩 熔岩蛇
+  // —— 區5 深海 ——
+  const M_SEATURTLE = ["..cccc....", ".cCcCcC...", "0cCCCCCc..", "0cCCCCWe..", "0cCCCCcc..", ".0c..c0...", "..0..0...."]; // 深海 海龜
+  const M_EEL = ["CcWe......", "CCcc......", ".CCcc.....", "Y.CCcc....", "..Y.CCcc..", "....Y.CC..", "......Ycc.", ".......Yc."]; // 深海 電鰻
+  const M_ANGLERFISH = [".....Y....", "....Yl....", "..CCCCC...", ".CCqCCCC..", "CWCCCCCc..", "CWCCCCCc..", ".CWWWCc...", "..CCCC...."]; // 深海 鮟鱇
+  const M_REEFSHARK = ["...T......", "..0T0.....", ".0TTTT0...", "0TTTTTWe..", "0TWWWWcc..", ".0...0....", "......0..."]; // 深海 幼鯊
+  // —— 區6 天空之城 ——
+  const M_HAWK = ["U.U...U.U.", "UwU..UwU..", "UwwUUwwU..", ".UwWeWU...", "..UwYwU...", ".UwwwwwU..", "UwU..UwU..", "U.U...U.U."]; // 天空 蒼鷹
+  const M_THUNDERBIRD = ["b.b...b.b.", "bIb..bIb..", "bIIb.bIIb.", ".bIWeIb...", "Y.bIIb.Y..", ".YbIIbY...", "bIb..bIb..", "b.b...b.b."]; // 天空 雷鳥
+  const M_SKYGUARD = ["..wwww....", ".wYwwYw...", "wTwwwwTw..", "wWeWWeWw..", "wwwwwwww..", "wYwwwwYw..", "ww.ww.ww..", "TT.TT.TT.."]; // 天空 天空守衛
+  const M_WINDWISP = ["..w..w....", ".ww.ww....", "..wwww....", ".wWeww....", "..wwww....", "..cwwc....", ".c.ww.c...", "...ww....."]; // 天空 風靈
+  // —— 區7 遺跡 ——
+  const M_RUINBLADE = ["..uUu.....", ".uWeUu....", ".uuuuu....", "g.uUu.....", "g.uuu.....", "gUuuuU....", "g.u.u.....", "..u.u....."]; // 遺跡 亡靈劍士
+  const M_SENTINEL = ["..NNNN....", ".NNNNNN...", "NUNNNNUN..", "NUYNNYUN..", "NNNNNNNN..", "NNUUUUNN..", "NN.NN.NN..", "UU.UU.UU.."]; // 遺跡 守衛雕像
+  const M_CURSESTONE = ["..UUUU....", ".UNvvNU...", "UNvqqvNU..", "UNvqqvNU..", "UNNvvNNU..", "UNNNNNNU..", ".UNNNNU...", "..UUUU...."]; // 遺跡 符石
+  const M_WRAITHGUARD = [".U.....U..", "UvU...UvU.", "UvvUUvvU..", ".UvWevU...", "..UvvvU...", ".UvU.UvU..", "U.......U."]; // 遺跡 幽魂
+  // —— 區8 魔王城 ——
+  const M_HELLHOUND = ["x....x....", "vx..xv....", "vVvvvVv...", "vvvvvvvv..", "vqvvqvvv..", "vvvvvvvv..", ".vv.vv.v..", "V..V.V...."]; // 魔王城 地獄犬
+  const M_GATEKEEPER = ["6......6..", ".6vvvv6...", ".vVvvVv...", ".vqVVqv...", "vvvvvvvv..", "vvVVVVvv..", "vv.vv.vv..", "VV.VV.VV.."]; // 魔王城 守門魔將
+  const M_WARLOCK = ["..vvvv....", ".vVPPVv...", ".vPqqPv...", "..vVVv....", "..vvvv....", "j.vvvv.j..", "jjvvvvjj..", "..v..v...."]; // 魔王城 邪術師
+  const M_SUCCUBUS = ["j.j...j.j.", "jJj..jJj..", "jJJj.jJJj.", ".jJWeJj...", "..jJJj....", ".jJqqJj...", "jJj..jJj..", "j.j...j.j."]; // 魔王城 魅魔
+  // —— 區9 深層 ——
+  const M_VOIDREAVER = ["q....q....", "7q..q7....", "7K77K7....", "77777777..", "7qK77Kq7..", "77777777..", ".77.77.7..", "K..K.K...."]; // 深層 虛空狂徒
+  const M_ABYSSGUARD = ["R......R..", ".RKKKKR...", "RKVKKVKR..", "RKqKKqKR..", "KKKKKKKK..", "KVVVVVVK..", "KK.KK.KK..", "VV.VV.VV.."]; // 深層 深淵守衛
+  const M_SOULFLAYER = ["v.v...v.v.", "v7v..v7v..", "v77v.v77v.", ".v7qq7v...", "..v77v....", "jjv77vjj..", "v7v..v7v..", "v.v...v.v."]; // 深層 噬魂者
+  const M_DREADCASTER = ["..VVVV....", ".VKqqKV...", ".VqKKqV...", "..VKKV....", "..VVVV....", "P.VVVV.P..", "PPVVVVPP..", "..V..V...."]; // 深層 厄禍術士
   const MONSTER_SPRITES = {
     bee: M_BEE, maneater: M_MANEATER, sandworm: M_SANDWORM, icewisp: M_ICEWISP, magma: M_MAGMA,
     octo: M_OCTO, cloudlet: M_CLOUDLET, gargoyle: M_GARGOYLE, darkbat: M_DARKBAT, wraithling: M_WRAITHLING,
     rabbit: M_RABBIT, mushroom: M_MUSHROOM, flowersp: M_FLOWERSP, grasswolf: M_GRASSWOLF,
+    deer: M_DEER, treant: M_TREANT, toadstool: M_TOADSTOOL, forestmoth: M_FORESTMOTH,
+    jackal: M_JACKAL, mummy: M_MUMMY, sandhawk: M_SANDHAWK, cobra: M_COBRA,
+    frostwolf: M_FROSTWOLF, yeti: M_YETI, icearcher: M_ICEARCHER, snowowl: M_SNOWOWL,
+    emberhound: M_EMBERHOUND, cindergolem: M_CINDERGOLEM, flamewing: M_FLAMEWING, lavaserpent: M_LAVASERPENT,
+    seaturtle: M_SEATURTLE, eel: M_EEL, anglerfish: M_ANGLERFISH, reefshark: M_REEFSHARK,
+    hawk: M_HAWK, thunderbird: M_THUNDERBIRD, skyguard: M_SKYGUARD, windwisp: M_WINDWISP,
+    ruinblade: M_RUINBLADE, sentinel: M_SENTINEL, cursestone: M_CURSESTONE, wraithguard: M_WRAITHGUARD,
+    hellhound: M_HELLHOUND, gatekeeper: M_GATEKEEPER, warlock: M_WARLOCK, succubus: M_SUCCUBUS,
+    voidreaver: M_VOIDREAVER, abyssguard: M_ABYSSGUARD, soulflayer: M_SOULFLAYER, dreadcaster: M_DREADCASTER,
   };
   const SPRITE_GROUPS = { themedSmall: THEMED_SMALL, genericSmall: GENERIC_SMALL, themedBoss: THEMED_BOSS, genericBoss: GENERIC_BOSS };
   // 以字串 key 取精靈陣列："group:index"（既有圖）或命名鍵（新圖）
