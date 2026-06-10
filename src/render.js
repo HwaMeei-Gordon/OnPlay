@@ -17,9 +17,11 @@
     resize();
     window.addEventListener("resize", resize);
   }
-  // HD：主畫布內部解析度 ×2（DPR），繪碼維持 world 座標（setTransform 放大）；
-  // 背景離屏維持 1× 用 drawImage 放大（效能不變）；HD 精靈以 0.5 步長畫＝1 裝置像素。
-  const HD = 2;
+  // HD：主畫布內部解析度 ×4（DPR），繪碼維持 world 座標（setTransform 放大）；
+  // 背景離屏維持 1× 用 drawImage 放大（效能不變）；HD 精靈以 1/HD 步長畫＝1 裝置像素。
+  // 角色 64²、怪物小 48²/王 64² 皆以 step=1/4 繪製 → 螢幕佔位不變、高解析＋抗鋸齒。
+  const HD = 4;
+  const HD_STEP = 1 / HD;
   function resize() {
     const d = D();
     const rect = canvas.getBoundingClientRect();
@@ -45,15 +47,49 @@
     for (let i = 0; i < sp.length; i++) if (sp[i].length > w) w = sp[i].length;
     return w;
   }
-  // step：每個精靈像素佔幾個 world 單位（1=傳統圖、0.5=HD 圖，在 2× 畫布上恰為 1 裝置像素）
+  // step：每個精靈像素佔幾個 world 單位（1=傳統圖、1/HD=HD 圖，在 HD× 畫布上恰為 1 裝置像素）
   function spriteWorldW(sp, step) { return spriteWidth(sp) * (step || 1); }
   function spriteWorldH(sp, step) { return sp.length * (step || 1); }
+  // ---- 精靈快取：每張圖（依 flip/tint/outlineOnly）只柵格化一次到離屏 canvas，之後 drawImage（HD 高解析效能關鍵）----
+  const _canCache = (typeof document !== "undefined" && document.createElement);
+  const _spriteCache = (typeof WeakMap !== "undefined") ? new WeakMap() : null;
+  function rasterize(sprite, flip, tint, outlineOnly) {
+    const pal = D().PALETTE;
+    const h = sprite.length, w = spriteWidth(sprite);
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const cc = cv.getContext("2d"); cc.imageSmoothingEnabled = false;
+    const filled = [];
+    for (let r = 0; r < h; r++) { filled[r] = []; const line = sprite[r]; for (let c = 0; c < w; c++) { const ch = c < line.length ? line[c] : "."; filled[r][c] = !(ch === "." || ch === " "); } }
+    const xp = (c) => (flip ? w - 1 - c : c);
+    if (outlineOnly) {
+      cc.globalAlpha = 0.55; cc.fillStyle = "#aab4cc";
+      for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) { if (!filled[r][c]) continue;
+        if (r === 0 || r === h - 1 || c === 0 || c === w - 1 || !filled[r - 1][c] || !filled[r + 1][c] || !filled[r][c - 1] || !filled[r][c + 1]) cc.fillRect(xp(c), r, 1, 1); }
+      return cv;
+    }
+    cc.fillStyle = "#0d0a14";
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) { if (filled[r][c]) continue;
+      if ((r > 0 && filled[r - 1][c]) || (r < h - 1 && filled[r + 1][c]) || (c > 0 && filled[r][c - 1]) || (c < w - 1 && filled[r][c + 1])) cc.fillRect(xp(c), r, 1, 1); }
+    for (let r = 0; r < h; r++) { const line = sprite[r]; for (let c = 0; c < w; c++) { if (!filled[r][c]) continue; const color = tint || pal[line[c]]; if (!color) continue; cc.fillStyle = color; cc.fillRect(xp(c), r, 1, 1); } }
+    return cv;
+  }
+  function cachedSprite(sprite, flip, tint, outlineOnly) {
+    let m = _spriteCache.get(sprite); if (!m) { m = {}; _spriteCache.set(sprite, m); }
+    const key = (flip ? "1" : "0") + "|" + (tint || "") + "|" + (outlineOnly ? "1" : "0");
+    let cv = m[key]; if (!cv) { cv = rasterize(sprite, flip, tint, outlineOnly); m[key] = cv; }
+    return cv;
+  }
   function drawSprite(sprite, cx, bottomY, flip, tint, yoff, outlineOnly, step) {
     const pal = D().PALETTE;
     const st = step || 1;
     const h = sprite.length, w = spriteWidth(sprite);
-    // 0.5 對齊（在 HD 畫布上即整數裝置像素）
+    // 1/HD 對齊（在 HD 畫布上即整數裝置像素）
     const sx = Math.round((cx - (w * st) / 2) * HD) / HD, sy = Math.round((bottomY - h * st + (yoff || 0)) * HD) / HD;
+    // 快取快路徑：drawImage 一次（vs 每像素 fillRect）
+    if (_canCache && _spriteCache) {
+      ctx.drawImage(cachedSprite(sprite, flip, tint, outlineOnly), sx, sy, w * st, h * st);
+      return;
+    }
     const filled = [];
     for (let r = 0; r < h; r++) {
       filled[r] = [];
@@ -609,5 +645,5 @@
     }
   }
 
-  Game.Render = { init, resize, draw, drawSpriteFx, drawBackground };
+  Game.Render = { init, resize, draw, drawSpriteFx, drawBackground, HD_STEP };
 })();

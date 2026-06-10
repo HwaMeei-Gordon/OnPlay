@@ -1055,7 +1055,7 @@
     const lines = fxDescLines(key).map((t) => `<div class="sl"><span>${t}</span></div>`).join("");
     return `<div class="sec-title">狀態效果</div>
       <div class="hb-fx-card">
-        <canvas class="fx-preview" data-effect="${key}" data-sprite="adventurer" width="40" height="46"></canvas>
+        <canvas class="fx-preview" data-effect="${key}" data-sprite="adventurer" width="64" height="72"></canvas>
         <div class="hb-fx-info">
           <div class="hb-fx-name" style="color:${FXCOLOR[key] || "#fff"}">${FXNAME[key] || key}</div>
           <div class="hb-fx-dur">持續 ${f.dur} 秒</div>
