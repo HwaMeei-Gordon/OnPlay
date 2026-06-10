@@ -221,6 +221,7 @@
     else { const pool = d.monstersForRegion(r); def = pool[Math.floor(Math.random() * pool.length)]; }
     if (!def) def = d.MONSTER_BY_ID["slime"];
     const sprite = Game.Sprites.byKey(def.sprite) || Game.Sprites.THEMED_SMALL[r] || Game.Sprites.THEMED_SMALL[0];
+    const sprStep = (sprite && sprite.length >= 20) ? 0.5 : 1; // HD 怪物（24²/32²）以半步繪製，世界佔位不變
     const tm = (k) => d.monsterTierLabel(def.tiers[k]).mul;
     const sc = opts.scale || 1;
     let maxHp = stx.maxHp * tm("hp") * sc, atk = stx.atk * tm("atk") * sc;
@@ -264,7 +265,7 @@
       maxHp: maxHp, hp: maxHp, atk: atk, def: def_,
       gold: gold, xp: stx.xp, gems: stx.gems, atkInterval: def.atkInterval,
       hit: hit, dodge: dodge, crit: def.crit || 0, critDmg: critDmg,
-      atkTimer: def.atkInterval * 0.7, isBoss: boss, isChest: isChest, isElite: isElite, sprite,
+      atkTimer: def.atkInterval * 0.7, isBoss: boss, isChest: isChest, isElite: isElite, sprite, sprStep,
       range: range, moveSpeed: moveSpeed,
       eskills: eskills, eskill: (def.skills && def.skills[0]) || null, eskillCD: 0,
       special: def.special || null, splitInto: def.splitInto, splitCount: def.splitCount,
