@@ -162,7 +162,7 @@
       actives.forEach((sid) => (timers[sid] = d.HERO_SKILLS[sid].cooldown));
       return Object.assign({
         heroId, sprite: Game.Sprites.jobs[hdef.sprite] || Game.Sprites.jobs.adventurer,
-        sprStep: hdef.hd ? 0.5 : 1, ranged: hdef.range > 1, airPriority: hdef.airPriority,
+        sprStep: hdef.hd ? ((Game.Render && Game.Render.HD_STEP) || 1 / 3) : 1, ranged: hdef.range > 1, airPriority: hdef.airPriority,
         atkKind: hdef.atkKind, name: entry.name,
         stats, maxHp: stats.maxHp, hp: stats.maxHp,
         range: hdef.range, moveSpeed: d.heroMoveSpeed(entry.job),
@@ -221,7 +221,7 @@
     else { const pool = d.monstersForRegion(r); def = pool[Math.floor(Math.random() * pool.length)]; }
     if (!def) def = d.MONSTER_BY_ID["slime"];
     const sprite = Game.Sprites.byKey(def.sprite) || Game.Sprites.THEMED_SMALL[r] || Game.Sprites.THEMED_SMALL[0];
-    const sprStep = (sprite && sprite.length >= 20) ? 0.5 : 1; // HD 怪物（24²/32²）以半步繪製，世界佔位不變
+    const sprStep = (sprite && sprite.length >= 20) ? ((Game.Render && Game.Render.HD_STEP) || 1 / 3) : 1; // HD 怪物（36²/48²）以 1/3 步長繪製，世界佔位不變
     const tm = (k) => d.monsterTierLabel(def.tiers[k]).mul;
     const sc = opts.scale || 1;
     let maxHp = stx.maxHp * tm("hp") * sc, atk = stx.atk * tm("atk") * sc;
