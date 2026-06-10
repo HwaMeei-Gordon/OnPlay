@@ -239,6 +239,7 @@
       if (pm.critDmgAdd) critDmg += pm.critDmgAdd;
       if (pm.atkSpeedMul) atkInterval *= 1 - pm.atkSpeedMul;
       if (pm.dodgeAdd) dodge += pm.dodgeAdd;
+      if (pm.lifestealAdd) lifesteal += pm.lifestealAdd;
     });
 
     // 套裝：同稀有度（≥4 件且全部同稀有度）→ 攻擊/生命/防禦 ×倍率
