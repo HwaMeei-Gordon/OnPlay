@@ -97,12 +97,12 @@
   function aliveEnemies() { return battle.enemies.filter((e) => e.air <= 0); }
   function aliveHeroes() { return battle.field.filter((h) => !h.dead && !h.isPet); }
   // ---- 空中層：目標篩選（誰能打到空中）----
-  function heroRanged(h) { const c = D().HERO_BY_ID[h.heroId].cls; return c === "法師" || c === "弓手" || c === "牧師"; }
+  function heroRanged(h) { return !!h.ranged; } // buildField 依職業 range>1 掛旗標
   function heroTargetList(h) {
     const all = aliveEnemies().filter((e) => !untargetable(e)); // 隱身/潛入不可被指定
     if (!heroRanged(h)) return all.filter((e) => !(e.gz > 0)); // 近戰只打地面
-    if (D().HERO_BY_ID[h.heroId].cls === "弓手") { const air = all.filter((e) => e.gz > 0); if (air.length) return air; } // 射手絕對優先空中
-    return all; // 法師/牧師可打全部
+    if (h.airPriority) { const air = all.filter((e) => e.gz > 0); if (air.length) return air; } // 射手系絕對優先空中
+    return all; // 其餘遠程可打全部
   }
   function petTargetList() { return aliveEnemies().filter((e) => !(e.gz > 0) && !untargetable(e)); } // 寵物只地面、不打隱身/潛入
   function unitSettled(u) {
@@ -151,18 +151,21 @@
           actives: [], skillTimers: {},
         }, grid);
       }
-      const heroId = slot.id;
+      const heroId = slot.id; // = roster uid
       const stats = S().heroStats(heroId, mods);
-      const def = d.HERO_BY_ID[heroId];
-      const actives = def.skills.filter(
-        (sid) => d.HERO_SKILLS[sid].type === "active" && (st.heroes[heroId].skills[sid] || 0) > 0
+      const hdef = S().heroDef(heroId);
+      const entry = hdef.entry;
+      const actives = hdef.skills.filter(
+        (sid) => d.HERO_SKILLS[sid] && d.HERO_SKILLS[sid].type === "active" && (entry.skills[sid] || 0) > 0
       );
       const timers = {};
       actives.forEach((sid) => (timers[sid] = d.HERO_SKILLS[sid].cooldown));
       return Object.assign({
-        heroId, sprite: Game.Sprites.heroes[def.sprite],
+        heroId, sprite: Game.Sprites.jobs[hdef.sprite] || Game.Sprites.jobs.adventurer,
+        sprStep: hdef.hd ? 0.5 : 1, ranged: hdef.range > 1, airPriority: hdef.airPriority,
+        atkKind: hdef.atkKind, name: entry.name,
         stats, maxHp: stats.maxHp, hp: stats.maxHp,
-        range: d.unitRangeForHero(def.cls), moveSpeed: d.heroMoveSpeed(def.cls),
+        range: hdef.range, moveSpeed: d.heroMoveSpeed(entry.job),
         atkTimer: stats.atkInterval * (0.4 + i * 0.15),
         lane: slot.lane, col: slot.col,
         baseX: bx, x: cellX(gcol), lift: 0,
@@ -478,19 +481,13 @@
       return;
     }
     const drop = S().onKill(target);
-    if (drop) {
-      if (drop.scroll) {
-        const sName = D().scrollTierName(drop.tier || 0);
-        addFloat(target.x, Game.view.ground - 46, "卷軸", "#c79bff", true);
-        if (Game.UI && Game.UI.toast) Game.UI.toast("獲得 " + sName);
-      } else {
-        const set = D().SET_BY_ID[drop.setId];
-        const ra = D().RARITY_BY_ID[drop.rarity];
-        const slotName = D().SLOT_BY_ID[drop.slot].name;
-        addFloat(target.x, Game.view.ground - 46, "★裝備", set ? set.color : "#ffd23f", true);
-        if (Game.UI && Game.UI.toast)
-          Game.UI.toast(set ? `獲得【${set.name}·${slotName}】(${ra.name})` : `獲得 ${ra.name}${slotName}`);
-      }
+    if (drop && drop.levelUps && drop.levelUps.length) {
+      // 角色升級飄字
+      drop.levelUps.forEach((u) => {
+        const hUnit = battle.field.find((f) => f.heroId === u.uid);
+        if (hUnit) addFloat(hUnit.x, Game.view.ground - 46, "升級! Lv" + u.level, "#ffd23f", true);
+        if (Game.UI && Game.UI.toast) Game.UI.toast(u.name + " 升級 Lv" + u.level + "！");
+      });
     }
     // 掉落金幣飛出特效（打怪不掉鑽石）
     const n = target.isBoss ? 9 : 3;
@@ -520,40 +517,57 @@
       h.skillTimers[sid] -= dt;
       if (h.skillTimers[sid] > 0) return;
       const def = D().HERO_SKILLS[sid];
-      const lv = Game.State.heroes[h.heroId].skills[sid] || 0;
-      if (sid === "heal") {
-        // 找最缺血隊友
+      const entry = S().rosterByUid(h.heroId);
+      const lv = (entry && entry.skills[sid]) || 0;
+      if (def.healPct) {
+        // 全隊治療
         let need = false;
         battle.field.forEach((t) => { if (!t.dead && t.hp < t.maxHp) need = true; });
         if (!need) { h.skillTimers[sid] = 0; return; }
-        const pct = 0.08 + 0.02 * lv;
+        const pct = def.healPct(lv);
         battle.field.forEach((t) => {
           if (t.dead) return;
           const amt = Math.round(t.maxHp * pct);
           t.hp = Math.min(t.maxHp, t.hp + amt);
         });
-        addFloat(h.x, hy - 28, def.name, "#5ec46b", true); // 技能名稱（治癒術）
+        addFloat(h.x, hy - 28, def.name, "#5ec46b", true);
         battle.field.forEach((t) => {
           if (t.dead) return;
           for (let k = 0; k < 3; k++) addParticle("heal", t.x + (Math.random() - 0.5) * 8, D().laneY(gy, t.lane) - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5 + Math.random() * 0.2, "#7df09a");
         });
         h.skillTimers[sid] = def.cooldown; fired = true;
-      } else if (sid === "rage") {
+      } else if (def.selfHealPct) {
+        // 回復自身
+        if (h.hp >= h.maxHp) { h.skillTimers[sid] = 0; return; }
+        h.hp = Math.min(h.maxHp, h.hp + Math.round(h.maxHp * def.selfHealPct(lv)));
+        addFloat(h.x, hy - 28, def.name, "#5ec46b", true);
+        for (let k = 0; k < 4; k++) addParticle("heal", h.x + (Math.random() - 0.5) * 8, hy - 6, (Math.random() - 0.5) * 8, -16 - Math.random() * 10, 0.5, "#7df09a");
+        h.skillTimers[sid] = def.cooldown; fired = true;
+      } else if (def.selfFx) {
+        // 自身狀態（戰吼狂暴等）
         if (!fe) { h.skillTimers[sid] = 0; return; }
-        fxAdd(h, def.applies || "berserk", def.duration); // 進入狂暴狀態（攻擊由 fxOutMul 承擔）
+        fxAdd(h, def.selfFx, def.fxDur || 8);
         h.rageMul = 1;
-        addFloat(h.x, hy - 28, def.name, "#ff4d4d", true); // 技能名稱（狂暴）
-        spark(h.x, hy - 8, 9, "#ff7a7a"); // 紅色狂暴氣焰
+        addFloat(h.x, hy - 28, def.name, "#ff4d4d", true);
+        spark(h.x, hy - 8, 9, "#ff7a7a");
+        h.skillTimers[sid] = def.cooldown; fired = true;
+      } else if (def.partyFx) {
+        // 全隊狀態（鼓舞戰歌等）
+        if (!fe) { h.skillTimers[sid] = 0; return; }
+        battle.field.forEach((t) => { if (!t.dead && !t.isPet) { fxAdd(t, def.partyFx, def.fxDur || 5); t.rageMul = 1; } });
+        addFloat(h.x, hy - 28, def.name, "#ff8ab0", true);
+        battle.field.forEach((t) => { if (!t.dead) spark(t.x, D().laneY(gy, t.lane) - 8, 6, "#ffb0d0"); });
         h.skillTimers[sid] = def.cooldown; fired = true;
       } else {
-        // 傷害型技能（需在攻擊距離內）
+        // 傷害型技能（需在攻擊距離內；欄位資料驅動）
         if (!feInRange) { h.skillTimers[sid] = 0; return; }
-        let mult = 1.5, hits = 1, forceCrit = false, color = "#ffce54", kind = null, melee = false;
-        if (sid === "slash") { mult = 1.2 + 0.3 * lv; color = "#ffd76a"; melee = true; }
-        else if (sid === "fireball") { mult = 1.5 + 0.4 * lv; color = "#ff7a3d"; kind = "fireball"; }
-        else if (sid === "frost") { mult = 1.8 + 0.5 * lv; color = "#7ad7ff"; kind = "frost"; }
-        else if (sid === "multishot") { mult = 1.0 + 0.25 * lv; hits = 3; color = "#bfe24a"; kind = "arrow"; }
-        else if (sid === "backstab") { mult = 2.0 + 0.5 * lv; forceCrit = true; color = "#ff4d4d"; melee = true; }
+        const mult = def.mult ? def.mult(lv) : 1.5;
+        const hits = def.hits || 1;
+        const forceCrit = !!def.forceCrit;
+        const kind = def.kind || null;
+        const melee = !!def.melee;
+        const KIND_COLOR = { fireball: "#ff7a3d", frost: "#7ad7ff", arrow: "#bfe24a", orb: "#ffe45a", holy: "#ffe9a8", dark: "#a35bff" };
+        const color = melee ? "#ffd76a" : (KIND_COLOR[kind] || "#ffce54");
         const ty = D().laneY(gy, fe.lane);
         addFloat(h.x, hy - 30, def.name, color, true); // 技能名稱
         h.lunge = melee ? 7 : 3;
@@ -913,14 +927,13 @@
         const target = aim.target;
         if (target && aim.dist <= h.range && unitSettled(h)) { // 在攻擊距離內、已就位於格才出手
           const hy = d.laneY(v.ground, h.lane), ty = d.laneY(v.ground, target.lane) - (target.gz ? d.AIR_LIFT : 0);
-          const cls = D().HERO_BY_ID[h.heroId].cls;
-          const ranged = cls === "法師" || cls === "弓手" || cls === "牧師";
+          const ranged = !!h.ranged;
           h.lunge = ranged ? 2 : 6;
           if (ranged) {
-            // 投射物外觀：法師＝火球、弓手＝箭(帶尾跡)、牧師＝聖光
-            const pk = cls === "法師" ? "fireball" : cls === "弓手" ? "arrow" : "holy";
-            const pc = cls === "法師" ? "#ff7a2a" : cls === "弓手" ? "#ffe45a" : "#7adf8a";
-            addProjectile(h.x, hy - 16, target.x, ty - 8, pc, pk);
+            // 投射物外觀：依職業 atkKind（fireball/frost/arrow/holy/dark/orb）
+            const pk = h.atkKind && h.atkKind !== "melee" ? h.atkKind : "orb";
+            const PC = { fireball: "#ff7a2a", frost: "#7ad7ff", arrow: "#ffe45a", holy: "#7adf8a", dark: "#a35bff", orb: "#ffe45a" };
+            addProjectile(h.x, hy - 16, target.x, ty - 8, PC[pk] || "#ffe45a", pk);
           }
           if (!fxNoDodge(target) && Math.random() < D().evadeChance(h.stats.hit, target.dodge)) {
             addFloat(target.x, ty - 14, "MISS", "#cfd6e4");

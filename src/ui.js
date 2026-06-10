@@ -53,10 +53,18 @@
       `<span class="scroll-badge" style="font-size:${Math.round(px * 0.4)}px"><b>${tier + 1}</b>${Game.Icons.html("star", Math.round(px * 0.33))}</span></span>`;
   }
   function curIco(cur) { return ico(cur === "gold" ? "coin" : cur === "gems" ? "gem" : "soul", 14); }
-  function heroPortrait(id, px) {
-    const def = D().HERO_BY_ID[id];
-    return Game.Icons.spriteHtml(Game.Sprites.heroes[def.sprite], px || 30);
+  function heroPortrait(uid, px) {
+    const hd = Sy().heroDef(uid);
+    const spr = hd ? Game.Sprites.jobs[hd.sprite] : Game.Sprites.jobs.adventurer;
+    return Game.Icons.spriteHtml(spr, px || 30);
   }
+  function jobSprite(jobId, px) {
+    const job = D().JOB_BY_ID[jobId];
+    const spr = (job && Game.Sprites.jobs[job.sprite]) || Game.Sprites.jobs.adventurer;
+    return Game.Icons.spriteHtml(spr, px || 30);
+  }
+  function jobColor(jobId) { const j = D().JOB_BY_ID[jobId]; return (j && j.color) || "#c9d1e0"; }
+  function jobName(jobId) { const j = D().JOB_BY_ID[jobId]; return j ? j.name : jobId; }
   function petPortrait(p, px) { return Game.Icons.spriteHtml(Game.Sprites.pets[p.sprite], px || 30); }
   function stars(rarity) {
     const n = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 }[rarity] || 1;
@@ -248,7 +256,7 @@
     let html = `<div class="modal-title">陣型位置</div><div class="empty" style="padding:4px 10px">選擇要站此格的出戰單位</div>`;
     html += `<div class="row-btns" style="flex-wrap:wrap;justify-content:center">`;
     St().party.forEach((id) => {
-      html += `<button class="act-btn" data-act="form-set" data-kind="hero" data-id="${id}" data-lane="${lane}" data-col="${col}">${heroPortrait(id, 22)} ${D().HERO_BY_ID[id].name}</button>`;
+      html += `<button class="act-btn" data-act="form-set" data-kind="hero" data-id="${id}" data-lane="${lane}" data-col="${col}">${heroPortrait(id, 22)} ${(Sy().rosterByUid(id) || {}).name || ""}</button>`;
     });
     const ap = St().activePet;
     if (ap && St().pets[ap]) html += `<button class="act-btn" data-act="form-set" data-kind="pet" data-id="${ap}" data-lane="${lane}" data-col="${col}">${petPortrait(D().PET_BY_ID[ap], 22)} ${D().PET_BY_ID[ap].name}</button>`;
@@ -258,15 +266,17 @@
     openModal(html);
   }
 
-  // ---- 英雄列表 ----
+  // ---- 角色名冊 ＋ 招募 ----
   function renderHeroList() {
-    const s = St();
+    const s = St(), d = D();
     // 出戰隊伍展示列
     let pb = "";
-    s.party.forEach((id) => {
-      pb += `<div class="pb-slot" style="--rc:${rarColor(D().HERO_BY_ID[id].rarity)}">${heroPortrait(id, 30)}<span class="pb-lv">Lv.${s.heroes[id].level}</span></div>`;
+    s.party.forEach((uid) => {
+      const r = Sy().rosterByUid(uid);
+      if (!r) return;
+      pb += `<div class="pb-slot" style="--rc:${jobColor(r.job)}">${heroPortrait(uid, 30)}<span class="pb-lv">Lv.${r.level}</span></div>`;
     });
-    for (let i = s.party.length; i < D().PARTY_MAX; i++) pb += `<div class="pb-slot empty">+</div>`;
+    for (let i = s.party.length; i < d.PARTY_MAX; i++) pb += `<div class="pb-slot empty">+</div>`;
     let html = `<div class="party-bar">${pb}</div>`;
     // 陣型（3×3：前排靠右、上中下行；含出戰寵物）
     const layout = Sy().formationLayout();
@@ -276,71 +286,116 @@
     for (let lane = 0; lane < 3; lane++) {
       [2, 1, 0].forEach((col) => {
         const sl = occ[lane + "," + col];
-        const portrait = sl ? (sl.kind === "pet" ? petPortrait(D().PET_BY_ID[sl.id], 30) : heroPortrait(sl.id, 30)) : "<span class='fc-plus'>＋</span>";
+        const portrait = sl ? (sl.kind === "pet" ? petPortrait(d.PET_BY_ID[sl.id], 30) : heroPortrait(sl.id, 30)) : "<span class='fc-plus'>＋</span>";
         html += `<div class="form-cell ${sl ? "" : "empty"} ${sl && sl.kind === "pet" ? "pet" : ""}" data-act="form-cell" data-lane="${lane}" data-col="${col}">${portrait}</div>`;
       });
     }
     html += `</div>`;
-    html += `<div class="sec-title">英雄圖鑑</div><div class="hero-grid">`;
-    D().HEROES.forEach((h) => {
-      const o = s.heroes[h.id] && s.heroes[h.id].owned;
-      const inParty = s.party.indexOf(h.id) >= 0;
-      const lvl = o ? s.heroes[h.id].level : 0;
-      const pw = o ? Sy().heroPower(h.id) : 0;
-      html += `<div class="hero-card ${o ? "" : "locked"} ${inParty ? "inparty" : ""}" data-act="${o ? "hero-open" : ""}" data-id="${h.id}">
-        <div class="hc-frame" style="--rc:${rarColor(h.rarity)}">
-          <div class="hc-portrait">${heroPortrait(h.id, 44)}</div>
-          <div class="hc-stars">${stars(h.rarity)}</div>
+    // 招募（每日免費換一輪；可手動花金幣刷新）
+    const cands = Sy().ensureRecruits();
+    const refreshCost = d.RECRUIT.refreshGold(s.recruit.refreshes || 0);
+    html += `<div class="sec-title">招募　<span style="font-size:11px;color:#9a90b5">每日更換；數值越好越貴</span></div><div class="recruit-row">`;
+    cands.forEach((c, i) => {
+      const rolls = c.baseRolls;
+      const dot = (k, label) => {
+        const v = rolls[k] || 1;
+        const col = v > 1.05 ? "#5ec46b" : v < 0.95 ? "#8a8fa0" : "#d7d2e4";
+        return `<span style="color:${col}">${label}${v > 1.05 ? "↑" : v < 0.95 ? "↓" : ""}</span>`;
+      };
+      const can = s.gold >= c.cost;
+      html += `<div class="recruit-card">
+        <div class="rc-portrait">${jobSprite(c.job, 38)}</div>
+        <div class="rc-name">${c.name}</div>
+        <div class="rc-job" style="color:${jobColor(c.job)}">${jobName(c.job)} Lv.${c.level}</div>
+        <div class="rc-rolls">${dot("atk", "攻")} ${dot("maxHp", "血")} ${dot("def", "防")}</div>
+        <button class="buy-btn ${can ? "" : ""}" data-act="recruit-do" data-i="${i}" ${can ? "" : "disabled"}>
+          <span class="cost">${curIco("gold")}${fmt(c.cost)}</span></button>
+      </div>`;
+    });
+    html += `</div><div class="row-btns" style="justify-content:center">
+      <button class="mini-btn" data-act="recruit-refresh" ${s.gold >= refreshCost ? "" : "disabled"}>刷新候選（${curIco("gold")}${fmt(refreshCost)}）</button></div>`;
+    // 名冊
+    html += `<div class="sec-title">名冊　${s.roster.length} 人</div><div class="hero-grid">`;
+    s.roster.forEach((r) => {
+      const inParty = s.party.indexOf(r.uid) >= 0;
+      const pw = Sy().heroPower(r.uid) || 0;
+      const job = d.JOB_BY_ID[r.job];
+      html += `<div class="hero-card ${inParty ? "inparty" : ""}" data-act="hero-open" data-id="${r.uid}">
+        <div class="hc-frame" style="--rc:${jobColor(r.job)}">
+          <div class="hc-portrait">${heroPortrait(r.uid, 44)}</div>
         </div>
-        <div class="hc-name" style="color:${rarColor(h.rarity)}">${h.name}</div>
-        <div class="hc-sub">${o ? "Lv." + lvl : h.cls}</div>
-        <div class="hc-pow">${o ? ico("sword", 11) + fmt(pw) : "未擁有"}</div>
+        <div class="hc-name" style="color:${jobColor(r.job)}">${r.name}</div>
+        <div class="hc-sub">${job ? job.name : ""}・Lv.${r.level}</div>
+        <div class="hc-pow">${ico("sword", 11)}${fmt(pw)}</div>
       </div>`;
     });
     html += `</div>`;
     return html;
   }
 
-  // ---- 英雄詳情（升級 / 裝備 / 技能 / 出戰）----
+  // ---- 角色詳情（經驗 / 轉職 / 裝備 / 技能 / 出戰）----
   function renderHeroDetail(id) {
-    const s = St();
-    const def = D().HERO_BY_ID[id];
-    const hs = s.heroes[id];
+    const s = St(), d = D();
+    const hd = Sy().heroDef(id);
+    if (!hd) { heroDetail = null; return renderHeroList(); }
+    const hs = hd.entry, job = hd.job;
     const st = Sy().heroStats(id);
     const inParty = s.party.indexOf(id) >= 0;
-    const lvlCost = D().heroLevelCost(hs.level);
+    const tierName = d.JOB_TIER_NAMES[job.tier] || "";
     let html = `<div class="detail-head">
       <button class="back-btn" data-act="hero-back">←</button>
-      <div class="dh-frame" style="--rc:${rarColor(def.rarity)}">${heroPortrait(id, 46)}</div>
+      <div class="dh-frame" style="--rc:${job.color}">${heroPortrait(id, 46)}</div>
       <div class="dh-meta">
-        <div class="dh-name" style="color:${rarColor(def.rarity)}">${def.name}</div>
-        <div class="dh-sub">${def.cls}・${rarName(def.rarity)} <span class="dh-stars">${stars(def.rarity)}</span></div>
+        <div class="dh-name" style="color:${job.color}">${hs.name}</div>
+        <div class="dh-sub">${job.name}（${tierName}）</div>
         <div class="dh-sub">Lv.${hs.level}　${ico("sword", 11)}${fmt(st.power)}</div>
       </div>
     </div>`;
 
+    // 經驗條（純經驗升級；打怪獲得）
+    const atCap = hs.level >= d.LEVEL_CAP;
+    const need = atCap ? 1 : d.xpForLevel(hs.level);
+    const pct = atCap ? 100 : Math.min(100, Math.round((hs.exp / need) * 100));
+    html += `<div class="xp-row"><span class="xp-lv">Lv.${hs.level}${atCap ? "（滿級）" : ""}</span>
+      <div class="xp-bar"><div class="xp-fill" style="width:${pct}%"></div></div>
+      <span class="xp-num">${atCap ? "MAX" : fmt(hs.exp) + "/" + fmt(need)}</span></div>`;
+
+    // 轉職（達標顯示選項；不可逆）
+    if (job.to && job.to.length) {
+      const nextJob = d.JOB_BY_ID[job.to[0]];
+      const reqLv = nextJob ? nextJob.reqLevel : 0;
+      html += `<div class="sec-title">轉職　<span style="font-size:11px;color:#9a90b5">Lv.${reqLv} 開放・不可逆</span></div><div class="job-row">`;
+      job.to.forEach((toId) => {
+        const tj = d.JOB_BY_ID[toId];
+        const can = hs.level >= tj.reqLevel;
+        html += `<div class="job-card ${can ? "" : "locked"}" data-act="${can ? "job-change" : ""}" data-id="${id}" data-job="${toId}">
+          <div class="jc-portrait">${jobSprite(toId, 34)}</div>
+          <div class="jc-name" style="color:${tj.color}">${tj.name}</div>
+          <div class="jc-req">${can ? "可轉職" : "需 Lv." + tj.reqLevel}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
     // 屬性
     html += `<div class="stat-box">
-      ${statLine("等級", "Lv." + hs.level)}
       ${statLine("戰力", ico("sword",11) + fmt(st.power))}
       ${statLine("攻擊", fmt(st.atk))}
       ${statLine("生命", fmt(st.maxHp))}
       ${statLine("防禦", fmt(st.def))}
       ${statLine("暴擊", Math.round(st.crit * 100) + "%")}
       ${statLine("暴傷", Math.round(st.critDmg * 100) + "%")}
-      ${statLine("攻擊距離", D().unitRangeForHero(def.cls) + " 格")}
-      ${statLine("攻速", (st.atkInterval * D().ATK_INTERVAL_MUL).toFixed(2) + "s")}
-      ${statLine("移動速度", (D().MOVE_BY_CLS[def.cls] || 1).toFixed(2) + "×")}
+      ${statLine("攻擊距離", hd.range + " 格")}
+      ${statLine("攻速", (st.atkInterval * d.ATK_INTERVAL_MUL).toFixed(2) + "s")}
+      ${statLine("移動速度", (hd.moveMul || 1).toFixed(2) + "×")}
       ${statLine("吸血", Math.round(st.lifesteal * 100) + "%")}
       ${statLine("命中", st.hit)}
       ${statLine("閃避", st.dodge)}
     </div>`;
 
-    // 操作列
+    // 操作列（升級改純經驗：打怪自動升）
     html += `<div class="row-btns">
       <button class="act-btn ${inParty ? "on" : ""}" data-act="hero-party" data-id="${id}">${inParty ? "✓ 出戰中" : "＋ 出戰"}</button>
-      ${buyBtn("hero-level", { id, n: 1 }, "gold", lvlCost, "升級")}
-      <button class="act-btn" data-act="hero-level10" data-id="${id}">升級×10</button>
       <button class="act-btn" data-act="hero-auto" data-id="${id}">自動裝備</button>
     </div>`;
 
@@ -391,7 +446,7 @@
 
     // 技能
     html += `<div class="sec-title">技能</div>`;
-    def.skills.forEach((sid) => {
+    hd.skills.forEach((sid) => {
       const sk = D().HERO_SKILLS[sid];
       const lv = hs.skills[sid] || 0;
       const max = lv >= sk.maxLevel;
@@ -1000,7 +1055,7 @@
     const lines = fxDescLines(key).map((t) => `<div class="sl"><span>${t}</span></div>`).join("");
     return `<div class="sec-title">狀態效果</div>
       <div class="hb-fx-card">
-        <canvas class="fx-preview" data-effect="${key}" data-sprite="knight" width="40" height="46"></canvas>
+        <canvas class="fx-preview" data-effect="${key}" data-sprite="adventurer" width="40" height="46"></canvas>
         <div class="hb-fx-info">
           <div class="hb-fx-name" style="color:${FXCOLOR[key] || "#fff"}">${FXNAME[key] || key}</div>
           <div class="hb-fx-dur">持續 ${f.dur} 秒</div>
@@ -1153,7 +1208,7 @@
       document.querySelectorAll("#panel-content canvas.fx-preview").forEach((cv) => {
         const c = cv.getContext && cv.getContext("2d"); if (!c) return;
         c.clearRect(0, 0, cv.width, cv.height);
-        const sprite = Game.Sprites.heroes[cv.dataset.sprite]; if (!sprite) return;
+        const sprite = Game.Sprites.jobs[cv.dataset.sprite]; if (!sprite) return;
         Game.Render.drawSpriteFx(c, sprite, cv.dataset.effect, hbClk, { cx: cv.width / 2, bottomY: cv.height - 3 });
       });
       hbRaf = requestAnimationFrame(step);
@@ -1207,8 +1262,9 @@
       case "form-cell": openFormModal(+t.dataset.lane, +t.dataset.col); rerender = false; break;
       case "form-set": { if (t.dataset.kind === "pet") Sy().setPetPos(id, +t.dataset.lane, +t.dataset.col); else Sy().setHeroPos(id, +t.dataset.lane, +t.dataset.col); Game.Engine.onPartyChanged(); closeModal(); break; }
       case "form-clear": { if (t.dataset.kind === "pet") Sy().clearPetPos(id); else Sy().clearHeroPos(id); Game.Engine.onPartyChanged(); closeModal(); break; }
-      case "hero-level": Sy().levelUpHero(id, 1); break;
-      case "hero-level10": Sy().levelUpHero(id, 10); break;
+      case "recruit-do": { const r = Sy().recruitHero(+t.dataset.i); toast(r.ok ? "招募成功：" + r.entry.name : r.msg); break; }
+      case "recruit-refresh": { const r = Sy().refreshRecruits(); if (!r.ok) toast(r.msg); break; }
+      case "job-change": { const r = Sy().jobChange(id, t.dataset.job); toast(r.ok ? "轉職成功 → " + r.job.name + "！" : r.msg); break; }
       case "hero-auto": Sy().autoEquipBest(id); break;
       case "hero-skill": Sy().upgradeSkill(id, t.dataset.skill); break;
       case "hero-slot": openEquipPicker(id, slot); rerender = false; break;
@@ -1306,7 +1362,7 @@
     equipPickHero = heroId;
     const items = St().inventory.filter((it) => it.slot === slot)
       .sort((a, b) => D().itemMainStat(b) - D().itemMainStat(a));
-    const cur = St().heroes[heroId].equip[slot];
+    const cur = Sy().rosterByUid(heroId).equip[slot];
     let html = `<div class="modal-title">選擇 ${D().SLOT_BY_ID[slot].name}</div>`;
     html += `<button class="act-btn" data-act="slot-unequip" data-slot="${slot}">卸下</button>`;
     if (!items.length) html += `<div class="empty">沒有此部位的裝備</div>`;
