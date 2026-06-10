@@ -440,7 +440,7 @@
 
     // 腳下陰影（皆畫在地面層；空中單位也在地面留影，呈現高度）
     b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWorldW(h.sprite, h.sprStep || 1) - 2, LYF(h)); });
-    b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
+    b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWorldW(e.sprite, e.sprStep || 1) - 2, LYF(e)); });
 
     // 狀態效果動態時鐘（fxTint/drawFx 已提升到模組層，供戰鬥與說明書共用）
     const clk = b.fxClock || 0;
@@ -454,20 +454,21 @@
       if (dr.kind === "e") {
         const e = dr.o, sp = e.sprite, gy = dr.y;
         if (e.burrowState === "under") return; // 潛入地下：本體不繪製
+        const est = e.sprStep || 1, esw = spriteWorldW(sp, est), esh = spriteWorldH(sp, est);
         const tint = e.hitFlash > 0 ? "#ffffff" : fxTint(e);
         const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0) - (e.zF || 0) * d.AIR_LIFT;
         const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
-        if (e.invis) { drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, null, 0, true); return; } // 隱身：只剩外輪廓、不畫血條/特效
-        drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint);
-        const bw = Math.max(10, spriteWidth(sp) - 2);
-        drawBar(ex - bw / 2, gy - sp.length - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
-        drawFx(e, Math.round(ex), gy - sp.length, ey, spriteWidth(sp), sp.length, clk);
+        if (e.invis) { drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, null, 0, true, est); return; } // 隱身：只剩外輪廓、不畫血條/特效
+        drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint, 0, false, est);
+        const bw = Math.max(10, esw - 2);
+        drawBar(ex - bw / 2, gy - esh - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+        drawFx(e, Math.round(ex), gy - esh, ey, esw, esh, clk);
         if (e.isChest) {
-          const my = gy - sp.length - 9 + ey, mx = Math.round(ex);
+          const my = gy - esh - 9 + ey, mx = Math.round(ex);
           rect(mx - 4, my + 2, 8, 5, "#7a4a16"); rect(mx - 4, my, 8, 2, "#ffcf3d");
           rect(mx - 1, my + 1, 2, 5, "#ffe27a");
         } else if (e.isElite) {
-          const my = gy - sp.length - 8 + ey, mx = Math.round(ex);
+          const my = gy - esh - 8 + ey, mx = Math.round(ex);
           rect(mx - 5, my + 4, 10, 2, "#ff3b46");
           rect(mx - 4, my + 1, 2, 4, "#ff6a8a"); rect(mx - 1, my, 2, 5, "#ffd23f"); rect(mx + 2, my + 1, 2, 4, "#ff6a8a");
         }
