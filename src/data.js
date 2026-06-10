@@ -39,9 +39,9 @@
   const CLASH_TIME = 0.9;       // 「開戰！」停頓秒數（雙方就位後短暫定格）
 
   // ---- 格子戰術 AI（逐單位攻擊距離／最近目標／自由移動）----
-  const RANGE_BY_CLS = { "戰士": 1, "狂戰": 1, "盜賊": 1, "法師": 3, "牧師": 3, "弓手": 5 }; // 攻擊距離（格）；預設 1
+  // 攻擊距離改由職業 JOBS 決定（見下方 JOBS 定義）；預設 1
   const BOSS_RANGE = 5, ENEMY_RANGE = 1;
-  function unitRangeForHero(cls) { return RANGE_BY_CLS[cls] || 1; }
+  function unitRangeForHero(jobId) { const j = JOB_BY_ID[jobId]; return (j && j.range) || 1; }
   function unitRangeForEnemy(isBoss) { return isBoss ? BOSS_RANGE : ENEMY_RANGE; }
   const ATK_INTERVAL_MUL = 2;   // 攻速放慢一倍（攻擊間隔 ×2；雙方）
   const KILL_PAUSE = 0.5;       // 擊敗對手後原地停 0.5 秒才能下一個動作（雙方）
@@ -72,9 +72,8 @@
     const a = Math.max(0, Math.min(last, fl)), b = Math.max(0, Math.min(last, fl + 1));
     return ground + LANE_DY[a] + (LANE_DY[b] - LANE_DY[a]) * (laneF - fl);
   }
-  // 移動速度差異化（× GRID_STEP_SPEED）：盜賊/狂戰快、戰士中、遠程職業偏慢（本就靠後）
-  const MOVE_BY_CLS = { "盜賊": 1.45, "狂戰": 1.2, "戰士": 1.0, "牧師": 0.9, "法師": 0.85, "弓手": 0.92 };
-  function heroMoveSpeed(cls) { return GRID_STEP_SPEED * (MOVE_BY_CLS[cls] || 1); }
+  // 移動速度差異化（× GRID_STEP_SPEED）：改由職業 JOBS.moveMul 決定
+  function heroMoveSpeed(jobId) { const j = JOB_BY_ID[jobId]; return GRID_STEP_SPEED * ((j && j.moveMul) || 1); }
   // 敵人攻擊距離：多數近戰(1)，少數遠程(2~5，偏向 2~3)；遠程比例隨區域(深層)提高
   function enemyRangeRoll(stage) {
     const p = Math.min(0.5, 0.12 + regionOf(stage) * 0.06);
@@ -919,91 +918,243 @@
 
   // ---- 英雄 ----
   // base 為 1 級屬性；growth 為每級成長；skills 為可用技能 id
-  const HEROES = [
-    {
-      id: "knight", name: "騎士", cls: "戰士", sprite: "knight", rarity: "common",
-      base: { atk: 14, maxHp: 185, def: 4, crit: 0.05, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 12 },
-      growth: { atk: 2.4, maxHp: 26, def: 0.7 },
-      skills: ["slash", "guard", "rally"],
-      starter: true,
-    },
-    {
-      id: "mage", name: "法師", cls: "法師", sprite: "mage", rarity: "uncommon",
-      base: { atk: 18, maxHp: 115, def: 2, crit: 0.07, critDmg: 1.8, atkInterval: 1.25, lifesteal: 0, hit: 95, dodge: 12 },
-      growth: { atk: 3.6, maxHp: 16, def: 0.4 },
-      skills: ["fireball", "frost", "rally"],
-    },
-    {
-      id: "archer", name: "弓手", cls: "弓手", sprite: "archer", rarity: "uncommon",
-      base: { atk: 13, maxHp: 125, def: 2, crit: 0.12, critDmg: 1.9, atkInterval: 0.8, lifesteal: 0, hit: 115, dodge: 28 },
-      growth: { atk: 2.8, maxHp: 18, def: 0.5 },
-      skills: ["multishot", "focus", "guard"],
-    },
-    {
-      id: "priest", name: "牧師", cls: "牧師", sprite: "priest", rarity: "rare",
-      base: { atk: 9, maxHp: 150, def: 3, crit: 0.05, critDmg: 1.6, atkInterval: 1.1, lifesteal: 0, hit: 95, dodge: 16 },
-      growth: { atk: 1.8, maxHp: 22, def: 0.6 },
-      skills: ["heal", "bless", "guard"],
-    },
-    {
-      id: "rogue", name: "盜賊", cls: "盜賊", sprite: "rogue", rarity: "rare",
-      base: { atk: 14, maxHp: 120, def: 2, crit: 0.15, critDmg: 2.1, atkInterval: 0.7, lifesteal: 0.06, hit: 110, dodge: 45 },
-      growth: { atk: 3.0, maxHp: 17, def: 0.4 },
-      skills: ["backstab", "focus", "rage"],
-    },
-    {
-      id: "berserker", name: "狂戰士", cls: "狂戰", sprite: "berserker", rarity: "epic",
-      base: { atk: 20, maxHp: 160, def: 2, crit: 0.1, critDmg: 2.0, atkInterval: 0.95, lifesteal: 0.05, hit: 100, dodge: 12 },
-      growth: { atk: 4.0, maxHp: 24, def: 0.5 },
-      skills: ["rage", "slash", "rally"],
-    },
+  // ---- 職業樹（36 職）----
+  // tier0 冒險者帶絕對 base/growth；一轉/二轉/三轉用 statMul（沿 from 鏈連乘）+ adds（平加）。
+  // 轉職不可逆：冒險者 →(Lv15) 一轉7職 →(Lv40) 二轉(每職二選一) →(Lv80) 三轉(1:1)。
+  // sprite 指向 Sprites.jobs 的鍵；hd=true 表示 32×32 高密度圖（畫面佔位仍 16×16）。
+  // 二轉/三轉本階段：sprite 沿用父職、skills 繼承父職（專屬圖與技能下輪補）。
+  const JOBS = [
+    { id: "adventurer", name: "冒險者", tier: 0, reqLevel: 1, from: null, to: ["warrior", "guard", "mage", "monk", "archer", "assassin", "bard"],
+      range: 1, moveMul: 1.0, atkKind: "melee", color: "#c9d1e0", sprite: "adventurer", hd: true,
+      base: { atk: 14, maxHp: 170, def: 3, crit: 0.06, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 15 },
+      growth: { atk: 2.6, maxHp: 24, def: 0.6 },
+      skills: ["braveslash", "stone", "basictrain"] },
+    // 一轉（Lv15）
+    { id: "warrior", name: "戰士", tier: 1, reqLevel: 15, from: "adventurer", to: ["greatsword", "lancer"],
+      range: 1, moveMul: 1.05, atkKind: "melee", color: "#e0905a", sprite: "warrior", hd: true,
+      statMul: { atk: 1.25, maxHp: 1.2, def: 1.15 }, skills: ["crossslash", "warcry", "weaponmaster"] },
+    { id: "guard", name: "盾兵", tier: 1, reqLevel: 15, from: "adventurer", to: ["armorlord", "hammerlord"],
+      range: 1, moveMul: 0.9, atkKind: "melee", color: "#8fa8c8", sprite: "guard", hd: true,
+      statMul: { atk: 0.95, maxHp: 1.5, def: 1.55 }, adds: { dodge: -5 }, skills: ["shieldbash", "bulwark", "ironwall"] },
+    { id: "mage", name: "法師", tier: 1, reqLevel: 15, from: "adventurer", to: ["wizard", "icethunder"],
+      range: 3, moveMul: 0.85, atkKind: "fireball", color: "#9b59d0", sprite: "mage", hd: true,
+      statMul: { atk: 1.45, maxHp: 0.85, def: 0.8 }, adds: { critDmg: 0.2 }, skills: ["fireball", "frostnova", "fastcast"] },
+    { id: "monk", name: "僧侶", tier: 1, reqLevel: 15, from: "adventurer", to: ["lightmonk", "darkmonk"],
+      range: 3, moveMul: 0.9, atkKind: "holy", color: "#ffe9a8", sprite: "monk", hd: true,
+      statMul: { atk: 0.85, maxHp: 1.15, def: 1.1 }, skills: ["healparty", "holybolt", "blessing"] },
+    { id: "archer", name: "射手", tier: 1, reqLevel: 15, from: "adventurer", to: ["windranger", "inventor"],
+      range: 5, moveMul: 0.95, atkKind: "arrow", color: "#3aa856", sprite: "archer", hd: true, airPriority: true,
+      statMul: { atk: 1.15, maxHp: 0.9, def: 0.85 }, adds: { crit: 0.06, hit: 15, dodge: 10 }, skills: ["multishot", "aimshot", "sharpeye"] },
+    { id: "assassin", name: "刺客", tier: 1, reqLevel: 15, from: "adventurer", to: ["ninja", "slayer"],
+      range: 1, moveMul: 1.45, atkKind: "melee", color: "#5e5e72", sprite: "assassin", hd: true,
+      statMul: { atk: 1.2, maxHp: 0.85, def: 0.8 }, adds: { crit: 0.09, critDmg: 0.4, dodge: 25, lifesteal: 0.05 }, skills: ["backstab", "venomblade", "shadowstep"] },
+    { id: "bard", name: "樂手", tier: 1, reqLevel: 15, from: "adventurer", to: ["rocker", "symphony"],
+      range: 3, moveMul: 0.95, atkKind: "orb", color: "#ef82b0", sprite: "bard", hd: true,
+      statMul: { atk: 1.05, maxHp: 1.0, def: 0.95 }, skills: ["soundwave", "warsong", "rhythm"] },
+    // 二轉（Lv40；圖/技能暫沿用父職，下輪補專屬）
+    { id: "greatsword", name: "大劍士", tier: 2, reqLevel: 40, from: "warrior", to: ["swordmagia"],
+      range: 1, moveMul: 1.0, atkKind: "melee", color: "#e07a3a", sprite: "warrior", hd: true,
+      statMul: { atk: 1.35, maxHp: 1.15, def: 1.1 }, skills: ["crossslash", "warcry", "weaponmaster"] },
+    { id: "lancer", name: "長槍士", tier: 2, reqLevel: 40, from: "warrior", to: ["dragoon"],
+      range: 2, moveMul: 1.1, atkKind: "melee", color: "#e0a05a", sprite: "warrior", hd: true,
+      statMul: { atk: 1.3, maxHp: 1.1, def: 1.15 }, skills: ["crossslash", "warcry", "weaponmaster"] },
+    { id: "armorlord", name: "鎧武將", tier: 2, reqLevel: 40, from: "guard", to: ["irongeneral"],
+      range: 1, moveMul: 0.85, atkKind: "melee", color: "#7a92b8", sprite: "guard", hd: true,
+      statMul: { atk: 1.05, maxHp: 1.45, def: 1.5 }, skills: ["shieldbash", "bulwark", "ironwall"] },
+    { id: "hammerlord", name: "盾錘將", tier: 2, reqLevel: 40, from: "guard", to: ["omnigeneral"],
+      range: 1, moveMul: 0.9, atkKind: "melee", color: "#98b0d0", sprite: "guard", hd: true,
+      statMul: { atk: 1.25, maxHp: 1.3, def: 1.3 }, skills: ["shieldbash", "bulwark", "ironwall"] },
+    { id: "wizard", name: "魔術師", tier: 2, reqLevel: 40, from: "mage", to: ["archmage"],
+      range: 4, moveMul: 0.85, atkKind: "fireball", color: "#b06ae0", sprite: "mage", hd: true,
+      statMul: { atk: 1.4, maxHp: 0.95, def: 0.9 }, skills: ["fireball", "frostnova", "fastcast"] },
+    { id: "icethunder", name: "冰雷法師", tier: 2, reqLevel: 40, from: "mage", to: ["wuxing"],
+      range: 4, moveMul: 0.85, atkKind: "frost", color: "#6ab0e0", sprite: "mage", hd: true,
+      statMul: { atk: 1.35, maxHp: 1.0, def: 0.95 }, skills: ["fireball", "frostnova", "fastcast"] },
+    { id: "lightmonk", name: "光之僧", tier: 2, reqLevel: 40, from: "monk", to: ["bishop"],
+      range: 3, moveMul: 0.9, atkKind: "holy", color: "#ffe45a", sprite: "monk", hd: true,
+      statMul: { atk: 1.1, maxHp: 1.25, def: 1.15 }, skills: ["healparty", "holybolt", "blessing"] },
+    { id: "darkmonk", name: "闇之僧", tier: 2, reqLevel: 40, from: "monk", to: ["nightwitch"],
+      range: 3, moveMul: 0.9, atkKind: "dark", color: "#8a5fd6", sprite: "monk", hd: true,
+      statMul: { atk: 1.3, maxHp: 1.05, def: 1.0 }, skills: ["healparty", "holybolt", "blessing"] },
+    { id: "windranger", name: "風行射手", tier: 2, reqLevel: 40, from: "archer", to: ["stormlord"],
+      range: 5, moveMul: 1.1, atkKind: "arrow", color: "#5ec4a0", sprite: "archer", hd: true, airPriority: true,
+      statMul: { atk: 1.3, maxHp: 0.95, def: 0.9 }, skills: ["multishot", "aimshot", "sharpeye"] },
+    { id: "inventor", name: "發明家", tier: 2, reqLevel: 40, from: "archer", to: ["scientist"],
+      range: 4, moveMul: 0.9, atkKind: "orb", color: "#c8a04a", sprite: "archer", hd: true,
+      statMul: { atk: 1.35, maxHp: 1.05, def: 1.0 }, skills: ["multishot", "aimshot", "sharpeye"] },
+    { id: "ninja", name: "忍者", tier: 2, reqLevel: 40, from: "assassin", to: ["shadownin"],
+      range: 1, moveMul: 1.5, atkKind: "melee", color: "#4a4a66", sprite: "assassin", hd: true,
+      statMul: { atk: 1.25, maxHp: 0.95, def: 0.9 }, adds: { dodge: 15 }, skills: ["backstab", "venomblade", "shadowstep"] },
+    { id: "slayer", name: "殺手", tier: 2, reqLevel: 40, from: "assassin", to: ["bloodfrenzy"],
+      range: 1, moveMul: 1.4, atkKind: "melee", color: "#a83a4a", sprite: "assassin", hd: true,
+      statMul: { atk: 1.4, maxHp: 0.9, def: 0.85 }, adds: { critDmg: 0.3, lifesteal: 0.05 }, skills: ["backstab", "venomblade", "shadowstep"] },
+    { id: "rocker", name: "搖滾歌手", tier: 2, reqLevel: 40, from: "bard", to: ["heavymetal"],
+      range: 3, moveMul: 1.0, atkKind: "orb", color: "#e0457a", sprite: "bard", hd: true,
+      statMul: { atk: 1.3, maxHp: 1.0, def: 0.95 }, skills: ["soundwave", "warsong", "rhythm"] },
+    { id: "symphony", name: "交響隊員", tier: 2, reqLevel: 40, from: "bard", to: ["conductor"],
+      range: 3, moveMul: 0.95, atkKind: "orb", color: "#c89be0", sprite: "bard", hd: true,
+      statMul: { atk: 1.15, maxHp: 1.15, def: 1.1 }, skills: ["soundwave", "warsong", "rhythm"] },
+    // 三轉（Lv80；圖/技能暫沿用，下輪補專屬）
+    { id: "swordmagia", name: "劍魔", tier: 3, reqLevel: 80, from: "greatsword", to: [],
+      range: 1, moveMul: 1.05, atkKind: "melee", color: "#ff5a2a", sprite: "warrior", hd: true,
+      statMul: { atk: 1.4, maxHp: 1.2, def: 1.15 }, skills: ["crossslash", "warcry", "weaponmaster"] },
+    { id: "dragoon", name: "龍騎士", tier: 3, reqLevel: 80, from: "lancer", to: [],
+      range: 2, moveMul: 1.15, atkKind: "melee", color: "#ffd23f", sprite: "warrior", hd: true,
+      statMul: { atk: 1.35, maxHp: 1.25, def: 1.2 }, skills: ["crossslash", "warcry", "weaponmaster"] },
+    { id: "irongeneral", name: "鋼鐵將軍", tier: 3, reqLevel: 80, from: "armorlord", to: [],
+      range: 1, moveMul: 0.85, atkKind: "melee", color: "#b8c8e0", sprite: "guard", hd: true,
+      statMul: { atk: 1.1, maxHp: 1.45, def: 1.5 }, skills: ["shieldbash", "bulwark", "ironwall"] },
+    { id: "omnigeneral", name: "全武將軍", tier: 3, reqLevel: 80, from: "hammerlord", to: [],
+      range: 1, moveMul: 0.95, atkKind: "melee", color: "#d0b860", sprite: "guard", hd: true,
+      statMul: { atk: 1.3, maxHp: 1.3, def: 1.3 }, skills: ["shieldbash", "bulwark", "ironwall"] },
+    { id: "archmage", name: "大魔術師", tier: 3, reqLevel: 80, from: "wizard", to: [],
+      range: 5, moveMul: 0.85, atkKind: "fireball", color: "#d04ae0", sprite: "mage", hd: true,
+      statMul: { atk: 1.45, maxHp: 1.0, def: 0.95 }, skills: ["fireball", "frostnova", "fastcast"] },
+    { id: "wuxing", name: "五行法師", tier: 3, reqLevel: 80, from: "icethunder", to: [],
+      range: 5, moveMul: 0.85, atkKind: "frost", color: "#4ae0c8", sprite: "mage", hd: true,
+      statMul: { atk: 1.4, maxHp: 1.05, def: 1.0 }, skills: ["fireball", "frostnova", "fastcast"] },
+    { id: "bishop", name: "光明主教", tier: 3, reqLevel: 80, from: "lightmonk", to: [],
+      range: 4, moveMul: 0.9, atkKind: "holy", color: "#fff0c0", sprite: "monk", hd: true,
+      statMul: { atk: 1.15, maxHp: 1.3, def: 1.2 }, skills: ["healparty", "holybolt", "blessing"] },
+    { id: "nightwitch", name: "闇夜巫師", tier: 3, reqLevel: 80, from: "darkmonk", to: [],
+      range: 4, moveMul: 0.9, atkKind: "dark", color: "#6a3a9a", sprite: "monk", hd: true,
+      statMul: { atk: 1.4, maxHp: 1.1, def: 1.05 }, skills: ["healparty", "holybolt", "blessing"] },
+    { id: "stormlord", name: "風暴君", tier: 3, reqLevel: 80, from: "windranger", to: [],
+      range: 6, moveMul: 1.15, atkKind: "arrow", color: "#5ad0e0", sprite: "archer", hd: true, airPriority: true,
+      statMul: { atk: 1.35, maxHp: 1.0, def: 0.95 }, skills: ["multishot", "aimshot", "sharpeye"] },
+    { id: "scientist", name: "科學偉人", tier: 3, reqLevel: 80, from: "inventor", to: [],
+      range: 5, moveMul: 0.9, atkKind: "orb", color: "#e0c84a", sprite: "archer", hd: true,
+      statMul: { atk: 1.4, maxHp: 1.1, def: 1.05 }, skills: ["multishot", "aimshot", "sharpeye"] },
+    { id: "shadownin", name: "影忍", tier: 3, reqLevel: 80, from: "ninja", to: [],
+      range: 1, moveMul: 1.55, atkKind: "melee", color: "#2a2a44", sprite: "assassin", hd: true,
+      statMul: { atk: 1.35, maxHp: 1.0, def: 0.95 }, adds: { dodge: 20 }, skills: ["backstab", "venomblade", "shadowstep"] },
+    { id: "bloodfrenzy", name: "嗜血狂人", tier: 3, reqLevel: 80, from: "slayer", to: [],
+      range: 1, moveMul: 1.45, atkKind: "melee", color: "#d02a3a", sprite: "assassin", hd: true,
+      statMul: { atk: 1.5, maxHp: 0.95, def: 0.9 }, adds: { lifesteal: 0.1 }, skills: ["backstab", "venomblade", "shadowstep"] },
+    { id: "heavymetal", name: "重金屬", tier: 3, reqLevel: 80, from: "rocker", to: [],
+      range: 3, moveMul: 1.0, atkKind: "orb", color: "#ff3a6a", sprite: "bard", hd: true,
+      statMul: { atk: 1.4, maxHp: 1.05, def: 1.0 }, skills: ["soundwave", "warsong", "rhythm"] },
+    { id: "conductor", name: "指揮家", tier: 3, reqLevel: 80, from: "symphony", to: [],
+      range: 4, moveMul: 0.95, atkKind: "orb", color: "#e0d0ff", sprite: "bard", hd: true,
+      statMul: { atk: 1.25, maxHp: 1.2, def: 1.15 }, skills: ["soundwave", "warsong", "rhythm"] },
   ];
-  const HERO_BY_ID = {};
-  HEROES.forEach((h) => (HERO_BY_ID[h.id] = h));
+  const JOB_BY_ID = {};
+  JOBS.forEach((j) => (JOB_BY_ID[j.id] = j));
+  // 沿 from 鏈回溯到 tier0（含自身、不含 tier0），由近到遠
+  function jobPath(jobId) {
+    const path = [];
+    let j = JOB_BY_ID[jobId];
+    while (j && j.from) { path.push(j); j = JOB_BY_ID[j.from]; }
+    return path;
+  }
+  const JOB_TIER_NAMES = ["基礎", "一轉", "二轉", "三轉"];
 
+  // 升級所需經驗：溫和指數×線性 → Lv15 早期可達、Lv40 中期、Lv80 後期、Lv100 終局（可達成）
   function xpForLevel(level) {
-    return Math.floor(22 * Math.pow(1.38, level - 1));
+    return Math.floor(25 * Math.pow(1.18, level - 1) * level);
   }
-  function heroLevelCost(level) {
-    return Math.floor(12 * Math.pow(1.20, level - 1));
-  }
+  const LEVEL_CAP = 100;
 
-  // ---- 英雄技能（被動 passive / 主動 active）----
+  // ---- 招募 ----
+  const NAME_POOL = [
+    "亞倫", "莉婭", "凱特", "布魯", "賽恩", "朵拉", "尤里", "米娜", "雷恩", "薇拉",
+    "卡爾", "諾雅", "迪克", "艾莉", "歐文", "琪琪", "傑德", "露露", "范恩", "希爾",
+    "魯卡", "梅伊", "桑尼", "塔拉", "齊格", "妮可", "巴德", "芙蘿", "柯爾", "黛西",
+    "洛基", "安緹", "賈斯", "蜜雪", "東尼", "伊芙", "費歐", "可可", "葛瑞", "小蘭",
+  ];
+  const RECRUIT = {
+    slots: 3,            // 同時 3 名候選
+    rollVar: 0.15,       // 初始數值 ±15%
+    t1Chance: 0.4,       // 候選為「一轉 Lv15」的機率（其餘為冒險者 Lv1）
+    baseCost: 400,       // 冒險者基準價
+    t1Cost: 2500,        // 一轉基準價
+    refreshGold: (n) => Math.floor(200 * Math.pow(2, n)), // 當日第 n 次手動刷新
+  };
+
+  // ---- 職業技能（資料驅動：主動帶 mult/hits/kind/applies/forceCrit/healPct/selfHealPct/partyFx；被動帶 passiveMods）----
+  // 戰鬥引擎(game.js updateHeroSkills)與面板(systems.js heroStats)依欄位通用處理，新增技能只需加資料。
+  const SK_COST = (b) => (l) => Math.floor(b * Math.pow(1.5, l));
   const HERO_SKILLS = {
-    slash: { name: "斬擊", icon: "dagger", type: "active", cooldown: 7, maxLevel: 20,
-      desc: "對前方敵人造成額外傷害", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
+    // 冒險者
+    braveslash: { name: "勇氣斬", icon: "dagger", type: "active", cooldown: 7, maxLevel: 20,
+      desc: "鼓起勇氣的一斬", cost: SK_COST(40), mult: (l) => 1.2 + 0.3 * l, melee: true,
       effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 傷害` },
-    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20, applies: "burn",
-      desc: "火焰傷害並使敵人燃燒", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 並燃燒` },
-    frost: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 12, maxLevel: 20, applies: "freeze",
-      desc: "重擊並冰凍敵人", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 並冰凍` },
-    multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 9, maxLevel: 20,
-      desc: "連射多箭", cost: (l) => Math.floor(45 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} ×3` },
-    backstab: { name: "背刺", icon: "dagger", type: "active", cooldown: 12, maxLevel: 20,
-      desc: "高暴擊一擊", cost: (l) => Math.floor(48 * Math.pow(1.5, l)),
-      effectText: (l) => `攻擊×${(2.0 + 0.5 * l).toFixed(1)} 必暴` },
-    heal: { name: "治癒術", icon: "heal", type: "active", cooldown: 7, maxLevel: 20,
-      desc: "回復全隊生命", cost: (l) => Math.floor(50 * Math.pow(1.5, l)),
-      effectText: (l) => `全隊回復 ${Math.round((0.08 + 0.02 * l) * 100)}% 生命` },
-    rage: { name: "狂暴", icon: "angry", type: "active", cooldown: 11, duration: 10, maxLevel: 20, applies: "berserk",
-      desc: "進入狂暴狀態", cost: (l) => Math.floor(55 * Math.pow(1.5, l)),
-      effectText: (l) => `10 秒 攻擊+50% 移速+50% 受傷+25%` },
-    // 被動
-    guard: { name: "堅守", icon: "shield", type: "passive", maxLevel: 20,
-      desc: "提升生命與防禦", cost: (l) => Math.floor(35 * Math.pow(1.5, l)),
-      effectText: (l) => `生命 +${l * 4}%、防禦 +${l * 5}%` },
-    focus: { name: "專注", icon: "target", type: "passive", maxLevel: 20,
-      desc: "提升暴擊與暴傷", cost: (l) => Math.floor(38 * Math.pow(1.5, l)),
-      effectText: (l) => `暴擊 +${l * 2}%、暴傷 +${l * 5}%` },
-    rally: { name: "鼓舞", icon: "flag", type: "passive", maxLevel: 20,
-      desc: "提升攻擊", cost: (l) => Math.floor(36 * Math.pow(1.5, l)),
+    stone: { name: "投石", icon: "rock", type: "active", cooldown: 9, maxLevel: 20,
+      desc: "扔出石塊遠程攻擊", cost: SK_COST(38), mult: (l) => 1.0 + 0.25 * l, kind: "orb",
+      effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} 遠程` },
+    basictrain: { name: "基礎鍛鍊", icon: "dumbbell", type: "passive", maxLevel: 20,
+      desc: "全面的基礎訓練", cost: SK_COST(35), passiveMods: (l) => ({ atkMul: 0.02 * l, hpMul: 0.02 * l }),
+      effectText: (l) => `攻擊 +${l * 2}%、生命 +${l * 2}%` },
+    // 戰士
+    crossslash: { name: "十字斬", icon: "sword", type: "active", cooldown: 7, maxLevel: 20,
+      desc: "交叉的兩道斬擊", cost: SK_COST(42), mult: (l) => 1.4 + 0.35 * l, melee: true,
+      effectText: (l) => `攻擊×${(1.4 + 0.35 * l).toFixed(2)} 傷害` },
+    warcry: { name: "戰吼", icon: "angry", type: "active", cooldown: 12, maxLevel: 20, selfFx: "berserk", fxDur: 8,
+      desc: "怒吼進入狂暴", cost: SK_COST(55),
+      effectText: () => `自身狂暴 8 秒（攻擊+50% 移速+50% 受傷+25%）` },
+    weaponmaster: { name: "武藝精通", icon: "sword", type: "passive", maxLevel: 20,
+      desc: "精進武藝", cost: SK_COST(40), passiveMods: (l) => ({ atkMul: 0.04 * l }),
       effectText: (l) => `攻擊 +${l * 4}%` },
-    bless: { name: "祝福", icon: "bolt", type: "passive", maxLevel: 20,
-      desc: "提升攻速與閃避", cost: (l) => Math.floor(40 * Math.pow(1.5, l)),
+    // 盾兵
+    shieldbash: { name: "盾擊", icon: "shield", type: "active", cooldown: 9, maxLevel: 20, applies: "stun",
+      desc: "用盾猛擊使敵暈眩", cost: SK_COST(45), mult: (l) => 1.1 + 0.25 * l, melee: true,
+      effectText: (l) => `攻擊×${(1.1 + 0.25 * l).toFixed(2)} 並暈眩` },
+    bulwark: { name: "壁壘", icon: "shield", type: "active", cooldown: 11, maxLevel: 20,
+      desc: "穩住陣腳回復自身", cost: SK_COST(48), selfHealPct: (l) => 0.10 + 0.02 * l,
+      effectText: (l) => `回復自身 ${Math.round((0.10 + 0.02 * l) * 100)}% 生命` },
+    ironwall: { name: "堅守", icon: "shield", type: "passive", maxLevel: 20,
+      desc: "提升生命與防禦", cost: SK_COST(35), passiveMods: (l) => ({ hpMul: 0.05 * l, defMul: 0.06 * l }),
+      effectText: (l) => `生命 +${l * 5}%、防禦 +${l * 6}%` },
+    // 法師
+    fireball: { name: "火球術", icon: "burst", type: "active", cooldown: 9, maxLevel: 20, applies: "burn",
+      desc: "火焰傷害並使敵人燃燒", cost: SK_COST(45), mult: (l) => 1.5 + 0.4 * l, kind: "fireball",
+      effectText: (l) => `攻擊×${(1.5 + 0.4 * l).toFixed(1)} 並燃燒` },
+    frostnova: { name: "冰霜新星", icon: "snow", type: "active", cooldown: 12, maxLevel: 20, applies: "freeze",
+      desc: "重擊並冰凍敵人", cost: SK_COST(50), mult: (l) => 1.8 + 0.5 * l, kind: "frost",
+      effectText: (l) => `攻擊×${(1.8 + 0.5 * l).toFixed(1)} 並冰凍` },
+    fastcast: { name: "詠唱加速", icon: "bolt", type: "passive", maxLevel: 20,
+      desc: "施法更快更強", cost: SK_COST(42), passiveMods: (l) => ({ atkSpeedMul: 0.02 * l, atkMul: 0.02 * l }),
+      effectText: (l) => `攻速 +${l * 2}%、攻擊 +${l * 2}%` },
+    // 僧侶
+    healparty: { name: "治癒術", icon: "heal", type: "active", cooldown: 7, maxLevel: 20,
+      desc: "回復全隊生命", cost: SK_COST(50), healPct: (l) => 0.08 + 0.02 * l,
+      effectText: (l) => `全隊回復 ${Math.round((0.08 + 0.02 * l) * 100)}% 生命` },
+    holybolt: { name: "聖光彈", icon: "plus", type: "active", cooldown: 10, maxLevel: 20, applies: "weak",
+      desc: "聖光打擊並使敵虛弱", cost: SK_COST(44), mult: (l) => 1.4 + 0.35 * l, kind: "orb",
+      effectText: (l) => `攻擊×${(1.4 + 0.35 * l).toFixed(2)} 並虛弱` },
+    blessing: { name: "祝福", icon: "bolt", type: "passive", maxLevel: 20,
+      desc: "提升攻速與閃避", cost: SK_COST(40), passiveMods: (l) => ({ atkSpeedMul: 0.02 * l, dodgeAdd: 2 * l }),
       effectText: (l) => `攻速 +${l * 2}%、閃避 +${l * 2}` },
+    // 射手
+    multishot: { name: "多重射擊", icon: "bow", type: "active", cooldown: 9, maxLevel: 20,
+      desc: "連射多箭", cost: SK_COST(45), mult: (l) => 1.0 + 0.25 * l, hits: 3, kind: "arrow",
+      effectText: (l) => `攻擊×${(1.0 + 0.25 * l).toFixed(2)} ×3` },
+    aimshot: { name: "瞄準射擊", icon: "target", type: "active", cooldown: 12, maxLevel: 20, forceCrit: true,
+      desc: "精準的必暴一箭", cost: SK_COST(48), mult: (l) => 2.0 + 0.5 * l, kind: "arrow",
+      effectText: (l) => `攻擊×${(2.0 + 0.5 * l).toFixed(1)} 必定暴擊` },
+    sharpeye: { name: "專注", icon: "target", type: "passive", maxLevel: 20,
+      desc: "提升暴擊與暴傷", cost: SK_COST(38), passiveMods: (l) => ({ critAdd: 0.02 * l, critDmgAdd: 0.05 * l }),
+      effectText: (l) => `暴擊 +${l * 2}%、暴傷 +${l * 5}%` },
+    // 刺客
+    backstab: { name: "背刺", icon: "dagger", type: "active", cooldown: 12, maxLevel: 20, forceCrit: true,
+      desc: "高暴擊一擊", cost: SK_COST(48), mult: (l) => 2.0 + 0.5 * l, melee: true,
+      effectText: (l) => `攻擊×${(2.0 + 0.5 * l).toFixed(1)} 必定暴擊` },
+    venomblade: { name: "毒刃", icon: "dagger", type: "active", cooldown: 9, maxLevel: 20, applies: "weak",
+      desc: "淬毒之刃使敵虛弱", cost: SK_COST(44), mult: (l) => 1.2 + 0.3 * l, melee: true,
+      effectText: (l) => `攻擊×${(1.2 + 0.3 * l).toFixed(1)} 並虛弱` },
+    shadowstep: { name: "影步", icon: "boots", type: "passive", maxLevel: 20,
+      desc: "身形飄忽難以捉摸", cost: SK_COST(42), passiveMods: (l) => ({ dodgeAdd: 3 * l, critAdd: 0.01 * l }),
+      effectText: (l) => `閃避 +${l * 3}、暴擊 +${l}%` },
+    // 樂手
+    soundwave: { name: "音波衝擊", icon: "bolt", type: "active", cooldown: 9, maxLevel: 20, applies: "paralyze",
+      desc: "音波震擊並麻痺", cost: SK_COST(46), mult: (l) => 1.3 + 0.3 * l, kind: "orb",
+      effectText: (l) => `攻擊×${(1.3 + 0.3 * l).toFixed(1)} 並麻痺` },
+    warsong: { name: "鼓舞戰歌", icon: "flag", type: "active", cooldown: 16, maxLevel: 20, partyFx: "berserk", fxDur: 5,
+      desc: "戰歌使全隊狂暴", cost: SK_COST(60),
+      effectText: () => `全隊狂暴 5 秒（攻擊+50% 移速+50% 受傷+25%）` },
+    rhythm: { name: "韻律", icon: "star", type: "passive", maxLevel: 20,
+      desc: "節奏帶動身體", cost: SK_COST(40), passiveMods: (l) => ({ atkMul: 0.03 * l, atkSpeedMul: 0.01 * l }),
+      effectText: (l) => `攻擊 +${l * 3}%、攻速 +${l}%` },
   };
 
   // ---- 屬性訓練（全域，用金幣）----
@@ -1169,11 +1320,11 @@
     LANES, LANE_DY, FORM_COL_GAP, ENEMY_GAP, SPAWN_INTERVAL, MAX_CONCURRENT, ENEMY_DROP_H, DROP_GRAVITY, laneY, laneYF,
     MARCH_TIME, VICTORY_TIME, DEFEAT_TIME, MEET_FRAC, ATTACK_RANGE, HERO_ADVANCE_SPEED,
     ENEMY_COLS, ASSEMBLY_FRAC, CONVERGE_MUL, CLASH_TIME,
-    RANGE_BY_CLS, BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
+    BOSS_RANGE, ENEMY_RANGE, unitRangeForHero, unitRangeForEnemy,
     GRID_STEP_SPEED, LANE_EASE, AIR_LIFT, Z_EASE, CELL_ALIGN_EPS, LANE_ALIGN_EPS,
     ATK_INTERVAL_MUL, KILL_PAUSE, COMBAT_MOVE_MUL,
     FX, PROJECTILE_LIFE, FLOAT_LIFE, PARTICLE_LIFE_MUL,
-    MOVE_BY_CLS, heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
+    heroMoveSpeed, enemyMoveSpeed, enemyRangeRoll,
     ENEMY_SKILLS, enemySkillFor,
     MONSTER_TIERS, monsterTierLabel, MONSTERS, MONSTER_BY_ID, monstersForRegion, bossForRegionDef,
     PARTY_MAX, KILLS_PER_STAGE, BOSS_EVERY, SEGMENT, IDLE_REVIVE_INTERVAL, DEATH_RETREAT,
@@ -1188,7 +1339,7 @@
     SUB_BASE, SETS, SET_BY_ID, SETS_BY_REGION, DROP, ELITE, eliteRatio,
     MATERIALS, MATERIAL_BY_ID, MATERIALS_BY_REGION, MONSTER_DROPS, DROPPABLE_MATERIALS, setRecipe, SET_RECIPE_OVERRIDE,
     STAGE_BOX, stageBoxGold, commonGearCost, COMMON_GEAR_COST, GODDESS_GUARD_COST,
-    HEROES, HERO_BY_ID, xpForLevel, heroLevelCost,
+    JOBS, JOB_BY_ID, jobPath, JOB_TIER_NAMES, xpForLevel, LEVEL_CAP, NAME_POOL, RECRUIT,
     HERO_SKILLS, TRAININGS, TALENTS, PRESTIGE,
     PETS, PET_BY_ID, petUpgradeCost,
     SHOP, ACHIEVEMENTS, DAILY_QUESTS,

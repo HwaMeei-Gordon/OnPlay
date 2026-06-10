@@ -542,3 +542,23 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 /* 長按提示泡泡 */
 #drop-tip { position: fixed; z-index: 999; background: #2a2440; color: #fff; font-size: 11px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 #drop-tip.hidden { display: none; }
+
+/* ===== 角色經驗 / 招募 / 轉職 ===== */
+.xp-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.xp-lv { font-size: 12px; font-weight: bold; color: var(--gold); white-space: nowrap; }
+.xp-bar { flex: 1; height: 8px; background: #14101e; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.xp-fill { height: 100%; background: linear-gradient(90deg, #5ec46b, #bfe24a); }
+.xp-num { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.recruit-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.recruit-card { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 6px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.rc-portrait { height: 40px; display: flex; align-items: flex-end; }
+.rc-name { font-size: 12px; font-weight: bold; color: #fff; }
+.rc-job { font-size: 10px; }
+.rc-rolls { font-size: 10px; display: flex; gap: 5px; }
+.recruit-card .buy-btn { width: 100%; margin-top: 3px; }
+.job-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.job-card { flex: 1; max-width: 130px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 6px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.job-card.locked { opacity: .45; cursor: default; }
+.jc-portrait { height: 36px; display: flex; align-items: flex-end; }
+.jc-name { font-size: 12px; font-weight: bold; }
+.jc-req { font-size: 10px; color: var(--muted); }

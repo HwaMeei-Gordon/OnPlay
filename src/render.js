@@ -17,18 +17,22 @@
     resize();
     window.addEventListener("resize", resize);
   }
+  // HD：主畫布內部解析度 ×2（DPR），繪碼維持 world 座標（setTransform 放大）；
+  // 背景離屏維持 1× 用 drawImage 放大（效能不變）；HD 精靈以 0.5 步長畫＝1 裝置像素。
+  const HD = 2;
   function resize() {
     const d = D();
     const rect = canvas.getBoundingClientRect();
     let worldW = Math.round((d.WORLD_H * Math.max(1, rect.width)) / Math.max(1, rect.height));
     worldW = Math.max(120, Math.min(460, worldW)); // 允許貼合顯示比例 → 正方形像素，不再被拉伸
-    canvas.width = worldW;
-    canvas.height = d.WORLD_H;
+    canvas.width = worldW * HD;
+    canvas.height = d.WORLD_H * HD;
+    mainCtx.setTransform(HD, 0, 0, HD, 0, 0); // 設寬高會清掉 transform，必須在其後重設
     mainCtx.imageSmoothingEnabled = false;
     Game.view.w = worldW;
     Game.view.h = d.WORLD_H;
     Game.view.ground = d.WORLD_H - d.GROUND_FROM_BOTTOM;
-    // 背景離屏快取尺寸 + 失效
+    // 背景離屏快取尺寸 + 失效（維持 1× world 解析度）
     bgCanvas.width = worldW;
     bgCanvas.height = d.WORLD_H;
     if (bgCtx) bgCtx.imageSmoothingEnabled = false;
@@ -41,10 +45,15 @@
     for (let i = 0; i < sp.length; i++) if (sp[i].length > w) w = sp[i].length;
     return w;
   }
-  function drawSprite(sprite, cx, bottomY, flip, tint, yoff, outlineOnly) {
+  // step：每個精靈像素佔幾個 world 單位（1=傳統圖、0.5=HD 圖，在 2× 畫布上恰為 1 裝置像素）
+  function spriteWorldW(sp, step) { return spriteWidth(sp) * (step || 1); }
+  function spriteWorldH(sp, step) { return sp.length * (step || 1); }
+  function drawSprite(sprite, cx, bottomY, flip, tint, yoff, outlineOnly, step) {
     const pal = D().PALETTE;
+    const st = step || 1;
     const h = sprite.length, w = spriteWidth(sprite);
-    const sx = Math.round(cx - w / 2), sy = Math.round(bottomY - h + (yoff || 0));
+    // 0.5 對齊（在 HD 畫布上即整數裝置像素）
+    const sx = Math.round((cx - (w * st) / 2) * HD) / HD, sy = Math.round((bottomY - h * st + (yoff || 0)) * HD) / HD;
     const filled = [];
     for (let r = 0; r < h; r++) {
       filled[r] = [];
@@ -54,7 +63,7 @@
         filled[r][c] = !(ch === "." || ch === " ");
       }
     }
-    const px = (c) => (flip ? sx + (w - 1 - c) : sx + c);
+    const px = (c) => (flip ? sx + (w - 1 - c) * st : sx + c * st);
     // 隱身：只畫邊緣 filled 像素（半透明淺色空心輪廓），中間透明
     if (outlineOnly) {
       ctx.globalAlpha = 0.55; ctx.fillStyle = "#aab4cc";
@@ -63,7 +72,7 @@
           if (!filled[r][c]) continue;
           if (r === 0 || r === h - 1 || c === 0 || c === w - 1 ||
               !filled[r - 1][c] || !filled[r + 1][c] || !filled[r][c - 1] || !filled[r][c + 1]) {
-            ctx.fillRect(px(c), sy + r, 1, 1);
+            ctx.fillRect(px(c), sy + r * st, st, st);
           }
         }
       ctx.globalAlpha = 1;
@@ -76,7 +85,7 @@
         if (filled[r][c]) continue;
         if ((r > 0 && filled[r - 1][c]) || (r < h - 1 && filled[r + 1][c]) ||
             (c > 0 && filled[r][c - 1]) || (c < w - 1 && filled[r][c + 1])) {
-          ctx.fillRect(px(c), sy + r, 1, 1);
+          ctx.fillRect(px(c), sy + r * st, st, st);
         }
       }
     // 填色
@@ -87,7 +96,7 @@
         const color = tint || pal[line[c]];
         if (!color) continue;
         ctx.fillStyle = color;
-        ctx.fillRect(px(c), sy + r, 1, 1);
+        ctx.fillRect(px(c), sy + r * st, st, st);
       }
     }
   }
@@ -430,7 +439,7 @@
     const walking = b.phase === "walking";
 
     // 腳下陰影（皆畫在地面層；空中單位也在地面留影，呈現高度）
-    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWidth(h.sprite) - 2, LYF(h)); });
+    b.field.forEach((h) => { if (!h.dead) shadow(h.x, spriteWorldW(h.sprite, h.sprStep || 1) - 2, LYF(h)); });
     b.enemies.forEach((e) => { if (e.air <= 0) shadow(e.x, spriteWidth(e.sprite) - 2, LYF(e)); });
 
     // 狀態效果動態時鐘（fxTint/drawFx 已提升到模組層，供戰鬥與說明書共用）
@@ -467,9 +476,10 @@
         const bob = walking ? (Math.floor(b.walkPhase + dr.i) % 2 === 0 ? 0 : -1) : 0;
         const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : fxTint(h);
         const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
-        drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob);
-        if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - h.sprite.length - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
-        if (!h.dead) drawFx(h, Math.round(hx), gy - h.sprite.length, hy, spriteWidth(h.sprite), h.sprite.length, clk);
+        const st = h.sprStep || 1, sh = spriteWorldH(h.sprite, st), sw = spriteWorldW(h.sprite, st);
+        drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob, false, st);
+        if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - sh - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
+        if (!h.dead) drawFx(h, Math.round(hx), gy - sh, hy, sw, sh, clk);
       }
     });
 

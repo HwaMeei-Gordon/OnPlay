@@ -17,17 +17,81 @@
     return e;
   }
 
+  // ---- 名冊（動態角色）----
+  // 條目：{ uid, name, job, level, exp, baseRolls(招募時鎖定 ±15%), skills, equip, pos }
+  const ROLL_STATS = ["atk", "maxHp", "def", "crit", "critDmg", "dodge"];
+  function rollBaseRolls(variance) {
+    const v = variance == null ? D().RECRUIT.rollVar : variance;
+    const r = {};
+    ROLL_STATS.forEach((k) => (r[k] = 1 + (Math.random() * 2 - 1) * v));
+    return r;
+  }
+  function randomName() {
+    const pool = D().NAME_POOL;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  function makeRosterEntry(name, job, level, baseRolls) {
+    const uid = "h" + (State ? State.heroSeq++ : 1);
+    return { uid, name, job, level: level || 1, exp: 0, baseRolls: baseRolls || rollBaseRolls(), skills: {}, equip: emptyEquip(), pos: null };
+  }
+  // 初始冒險者（中庸 rolls，避免開局運氣差）
+  function makeStarter() {
+    const rolls = rollBaseRolls(0.05);
+    return { uid: "h1", name: "亞倫", job: "adventurer", level: 1, exp: 0, baseRolls: rolls, skills: {}, equip: emptyEquip(), pos: null };
+  }
+  function rosterByUid(uid) {
+    return (State.roster || []).find((r) => r.uid === uid) || null;
+  }
+  // 統一取角色定義：合併 JOB 鏈（statMul 連乘、adds 平加）× 個體 baseRolls
+  function heroDef(uid) {
+    const d = D();
+    const r = rosterByUid(uid);
+    if (!r) return null;
+    const job = d.JOB_BY_ID[r.job];
+    if (!job) return null;
+    const t0 = d.JOB_BY_ID.adventurer;
+    const path = d.jobPath(r.job); // 自身→…（不含 tier0）
+    let mAtk = 1, mHp = 1, mDef = 1;
+    const add = { crit: 0, critDmg: 0, dodge: 0, hit: 0, lifesteal: 0 };
+    path.forEach((j) => {
+      const m = j.statMul || {};
+      mAtk *= m.atk || 1; mHp *= m.maxHp || 1; mDef *= m.def || 1;
+      const a = j.adds || {};
+      Object.keys(add).forEach((k) => { if (a[k]) add[k] += a[k]; });
+    });
+    const rl = r.baseRolls || {};
+    const rv = (k) => rl[k] || 1;
+    const base = {
+      atk: t0.base.atk * mAtk * rv("atk"),
+      maxHp: t0.base.maxHp * mHp * rv("maxHp"),
+      def: t0.base.def * mDef * rv("def"),
+      crit: (t0.base.crit + add.crit) * rv("crit"),
+      critDmg: (t0.base.critDmg + add.critDmg) * rv("critDmg"),
+      atkInterval: t0.base.atkInterval,
+      lifesteal: t0.base.lifesteal + add.lifesteal,
+      hit: t0.base.hit + add.hit,
+      dodge: (t0.base.dodge + add.dodge) * rv("dodge"),
+    };
+    const growth = {
+      atk: t0.growth.atk * mAtk * rv("atk"),
+      maxHp: t0.growth.maxHp * mHp * rv("maxHp"),
+      def: t0.growth.def * mDef * rv("def"),
+    };
+    return { entry: r, job, base, growth, range: job.range, moveMul: job.moveMul, sprite: job.sprite, hd: !!job.hd, skills: job.skills, atkKind: job.atkKind, airPriority: !!job.airPriority };
+  }
+
   function defaultState() {
     const d = D();
+    const starter = makeStarter();
     return {
-      version: 2,
+      version: 3,
       gold: 0, gems: 0, souls: 0,
       stage: 1, bestStage: 1, runBestStage: 1,
       battleMode: "push",
-      heroes: {
-        knight: { owned: true, level: 1, stars: 1, equip: emptyEquip(), skills: {} },
-      },
-      party: ["knight"],
+      roster: [starter],
+      heroSeq: 2,
+      recruit: { date: todayStr(), candidates: [], refreshes: 0 },
+      party: [starter.uid],
       inventory: [], invSeq: 1,
       pets: {}, activePet: null,
       trainings: {}, talents: {}, talentPoints: 0,
@@ -88,7 +152,7 @@
 
   // ---- 套裝：身上 ≥4 件且全部同稀有度 → 倍率（普通無效果）----
   function heroSetBonus(heroId) {
-    const hs = State.heroes[heroId];
+    const hs = rosterByUid(heroId);
     if (!hs) return null;
     const d = D();
     let rar = null, count = 0, ok = true;
@@ -107,7 +171,7 @@
 
   // ---- 具名套裝：依 setId 分組，每 2 件啟動一階（2/4/6）；與稀有度套裝並存 ----
   function heroNamedSets(heroId) {
-    const hs = State.heroes[heroId];
+    const hs = rosterByUid(heroId);
     if (!hs) return [];
     const d = D();
     const counts = {};
@@ -129,9 +193,9 @@
   // ---- 英雄有效屬性 ----
   function heroStats(heroId, mods) {
     const d = D();
-    const def = d.HERO_BY_ID[heroId];
-    const hs = State.heroes[heroId];
-    if (!def || !hs) return null;
+    const def = heroDef(heroId);
+    if (!def) return null;
+    const hs = def.entry;
     mods = mods || globalMods();
     const lvl = hs.level;
     const b = def.base, g = def.growth;
@@ -161,13 +225,21 @@
       (it.subs || []).forEach((st) => addStat(st, d.itemSubStat(it, st)));
     });
 
-    // 技能（被動）
+    // 技能（被動，資料驅動：HERO_SKILLS[id].passiveMods(l)）
     const sk = hs.skills;
-    const lv = (id) => sk[id] || 0;
-    if (lv("rally")) atk *= 1 + 0.04 * lv("rally");
-    if (lv("guard")) { maxHp *= 1 + 0.04 * lv("guard"); def_ *= 1 + 0.05 * lv("guard"); }
-    if (lv("focus")) { crit += 0.02 * lv("focus"); critDmg += 0.05 * lv("focus"); }
-    if (lv("bless")) { atkInterval *= 1 - 0.02 * lv("bless"); dodge += 2 * lv("bless"); }
+    (def.skills || []).forEach((sid) => {
+      const sdef = d.HERO_SKILLS[sid];
+      const l = sk[sid] || 0;
+      if (!sdef || sdef.type !== "passive" || !l || !sdef.passiveMods) return;
+      const pm = sdef.passiveMods(l);
+      if (pm.atkMul) atk *= 1 + pm.atkMul;
+      if (pm.hpMul) maxHp *= 1 + pm.hpMul;
+      if (pm.defMul) def_ *= 1 + pm.defMul;
+      if (pm.critAdd) crit += pm.critAdd;
+      if (pm.critDmgAdd) critDmg += pm.critDmgAdd;
+      if (pm.atkSpeedMul) atkInterval *= 1 - pm.atkSpeedMul;
+      if (pm.dodgeAdd) dodge += pm.dodgeAdd;
+    });
 
     // 套裝：同稀有度（≥4 件且全部同稀有度）→ 攻擊/生命/防禦 ×倍率
     const set = heroSetBonus(heroId);
@@ -257,8 +329,90 @@
       State.stats.bossKills++;
       State.daily.counters.bossToday++;
     }
+    // 角色經驗：全隊出戰者各全拿 enemy.xp（微量；XP_MUL 可調）
+    const lvUps = grantXp(Math.max(1, Math.round((enemy.xp || 1) * XP_MUL)));
     // 怪物只掉「素材」（依各怪 MONSTER_DROPS、隱藏掉率）；裝備改由套裝合成/商店取得
-    return grantMaterialDrops(enemy);
+    const drops = grantMaterialDrops(enemy);
+    if (lvUps.length) return Object.assign({ levelUps: lvUps }, drops || {});
+    return drops;
+  }
+
+  // ---- 經驗與升級（純經驗制，上限 LEVEL_CAP）----
+  const XP_MUL = 0.3; // 微量經驗倍率（隱藏可調）
+  function grantXp(amount) {
+    const d = D();
+    const ups = [];
+    State.party.forEach((uid) => {
+      const r = rosterByUid(uid);
+      if (!r || r.level >= d.LEVEL_CAP) return;
+      r.exp = (r.exp || 0) + amount;
+      let leveled = false;
+      while (r.level < d.LEVEL_CAP && r.exp >= d.xpForLevel(r.level)) {
+        r.exp -= d.xpForLevel(r.level);
+        r.level++;
+        leveled = true;
+      }
+      if (r.level >= d.LEVEL_CAP) r.exp = 0;
+      if (leveled) ups.push({ uid: r.uid, name: r.name, level: r.level });
+    });
+    return ups;
+  }
+  // 轉職（不可逆）：需父職符合且等級達標
+  function jobChange(uid, toId) {
+    const d = D();
+    const r = rosterByUid(uid);
+    if (!r) return { ok: false, msg: "找不到角色" };
+    const to = d.JOB_BY_ID[toId];
+    if (!to) return { ok: false, msg: "未知職業" };
+    if (to.from !== r.job) return { ok: false, msg: "轉職路線不符" };
+    if (r.level < to.reqLevel) return { ok: false, msg: "需要 Lv" + to.reqLevel };
+    r.job = toId;
+    if (State.party.indexOf(uid) >= 0 && Game.Engine && Game.Engine.onPartyChanged) Game.Engine.onPartyChanged();
+    return { ok: true, job: to };
+  }
+
+  // ---- 招募 ----
+  function rollCandidate() {
+    const d = D();
+    const t1 = Math.random() < d.RECRUIT.t1Chance;
+    const tier1 = d.JOBS.filter((j) => j.tier === 1);
+    const job = t1 ? tier1[Math.floor(Math.random() * tier1.length)].id : "adventurer";
+    const rolls = rollBaseRolls();
+    // 品質 q = rolls 平均（0.85~1.15）→ 價格隨品質強烈遞增
+    let q = 0; ROLL_STATS.forEach((k) => (q += rolls[k])); q /= ROLL_STATS.length;
+    const base = t1 ? d.RECRUIT.t1Cost : d.RECRUIT.baseCost;
+    const cost = Math.floor(base * (0.4 + Math.pow(q, 8)));
+    return { name: randomName(), job, level: t1 ? 15 : 1, baseRolls: rolls, cost };
+  }
+  function ensureRecruits() {
+    State.recruit = State.recruit || { date: todayStr(), candidates: [], refreshes: 0 };
+    const rc = State.recruit;
+    if (rc.date !== todayStr()) { rc.date = todayStr(); rc.candidates = []; rc.refreshes = 0; }
+    while (rc.candidates.length < D().RECRUIT.slots) rc.candidates.push(rollCandidate());
+    return rc.candidates;
+  }
+  function refreshRecruits() {
+    const rc = State.recruit;
+    const cost = D().RECRUIT.refreshGold(rc.refreshes || 0);
+    if (State.gold < cost) return { ok: false, msg: "金幣不足" };
+    State.gold -= cost;
+    rc.refreshes = (rc.refreshes || 0) + 1;
+    rc.candidates = [];
+    ensureRecruits();
+    return { ok: true };
+  }
+  function recruitHero(idx) {
+    const rc = State.recruit;
+    const cand = rc.candidates[idx];
+    if (!cand) return { ok: false, msg: "沒有這名候選" };
+    if (State.gold < cand.cost) return { ok: false, msg: "金幣不足" };
+    State.gold -= cand.cost;
+    const entry = makeRosterEntry(cand.name, cand.job, cand.level, cand.baseRolls);
+    State.roster.push(entry);
+    rc.candidates.splice(idx, 1);
+    ensureRecruits();
+    if (State.party.length < D().PARTY_MAX) { State.party.push(entry.uid); if (Game.Engine && Game.Engine.onPartyChanged) Game.Engine.onPartyChanged(); }
+    return { ok: true, entry };
   }
 
   // 加素材（堆疊上限 999）
@@ -335,30 +489,12 @@
 
   // ---- 英雄 ----
   function ownedHeroes() {
-    return D().HEROES.filter((h) => State.heroes[h.id] && State.heroes[h.id].owned).map((h) => h.id);
-  }
-  function ownHero(id) {
-    if (!State.heroes[id]) State.heroes[id] = { owned: true, level: 1, stars: 1, equip: emptyEquip(), skills: {} };
-    State.heroes[id].owned = true;
-  }
-  function levelUpHero(id, times) {
-    times = times || 1;
-    let done = 0;
-    for (let i = 0; i < times; i++) {
-      const hs = State.heroes[id];
-      if (!hs) break;
-      const cost = D().heroLevelCost(hs.level);
-      if (State.gold < cost) break;
-      State.gold -= cost;
-      hs.level++;
-      done++;
-    }
-    return done;
+    return (State.roster || []).map((r) => r.uid);
   }
   function upgradeSkill(heroId, skillId) {
     const d = D();
     const def = d.HERO_SKILLS[skillId];
-    const hs = State.heroes[heroId];
+    const hs = rosterByUid(heroId);
     if (!def || !hs) return false;
     const lv = hs.skills[skillId] || 0;
     if (lv >= def.maxLevel) return false;
@@ -369,8 +505,8 @@
     return true;
   }
   function setParty(arr) {
-    State.party = arr.filter((id) => State.heroes[id] && State.heroes[id].owned).slice(0, D().PARTY_MAX);
-    if (State.party.length === 0) State.party = [ownedHeroes()[0]];
+    State.party = arr.filter((uid) => rosterByUid(uid)).slice(0, D().PARTY_MAX);
+    if (State.party.length === 0 && State.roster.length) State.party = [State.roster[0].uid];
   }
   function toggleParty(id) {
     const i = State.party.indexOf(id);
@@ -396,23 +532,24 @@
   function clearCell(lane, col, exceptId) {
     State.party.forEach((hid) => {
       if (hid === exceptId) return;
-      const p = State.heroes[hid] && State.heroes[hid].pos;
-      if (p && p.lane === lane && p.col === col) State.heroes[hid].pos = null;
+      const r = rosterByUid(hid);
+      const p = r && r.pos;
+      if (p && p.lane === lane && p.col === col) r.pos = null;
     });
     if (State.activePet && State.activePet !== exceptId) {
       const pp = State.pets[State.activePet] && State.pets[State.activePet].pos;
       if (pp && pp.lane === lane && pp.col === col) State.pets[State.activePet].pos = null;
     }
   }
-  function setHeroPos(id, lane, col) { if (!State.heroes[id]) return; clearCell(lane, col, id); State.heroes[id].pos = { lane: lane, col: col }; }
-  function clearHeroPos(id) { if (State.heroes[id]) State.heroes[id].pos = null; }
+  function setHeroPos(id, lane, col) { const r = rosterByUid(id); if (!r) return; clearCell(lane, col, id); r.pos = { lane: lane, col: col }; }
+  function clearHeroPos(id) { const r = rosterByUid(id); if (r) r.pos = null; }
   function setPetPos(id, lane, col) { if (!State.pets[id]) return; clearCell(lane, col, id); State.pets[id].pos = { lane: lane, col: col }; }
   function clearPetPos(id) { if (State.pets[id]) State.pets[id].pos = null; }
   // 出戰名單（隊伍英雄＋出戰中寵物）的實際站位：先放有 pos 的（衝突先到為準），其餘自動補位
   function formationLayout() {
     const d = D();
     const units = [];
-    State.party.slice(0, d.PARTY_MAX).forEach((id) => units.push({ id: id, kind: "hero", pos: State.heroes[id] && State.heroes[id].pos }));
+    State.party.slice(0, d.PARTY_MAX).forEach((id) => { const r = rosterByUid(id); units.push({ id: id, kind: "hero", pos: r && r.pos }); });
     if (State.activePet && State.pets[State.activePet]) units.push({ id: State.activePet, kind: "pet", pos: State.pets[State.activePet].pos });
     const used = {}, out = [], key = (l, c) => l + "," + c;
     units.forEach((u) => {
@@ -424,7 +561,6 @@
         out.push({ id: u.id, kind: u.kind, lane: null, col: null });
       }
     });
-    const meleeCls = { "戰士": 1, "狂戰": 1, "盜賊": 1 };
     const lanesByPref = [1, 0, 2];
     function findCell(prefCols) {
       for (const c of prefCols) for (const l of lanesByPref) if (!used[key(l, c)]) return { lane: l, col: c };
@@ -434,7 +570,7 @@
       if (e.lane != null) return;
       let prefer;
       if (e.kind === "pet") prefer = [0, 1, 2]; // 寵物優先前排當坦
-      else { const cls = d.HERO_BY_ID[e.id] ? d.HERO_BY_ID[e.id].cls : ""; prefer = meleeCls[cls] ? [0, 1, 2] : [2, 1, 0]; }
+      else { const hd = heroDef(e.id); prefer = hd && hd.range <= 1 ? [0, 1, 2] : [2, 1, 0]; } // 近戰前排、遠程後排
       const cell = findCell(prefer) || findCell([0, 1, 2]);
       if (cell) { used[key(cell.lane, cell.col)] = true; e.lane = cell.lane; e.col = cell.col; }
       else { e.lane = 1; e.col = 1; }
@@ -543,35 +679,36 @@
     return it;
   }
   function isEquipped(uid) {
-    return Object.keys(State.heroes).some((hid) => {
-      const eq = State.heroes[hid].equip;
+    return (State.roster || []).some((r) => {
+      const eq = r.equip;
       return Object.keys(eq).some((s) => eq[s] === uid);
     });
   }
   function unequipUidEverywhere(uid) {
-    Object.keys(State.heroes).forEach((hid) => {
-      const eq = State.heroes[hid].equip;
+    (State.roster || []).forEach((r) => {
+      const eq = r.equip;
       Object.keys(eq).forEach((s) => { if (eq[s] === uid) eq[s] = null; });
     });
   }
   function equipItem(heroId, uid) {
     const it = itemByUid(uid);
-    const hs = State.heroes[heroId];
+    const hs = rosterByUid(heroId);
     if (!it || !hs) return false;
     unequipUidEverywhere(uid);
     hs.equip[it.slot] = uid;
     return true;
   }
   function unequipSlot(heroId, slot) {
-    const hs = State.heroes[heroId];
+    const hs = rosterByUid(heroId);
     if (hs) hs.equip[slot] = null;
   }
   function bestItemForSlot(heroId, slot) {
     const d = D();
+    const hs = rosterByUid(heroId);
     let best = null, bestVal = -1;
     State.inventory.forEach((it) => {
       if (it.slot !== slot) return;
-      if (isEquipped(it.uid) && State.heroes[heroId].equip[slot] !== it.uid) return;
+      if (isEquipped(it.uid) && (!hs || hs.equip[slot] !== it.uid)) return;
       const v = d.itemMainStat(it);
       if (v > bestVal) { bestVal = v; best = it; }
     });
@@ -698,8 +835,8 @@
   function salvageWeak() {
     const d = D();
     const bestEq = {};
-    Object.keys(State.heroes).forEach((hid) => {
-      const eq = State.heroes[hid].equip;
+    (State.roster || []).forEach((r) => {
+      const eq = r.equip;
       d.EQUIPMENT_SLOTS.forEach((sl) => {
         const it = itemByUid(eq[sl.id]);
         if (it) {
@@ -770,12 +907,12 @@
     State.prestige.count++;
     State.stats.prestiges++;
     State.talentPoints += 3;
-    // 重置：關卡、金幣、訓練、英雄等級（保留 owned/裝備/技能/寵物/才能/鑽石/轉生）
+    // 重置：關卡、金幣、訓練、角色等級/經驗（保留 名冊/職業/裝備/技能/寵物/才能/鑽石/轉生）
     State.stage = 1;
     State.runBestStage = 1;
     State.gold = 0;
     State.trainings = {};
-    Object.keys(State.heroes).forEach((id) => { State.heroes[id].level = 1; });
+    (State.roster || []).forEach((r) => { r.level = 1; r.exp = 0; });
     return gain;
   }
 
@@ -821,7 +958,6 @@
     let result = {};
     if (g.guardian) State.guardians = (State.guardians || 0) + g.guardian * qty;
     if (g.scroll !== undefined) State.scrolls[g.scroll] = (State.scrolls[g.scroll] || 0) + qty;
-    if (g.hero) ownHero(g.hero);
     if (g.pet) ownPet(g.pet);
     if (g.gold) addGold(g.gold * qty, true);
     if (g.gems) addGems(g.gems * qty, true);
@@ -884,7 +1020,8 @@
     defaultState, setState, todayStr,
     globalMods, heroStats, heroPower, teamPower, itemByUid, heroSetBonus, heroNamedSets,
     addGold, addGems, spend, tickSecond, onKill, onStageClear, noteStage,
-    ownedHeroes, ownHero, levelUpHero, upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, setPetPos, clearPetPos, formationLayout, petStats,
+    ownedHeroes, rosterByUid, heroDef, makeStarter, makeRosterEntry, grantXp, jobChange, rollCandidate, ensureRecruits, refreshRecruits, recruitHero,
+    upgradeSkill, setParty, toggleParty, setHeroPos, clearHeroPos, setPetPos, clearPetPos, formationLayout, petStats,
     rollBands, rollBand, makeItem, rollGear, buyCommonGear, ensureItemAttrBands, itemAttrStats,
     addMaterial, grantMaterialDrops, rollGearForSet, craftSetPiece,
     isEquipped, equipItem, unequipSlot, autoEquipBest, bestItemForSlot,

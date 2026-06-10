@@ -24,7 +24,7 @@
     if (!loaded) return base;
     const keys = [
       "version", "gold", "gems", "souls", "stage", "bestStage", "runBestStage", "battleMode",
-      "heroes", "party", "inventory", "invSeq", "pets", "activePet",
+      "roster", "heroSeq", "recruit", "party", "inventory", "invSeq", "pets", "activePet",
       "trainings", "talents", "talentPoints", "prestige", "achievements",
       "daily", "stats", "shop", "scrolls", "materials", "guardians", "useGuardian", "goldPerSec", "gemPerSec",
     ];
@@ -46,19 +46,40 @@
     if (!base.materials || typeof base.materials !== "object") base.materials = {};
     if (typeof base.guardians !== "number") base.guardians = 0;
     if (typeof base.useGuardian !== "boolean") base.useGuardian = false;
-    // 安全檢查
-    if (!base.heroes || !base.heroes.knight) {
-      base.heroes = base.heroes || {};
-      base.heroes.knight = { owned: true, level: 1, stars: 1, equip: {}, skills: {} };
+    // 舊制英雄（v2 heroes）→ 新制名冊：丟棄舊英雄（裝備本體仍在 inventory、自動全卸下），送 1 名初始冒險者
+    if (loaded.heroes && !loaded.roster) {
+      const starter = Game.Systems.makeStarter();
+      base.roster = [starter];
+      base.heroSeq = 2;
+      base.party = [starter.uid];
+      base.recruit = { date: Game.Systems.todayStr(), candidates: [], refreshes: 0 };
+      base.gems = (base.gems || 0) + 30; // 改版補償
     }
-    Game.Data.EQUIPMENT_SLOTS.forEach((sl) => {
-      Object.keys(base.heroes).forEach((hid) => {
-        base.heroes[hid].equip = base.heroes[hid].equip || {};
-        if (base.heroes[hid].equip[sl.id] === undefined) base.heroes[hid].equip[sl.id] = null;
-        base.heroes[hid].skills = base.heroes[hid].skills || {};
-      });
+    // 名冊正規化
+    if (!Array.isArray(base.roster) || base.roster.length === 0) {
+      const starter = Game.Systems.makeStarter();
+      base.roster = [starter];
+      base.heroSeq = Math.max(2, base.heroSeq || 2);
+      base.party = [starter.uid];
+    }
+    base.roster.forEach((r) => {
+      r.equip = r.equip || {};
+      Game.Data.EQUIPMENT_SLOTS.forEach((sl) => { if (r.equip[sl.id] === undefined) r.equip[sl.id] = null; });
+      r.skills = r.skills || {};
+      r.baseRolls = r.baseRolls || {};
+      if (typeof r.exp !== "number") r.exp = 0;
+      if (typeof r.level !== "number" || r.level < 1) r.level = 1;
+      if (r.level > Game.Data.LEVEL_CAP) r.level = Game.Data.LEVEL_CAP;
+      if (!Game.Data.JOB_BY_ID[r.job]) r.job = "adventurer";
+      if (r.pos === undefined) r.pos = null;
     });
-    if (!Array.isArray(base.party) || base.party.length === 0) base.party = ["knight"];
+    if (typeof base.heroSeq !== "number") base.heroSeq = base.roster.length + 1;
+    base.recruit = base.recruit || { date: Game.Systems.todayStr(), candidates: [], refreshes: 0 };
+    // 隊伍：過濾不存在的 uid
+    if (!Array.isArray(base.party)) base.party = [];
+    base.party = base.party.filter((uid) => base.roster.some((r) => r.uid === uid));
+    if (base.party.length === 0) base.party = [base.roster[0].uid];
+    base.version = 3;
     base.stats = Object.assign({ totalKills: 0, bossKills: 0, boxesOpened: 0, prestiges: 0 }, base.stats || {});
     base.daily = base.daily || Game.Systems.defaultState().daily;
     base.shop = base.shop || { date: Game.Systems.todayStr(), bought: {} };
