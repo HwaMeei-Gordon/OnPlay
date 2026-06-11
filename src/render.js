@@ -50,6 +50,22 @@
   // step：每個精靈像素佔幾個 world 單位（1=傳統圖、1/HD=HD 圖，在 HD× 畫布上恰為 1 裝置像素）
   function spriteWorldW(sp, step) { return spriteWidth(sp) * (step || 1); }
   function spriteWorldH(sp, step) { return sp.length * (step || 1); }
+  // ---- 程序化動畫：依單位狀態回傳「繞腳底」的位移/旋轉/縮放（套在 drawSprite 外的 ctx 變換）----
+  // facing：+1 面右(英雄)、-1 面左(敵人)。moving：是否在走路。flying：飛行漂浮。idx：去同步相位。
+  function bodyAnim(u, facing, moving, flying, idx, clk) {
+    let rot = 0, sx = 1, sy = 1, oy = 0;
+    const fx = u.fx || {};
+    const frozen = fx.freeze > 0;
+    if (!frozen) { const br = Math.sin(clk * 2.4 + idx * 0.7); sy += br * 0.025; sx -= br * 0.016; } // 待機呼吸
+    if (flying) { oy -= 1.5 + Math.sin(clk * 3 + idx) * 1.8; rot += Math.sin(clk * 2.2 + idx) * 0.04; } // 飛行漂浮
+    else if (moving && !frozen) { const wf = clk * 9 + idx * 1.3; oy -= Math.abs(Math.sin(wf)) * 2.4; rot += Math.sin(wf) * 0.05 * facing; sy -= Math.abs(Math.cos(wf)) * 0.05; } // 走路：跳步＋搖擺＋觸地壓縮
+    if (u.lunge > 0.2) { const p = Math.min(1, u.lunge / 7); rot += p * 0.20 * facing; sx += p * 0.05; sy += p * 0.06; oy -= p * 1.5; } // 攻擊前傾
+    if (u.hitFlash > 0) { const p = Math.min(1, u.hitFlash / 0.12); sy -= p * 0.16; sx += p * 0.10; } // 受傷壓扁
+    if (fx.stun > 0 || fx.paralyze > 0) rot += Math.sin(clk * 22 + idx) * 0.09; // 暈/麻搖晃
+    if (fx.burn > 0) oy -= Math.abs(Math.sin(clk * 26 + idx)) * 0.8; // 燃燒抖動
+    sx = Math.max(0.7, Math.min(1.4, sx)); sy = Math.max(0.7, Math.min(1.4, sy));
+    return { rot, sx, sy, oy };
+  }
   // ---- 精靈快取：每張圖（依 flip/tint/outlineOnly）只柵格化一次到離屏 canvas，之後 drawImage（HD 高解析效能關鍵）----
   const _canCache = (typeof document !== "undefined" && document.createElement);
   const _spriteCache = (typeof WeakMap !== "undefined") ? new WeakMap() : null;
@@ -495,7 +511,14 @@
         const ex = e.x - e.lunge + jitter(e.shake), ey = jitter(e.shake) - (e.air || 0) - (e.zF || 0) * d.AIR_LIFT;
         const baseTint = e.isChest ? "#ffcf3d" : e.isElite ? "#ff6a8a" : null;
         if (e.invis) { drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, null, 0, true, est); return; } // 隱身：只剩外輪廓、不畫血條/特效
-        drawSprite(sp, ex, gy + 1 + ey, !e.isBoss, !tint && baseTint ? baseTint : tint, 0, false, est);
+        // 程序化動畫（走/攻/傷/狀態），繞腳底變換
+        const eMoving = (e.x - (e.moveTX != null ? e.moveTX : e.x)) > 1.5;
+        const eFly = (e.air || 0) > 0 || e.gz;
+        const ea = bodyAnim(e, -1, eMoving, eFly, e.lane || 0, clk);
+        const efx = ex, efy = gy + 1 + ey;
+        ctx.save(); ctx.translate(efx, efy); ctx.rotate(ea.rot); ctx.scale(ea.sx, ea.sy); ctx.translate(-efx, -efy);
+        drawSprite(sp, ex, efy + ea.oy, !e.isBoss, !tint && baseTint ? baseTint : tint, 0, false, est);
+        ctx.restore();
         const bw = Math.max(10, esw - 2);
         drawBar(ex - bw / 2, gy - esh - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
         drawFx(e, Math.round(ex), gy - esh, ey, esw, esh, clk);
@@ -510,11 +533,15 @@
         }
       } else {
         const h = dr.o, gy = dr.y;
-        const bob = walking ? (Math.floor(b.walkPhase + dr.i) % 2 === 0 ? 0 : -1) : 0;
         const tint = h.dead ? "#5a4a4a" : h.hitFlash > 0 ? "#ffffff" : fxTint(h);
         const hx = h.x + h.lunge + jitter(h.shake), hy = jitter(h.shake);
         const st = h.sprStep || 1, sh = spriteWorldH(h.sprite, st), sw = spriteWorldW(h.sprite, st);
-        drawSprite(h.sprite, hx, gy + 1 + hy, false, tint, bob, false, st);
+        // 程序化動畫（面右；march 期間走路；飛行漂浮），繞腳底變換
+        const ha = bodyAnim(h, +1, walking, (h.air || 0) > 0, dr.i, clk);
+        const hfx = hx, hfy = gy + 1 + hy;
+        ctx.save(); ctx.translate(hfx, hfy); ctx.rotate(ha.rot); ctx.scale(ha.sx, ha.sy); ctx.translate(-hfx, -hfy);
+        drawSprite(h.sprite, hx, hfy + ha.oy, false, tint, 0, false, st);
+        ctx.restore();
         if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - sh - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
         if (!h.dead) drawFx(h, Math.round(hx), gy - sh, hy, sw, sh, clk);
       }
