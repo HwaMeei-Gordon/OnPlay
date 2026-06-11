@@ -7,15 +7,16 @@
  * ============================================================ */
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
 :root {
-  --bg: #14101f; --bg2: #0f0c18; --panel: #1f1830; --panel2: #2a2140; --card: #241c38;
-  --line: #3a2f55; --text: #e8e4f0; --muted: #9a90b5;
-  --gold: #ffd23f; --gem: #67d6ff; --soul: #b06ae0; --green: #4ad94a; --red: #e84141; --blue: #7ad7ff;
-  /* v3 青銅框體系 */
+  /* v3.1 成熟化：更深的底、更高的對比，克制的金，識別仍是紫夜 */
+  --bg: #100b1a; --bg2: #0a0712; --panel: #1a1428; --panel2: #251d3a; --card: #1d1730;
+  --line: #3a2f55; --text: #ece8f4; --muted: #968cb0;
+  --gold: #f6c945; --gem: #67d6ff; --soul: #b06ae0; --green: #4ad94a; --red: #e84141; --blue: #7ad7ff;
+  /* 青銅框體系 */
   --frame: #7a5a2e; --frame-hi: #d9b06a; --frame-dk: #41301a;
-  --cell: #151024; --ink: #0a0712;
+  --cell: #120d20; --ink: #08060f;
 }
 html, body { height: 100%; background: var(--bg); color: var(--text);
-  font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; width: 100%;
   touch-action: none; -webkit-touch-callout: none; }
 #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 720px; margin: 0 auto; overflow: hidden; }
@@ -474,3 +475,24 @@ canvas.fx-preview { width: 80px; height: 92px; image-rendering: pixelated; backg
 .jc-portrait { height: 36px; display: flex; align-items: flex-end; }
 .jc-name { font-size: 12px; font-weight: bold; }
 .jc-req { font-size: 10px; color: var(--muted); }
+
+/* ===== 任務 / 成就（進度條卡片）===== */
+.quest { display: flex; align-items: center; gap: 9px; background: linear-gradient(#221a36, #181226); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--line), inset 0 2px 0 rgba(255,255,255,0.04), 0 2px 0 var(--ink); border-radius: 6px; padding: 7px 9px; margin-bottom: 6px; }
+.quest.ready { box-shadow: inset 0 0 0 1px var(--gold), inset 0 2px 0 rgba(255,255,255,0.06), 0 2px 0 var(--ink); }
+.quest.claimed { opacity: 0.5; filter: saturate(0.6); }
+.q-icon { width: 30px; height: 30px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: var(--cell); border: 2px solid var(--line); border-radius: 5px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+.q-icon img { width: 22px; height: 22px; }
+.q-body { flex: 1 1 auto; min-width: 0; }
+.q-name { font-size: 12px; font-weight: bold; color: var(--text); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-sub { font-size: 10px; color: var(--muted); }
+.q-bar { position: relative; height: 12px; background: var(--cell); border: 2px solid var(--ink); border-radius: 4px; overflow: hidden; box-shadow: inset 0 2px 3px rgba(0,0,0,0.55); }
+.q-fill { height: 100%; background: linear-gradient(#8fd8ff, #3f8fd0); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3); transition: width 0.3s; }
+.quest.ready .q-fill { background: linear-gradient(#ffe27a, #e0a020); }
+.q-prog { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000, 0 0 2px #000; }
+.q-reward { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: bold; color: var(--gold); }
+.q-reward img { width: 13px; height: 13px; }
+.q-claim { flex: 0 0 auto; min-width: 54px; min-height: 38px; border: 2px solid var(--ink); border-radius: 5px; background: linear-gradient(#352a52, #241d3a); color: var(--muted); font-family: inherit; font-weight: bold; font-size: 11px; cursor: pointer; box-shadow: inset 0 2px 0 rgba(255,255,255,0.08), 0 2px 0 var(--ink); }
+.q-claim.ready { background: linear-gradient(var(--gold), #d99e10); color: #2a2010; }
+.q-claim.ready:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3); }
+.q-claim:disabled { cursor: default; }
+.quest.login .q-fill { background: linear-gradient(var(--gold), #e0a020); }

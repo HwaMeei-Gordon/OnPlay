@@ -989,33 +989,39 @@
     return html;
   }
 
-  // ---- 任務 / 成就 ----
+  // ---- 任務 / 成就（進度條卡片）----
+  function questRow(icon, name, cur, goal, rewardHtml, act, id, claimed) {
+    const pct = Math.max(0, Math.min(100, Math.round((cur / goal) * 100)));
+    const done = cur >= goal;
+    const state = claimed ? "claimed" : done ? "ready" : "";
+    const btn = claimed ? "已領" : done ? "領取" : "進行中";
+    return `<div class="quest ${state}">
+      <div class="q-icon">${ico(icon, 22)}</div>
+      <div class="q-body">
+        <div class="q-name">${name}</div>
+        <div class="q-bar"><div class="q-fill" style="width:${pct}%"></div><span class="q-prog">${fmt(Math.min(cur, goal))}/${fmt(goal)}</span></div>
+      </div>
+      <div class="q-reward">${rewardHtml}</div>
+      <button class="q-claim ${state}" data-act="${act}"${id ? ` data-id="${id}"` : ""} ${done && !claimed ? "" : "disabled"}>${btn}</button>
+    </div>`;
+  }
   function renderQuests() {
     const s = St();
     Sy().refreshDaily();
-    let html = `<div class="sec-title">每日</div>`;
-    html += `<div class="item"><div class="item-icon">${ico("box", 24)}</div>
-      <div class="item-main"><div class="item-name">每日登入獎勵</div><div class="item-bonus">${ico("gem", 13)} 20</div></div>
-      <button class="mini-btn" data-act="daily-login" ${s.daily.login ? "disabled" : ""}>${s.daily.login ? "已領取" : "領取"}</button></div>`;
+    let html = `<div class="sec-title">每日任務</div>`;
+    // 每日登入（特製橫幅）
+    html += `<div class="quest login ${s.daily.login ? "claimed" : "ready"}">
+      <div class="q-icon">${ico("box", 22)}</div>
+      <div class="q-body"><div class="q-name">每日登入獎勵</div><div class="q-sub">每天回來領一次</div></div>
+      <div class="q-reward">${ico("gem", 13)}20</div>
+      <button class="q-claim ${s.daily.login ? "claimed" : "ready"}" data-act="daily-login" ${s.daily.login ? "disabled" : ""}>${s.daily.login ? "已領" : "領取"}</button></div>`;
     D().DAILY_QUESTS.forEach((q) => {
-      const prog = Sy().dailyProgress(q);
-      const done = prog >= q.goal;
-      const claimed = s.daily.claimed[q.id];
       const rw = q.reward.gold ? ico("coin", 13) + fmt(q.reward.gold) : ico("gem", 13) + q.reward.gems;
-      html += `<div class="item"><div class="item-icon">${ico("flag", 24)}</div>
-        <div class="item-main"><div class="item-name">${q.name}</div>
-        <div class="item-bonus">${Math.min(prog, q.goal)}/${q.goal}　獎勵 ${rw}</div></div>
-        <button class="mini-btn" data-act="daily-claim" data-id="${q.id}" ${done && !claimed ? "" : "disabled"}>${claimed ? "已領" : done ? "領取" : "進行中"}</button></div>`;
+      html += questRow("flag", q.name, Sy().dailyProgress(q), q.goal, rw, "daily-claim", q.id, s.daily.claimed[q.id]);
     });
     html += `<div class="sec-title">成就</div>`;
     D().ACHIEVEMENTS.forEach((a) => {
-      const prog = Sy().achProgress(a);
-      const done = prog >= a.goal;
-      const claimed = s.achievements[a.id];
-      html += `<div class="item"><div class="item-icon">${ico(a.icon, 24)}</div>
-        <div class="item-main"><div class="item-name">${a.name} ${claimed ? '<span class="badge">✓</span>' : ""}</div>
-        <div class="item-bonus">${fmt(Math.min(prog, a.goal))}/${fmt(a.goal)}　獎勵 ${ico("gem", 13)}${a.reward.gems}</div></div>
-        <button class="mini-btn" data-act="ach-claim" data-id="${a.id}" ${done && !claimed ? "" : "disabled"}>${claimed ? "已領" : done ? "領取" : "進行中"}</button></div>`;
+      html += questRow(a.icon, a.name, Sy().achProgress(a), a.goal, ico("gem", 13) + a.reward.gems, "ach-claim", a.id, s.achievements[a.id]);
     });
     return html;
   }
