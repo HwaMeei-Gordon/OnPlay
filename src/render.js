@@ -22,6 +22,7 @@
   // 角色 64²、怪物小 48²/王 64² 皆以 step=1/4 繪製 → 螢幕佔位不變、高解析＋抗鋸齒。
   const HD = 4;
   const HD_STEP = 1 / HD;
+  const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'; // canvas 文字字體（比 Courier 俐落）
   function resize() {
     const d = D();
     const rect = canvas.getBoundingClientRect();
@@ -243,11 +244,44 @@
     drawFx(fake, Math.round(cx), bottomY - h, 0, w, h, clk);
     ctx = prev;
   }
-  function drawBar(x, y, w, h, ratio, color) {
+  // 造型血條：外框＋軌道＋延遲傷害殘影(ghost)＋填充頂高光＋分段刻度
+  function drawBar(x, y, w, h, ratio, color, ghost, ticks) {
     ratio = Math.max(0, Math.min(1, ratio));
-    ctx.fillStyle = "#1a1228"; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-    ctx.fillStyle = "#000"; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = color; ctx.fillRect(x, y, Math.round(w * ratio), h);
+    x = Math.round(x); y = Math.round(y); w = Math.round(w);
+    ctx.fillStyle = "#0a0712"; ctx.fillRect(x - 1, y - 1, w + 2, h + 2); // 外框
+    ctx.fillStyle = "#251d34"; ctx.fillRect(x, y, w, h);                 // 軌道
+    const fw = Math.round(w * ratio);
+    if (ghost != null && ghost > ratio + 0.001) {                       // 延遲傷害殘影
+      ctx.fillStyle = "rgba(255,236,236,0.5)";
+      ctx.fillRect(x + fw, y, Math.round(w * Math.min(1, ghost)) - fw, h);
+    }
+    ctx.fillStyle = color; ctx.fillRect(x, y, fw, h);
+    if (h >= 2) { ctx.fillStyle = "rgba(255,255,255,0.28)"; ctx.fillRect(x, y, fw, 1); } // 頂高光
+    if (ticks && ticks > 1 && w >= ticks * 4) {                         // 分段刻度
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      for (let i = 1; i < ticks; i++) ctx.fillRect(x + Math.round(w * i / ticks), y, 1, h);
+    }
+  }
+  // 緩動血條殘影：u.hpGhost 追向當前比例（受傷時殘影延遲下降、回血時瞬間跟上）
+  function hpGhost(u, ratio) {
+    if (u.hpGhost == null || u.hpGhost < ratio) u.hpGhost = ratio;
+    else u.hpGhost = Math.max(ratio, u.hpGhost - 0.018);
+    return u.hpGhost;
+  }
+  // 狀態圖示列：在單位頭頂畫一排小色塊（燃燒/冰凍/中毒/暈/麻/虛弱/狂暴/護盾）
+  const FX_PIP = { burn: "#ff7a3d", freeze: "#67d6ff", poison: "#6ec46b", stun: "#ffd23f", paralyze: "#c9a8ff", weak: "#b06ae0", berserk: "#ff4d4d", shield: "#7ad7ff", bleed: "#e84141" };
+  function drawStatusPips(cx, topY, fx) {
+    if (!fx) return;
+    const ks = []; for (const k in FX_PIP) if (fx[k] > 0) ks.push(k);
+    if (!ks.length) return;
+    const s = 5, gap = 1, tot = ks.length * (s + gap) - gap;
+    let px = Math.round(cx - tot / 2), y = Math.round(topY);
+    ks.forEach((k) => {
+      ctx.fillStyle = "#0a0712"; ctx.fillRect(px - 1, y - 1, s + 2, s + 2);
+      ctx.fillStyle = FX_PIP[k]; ctx.fillRect(px, y, s, s);
+      ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(px, y, s, 1);
+      px += s + gap;
+    });
   }
   function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 
@@ -519,8 +553,11 @@
         ctx.save(); ctx.translate(efx, efy); ctx.rotate(ea.rot); ctx.scale(ea.sx, ea.sy); ctx.translate(-efx, -efy);
         drawSprite(sp, ex, efy + ea.oy, !e.isBoss, !tint && baseTint ? baseTint : tint, 0, false, est);
         ctx.restore();
-        const bw = Math.max(10, esw - 2);
-        drawBar(ex - bw / 2, gy - esh - (e.isBoss ? 4 : 2) + ey, bw, e.isBoss ? 3 : 2, e.hp / e.maxHp, "#e84141");
+        if (!e.isBoss) { // 魔王血條改畫在頂部大條，此處只畫一般怪
+          const bw = Math.max(12, esw - 2), by = gy - esh - 3 + ey;
+          drawBar(ex - bw / 2, by, bw, 3, e.hp / e.maxHp, "#e84141", hpGhost(e, e.hp / e.maxHp));
+          drawStatusPips(ex, by - 7, e.fx);
+        }
         drawFx(e, Math.round(ex), gy - esh, ey, esw, esh, clk);
         if (e.isChest) {
           const my = gy - esh - 9 + ey, mx = Math.round(ex);
@@ -542,8 +579,12 @@
         ctx.save(); ctx.translate(hfx, hfy); ctx.rotate(ha.rot); ctx.scale(ha.sx, ha.sy); ctx.translate(-hfx, -hfy);
         drawSprite(h.sprite, hx, hfy + ha.oy, false, tint, 0, false, st);
         ctx.restore();
-        if (!h.dead && h.hp < h.maxHp) drawBar(hx - 7, gy - sh - 2 + hy, 14, 2, h.hp / h.maxHp, "#4ad94a");
-        if (!h.dead) drawFx(h, Math.round(hx), gy - sh, hy, sw, sh, clk);
+        if (!h.dead) {
+          const hbw = 16, hby = gy - sh - 3 + hy;
+          if (h.hp < h.maxHp) drawBar(hx - hbw / 2, hby, hbw, 3, h.hp / h.maxHp, "#4ad94a", hpGhost(h, h.hp / h.maxHp));
+          drawStatusPips(hx, hby - 7, h.fx);
+          drawFx(h, Math.round(hx), gy - sh, hy, sw, sh, clk);
+        }
       }
     });
 
@@ -622,13 +663,34 @@
     });
     ctx.globalAlpha = 1;
 
-    // 浮動文字（暴擊放大）
+    // 魔王頂部血條（造型化：名牌＋BOSS 標＋分段＋殘影）
+    const boss = b.enemies.find((e) => e.isBoss && !e.dead && e.burrowState !== "under");
+    if (boss) {
+      const bbw = Math.round(v.w * 0.66), bbx = Math.round((v.w - bbw) / 2), bby = 7, bbh = 7;
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = "bold 9px " + MONO;
+      const nm = boss.name || "魔王";
+      ctx.fillStyle = "#000"; ctx.fillText(nm, v.w / 2 + 1, bby - 2 + 1);
+      ctx.fillStyle = "#ffce6a"; ctx.fillText(nm, v.w / 2, bby - 2);
+      ctx.textAlign = "left"; ctx.font = "bold 7px " + MONO;
+      ctx.fillStyle = "#000"; ctx.fillText("BOSS", bbx + 1, bby - 2 + 1);
+      ctx.fillStyle = "#ff5a6a"; ctx.fillText("BOSS", bbx, bby - 2);
+      drawBar(bbx, bby, bbw, bbh, boss.hp / boss.maxHp, "#e23a4a", hpGhost(boss, boss.hp / boss.maxHp), 5);
+      drawStatusPips(v.w / 2, bby + bbh + 2, boss.fx);
+    }
+
+    // 浮動文字（傷害數字：暴擊放大彈出＋四向描邊）
+    const FL = d.FLOAT_LIFE || 1;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     b.floats.forEach((f) => {
-      ctx.font = (f.big ? 11 : 7) + "px monospace";
+      const age = FL - f.life;
+      let size = f.big ? 12 : 8;
+      if (f.big && age < 0.12) size = 7 + (age / 0.12) * 6; // 彈出
+      ctx.font = (f.big ? "bold " : "") + Math.round(size) + "px " + MONO;
       ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 0.5));
-      ctx.fillStyle = "#000"; ctx.fillText(f.text, f.x + 1, f.y + 1);
-      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+      const x = Math.round(f.x), y = Math.round(f.y);
+      ctx.fillStyle = "#000";
+      ctx.fillText(f.text, x - 1, y); ctx.fillText(f.text, x + 1, y); ctx.fillText(f.text, x, y - 1); ctx.fillText(f.text, x, y + 1);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, x, y);
     });
     ctx.globalAlpha = 1;
 
@@ -654,7 +716,7 @@
     if (b.banner && b.bannerTimer > 0) {
       ctx.globalAlpha = Math.max(0, Math.min(1, b.bannerTimer / 0.4));
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.font = "bold 20px monospace";
+      ctx.font = "bold 20px " + MONO;
       const cx = v.w / 2, cy = Math.round(v.ground * 0.5);
       ctx.fillStyle = "#000"; ctx.fillText(b.banner.text, cx + 1, cy + 1);
       ctx.fillStyle = b.banner.color; ctx.fillText(b.banner.text, cx, cy);
