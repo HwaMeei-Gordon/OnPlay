@@ -40,6 +40,16 @@
     { id: "handbook", label: "說明書", icon: "book" },
     { id: "settings", label: "設定", icon: "gear" },
   ];
+  // 底部主分頁＝5 群組（拇指區）；群組內 >1 分頁時，面板頂部顯示子分頁列
+  const GROUPS = [
+    { id: "heroes", label: "英雄", icon: "person", tabs: ["heroes"] },
+    { id: "gear", label: "裝備", icon: "bag", tabs: ["bag", "forge", "craft"] },
+    { id: "shop", label: "商店", icon: "cart", tabs: ["shop"] },
+    { id: "grow", label: "養成", icon: "paw", tabs: ["pets", "training", "talents", "prestige"] },
+    { id: "adv", label: "冒險", icon: "book", tabs: ["quests", "handbook", "settings"] },
+  ];
+  const GROUP_OF = {}; GROUPS.forEach((g) => g.tabs.forEach((t) => (GROUP_OF[t] = g.id)));
+  const TAB_BY_ID = {}; TABS.forEach((t) => (TAB_BY_ID[t.id] = t));
 
   // 圖示輔助（全部自製像素圖示，不用 emoji）
   function ico(name, px) { return Game.Icons.html(name, px || 16); }
@@ -119,10 +129,10 @@
 
   // ============ 初始化 ============
   function init() {
-    // 分頁列
+    // 底部主分頁（群組）列
     const tabBar = $("tab-bar");
-    tabBar.innerHTML = TABS.map(
-      (t) => `<button class="tab-btn" data-tab="${t.id}"><span class="ti">${ico(t.icon, 20)}</span><span class="tl">${t.label}</span></button>`
+    tabBar.innerHTML = GROUPS.map(
+      (g) => `<button class="tab-btn" data-group="${g.id}"><span class="ti">${ico(g.icon, 22)}</span><span class="tl">${g.label}</span></button>`
     ).join("");
     // HUD 貨幣圖示
     const setIco = (id, name) => { const el = $(id); if (el) el.innerHTML = ico(name, 14); };
@@ -130,7 +140,16 @@
     tabBar.addEventListener("click", (e) => {
       const b = e.target.closest(".tab-btn");
       if (!b) return;
-      openTab(b.dataset.tab);
+      const g = GROUPS.find((x) => x.id === b.dataset.group);
+      if (!g) return;
+      // 記住群組內上次開的子分頁
+      openTab(groupLast[g.id] || g.tabs[0]);
+    });
+    // 子分頁列
+    const subBar = $("sub-bar");
+    if (subBar) subBar.addEventListener("click", (e) => {
+      const b = e.target.closest(".sub-btn");
+      if (b) openTab(b.dataset.tab);
     });
 
     // 面板事件委派
@@ -163,10 +182,21 @@
     openTab("heroes");
   }
 
+  const groupLast = {}; // 各群組最後開啟的子分頁
   function openTab(id) {
     current = id;
     if (id !== "heroes") heroDetail = null;
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
+    const gid = GROUP_OF[id] || "heroes";
+    groupLast[gid] = id;
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.group === gid));
+    // 子分頁列：群組內 >1 分頁才顯示
+    const subBar = $("sub-bar");
+    if (subBar) {
+      const g = GROUPS.find((x) => x.id === gid);
+      subBar.innerHTML = (g && g.tabs.length > 1)
+        ? g.tabs.map((tid) => { const t = TAB_BY_ID[tid]; return `<button class="sub-btn${tid === id ? " on" : ""}" data-tab="${tid}">${ico(t.icon, 14)}<span>${t.label}</span></button>`; }).join("")
+        : "";
+    }
     renderPanel(false);
     if (id === "handbook") startHbLoop(); else stopHbLoop();
   }
