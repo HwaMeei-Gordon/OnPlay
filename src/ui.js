@@ -1208,9 +1208,35 @@
     }).join("");
     return `<div class="sec-title">${theme.name}　套裝</div>${body}`;
   }
+  function renderHbJobPage(job) {
+    const d = D();
+    const tierName = d.JOB_TIER_NAMES[job.tier] || "";
+    const spr = Game.Sprites.jobs[job.sprite] || Game.Sprites.jobs.adventurer;
+    const cell = (label, inner) => `<div class="hb-mc"><span>${label}</span><b>${inner}</b></div>`;
+    const from = job.from && d.JOB_BY_ID[job.from];
+    const to = (job.to || []).map((id) => (d.JOB_BY_ID[id] ? d.JOB_BY_ID[id].name : id)).join("、");
+    const stats = cell("解鎖", "Lv." + job.reqLevel) + cell("攻擊", job.range >= 2 ? "遠程" : "近戰")
+      + cell("距離", job.range + " 格") + cell("移動", job.moveMul.toFixed(2) + "×")
+      + cell("由", from ? from.name : "起始職") + cell("可轉", to || "頂階 ✦");
+    const skills = (job.skills || []).map((sid) => {
+      const sk = d.HERO_SKILLS[sid]; if (!sk) return "";
+      const pas = sk.type === "passive";
+      const desc = typeof sk.effectText === "function" ? sk.effectText(1) : (sk.desc || "");
+      return `<div class="hb-skill"><b>${sk.name}</b><span class="hb-tag ${pas ? "pas" : "act"}">${pas ? "被動" : "主動"}</span><div class="hb-skill-d">${desc}</div></div>`;
+    }).join("") || `<div class="hb-skill-empty">—</div>`;
+    return `<div class="sec-title">${tierName}　職業</div>
+      <div class="hb-mon2">
+        <div class="hb-mon-left"><div class="hb-mon-spr">${Game.Icons.spriteHtml(spr, 60)}</div>
+          <div class="hb-mon-name" style="color:${job.color || "#fff"}">${job.name}</div>
+          <div class="hb-mon-sub">${tierName}</div></div>
+        <div class="hb-mon-grid">${stats}</div>
+      </div>
+      <div class="hb-mon-cap">技能</div>${skills}`;
+  }
   function handbookPages() {
     const d = D(), pages = [], add = (section, body) => pages.push({ section, body });
     ["玩法", "戰鬥", "養成", "圖鑑導覽"].forEach((s) => add("intro", renderHbIntro(s)));
+    d.JOBS.slice().sort((a, b) => a.tier - b.tier).forEach((j) => add("job", renderHbJobPage(j)));
     Object.keys(d.FX).forEach((k) => add("status", renderHbStatusPage(k)));
     d.MONSTERS.slice().sort((a, b) => a.region - b.region || (a.kind === "boss" ? 1 : 0) - (b.kind === "boss" ? 1 : 0))
       .forEach((m) => add("monster", renderHbMonsterPage(m)));
@@ -1223,7 +1249,7 @@
     const pages = handbookPages();
     handbookPage = Math.max(0, Math.min(pages.length - 1, handbookPage));
     const pg = pages[handbookPage];
-    const SECTIONS = [["intro", "遊戲說明"], ["status", "狀態效果"], ["monster", "怪物圖鑑"], ["equip", "裝備圖鑑"], ["set", "套裝圖鑑"]];
+    const SECTIONS = [["intro", "遊戲說明"], ["job", "職業圖鑑"], ["status", "狀態效果"], ["monster", "怪物圖鑑"], ["equip", "裝備圖鑑"], ["set", "套裝圖鑑"]];
     const chips = `<div class="hb-chips">` + SECTIONS.map(([k, l]) => `<button class="hb-chip ${pg.section === k ? "on" : ""}" data-act="hb-section" data-section="${k}">${l}</button>`).join("") + `</div>`;
     const nav = `<div class="hb-nav">
       <button class="hb-arrow" data-act="hb-prev" ${handbookPage <= 0 ? "disabled" : ""}>← 上一頁</button>
