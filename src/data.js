@@ -925,7 +925,7 @@
   // 二轉/三轉本階段：sprite 沿用父職、skills 繼承父職（專屬圖與技能下輪補）。
   const JOBS = [
     { id: "adventurer", name: "冒險者", tier: 0, reqLevel: 1, from: null, to: ["warrior", "guard", "mage", "monk", "archer", "assassin", "bard"],
-      range: 1, moveMul: 1.0, atkKind: "melee", color: "#c9d1e0", sprite: "adventurer", hd: true,
+      range: 1, moveMul: 1.0, atkKind: "melee", color: "#9a6a3a", sprite: "adventurer", hd: true,
       base: { atk: 14, maxHp: 170, def: 3, crit: 0.06, critDmg: 1.6, atkInterval: 0.95, lifesteal: 0, hit: 100, dodge: 15 },
       growth: { atk: 2.6, maxHp: 24, def: 0.6 },
       skills: ["braveslash", "stone", "basictrain"] },
