@@ -60,7 +60,9 @@
     if (!frozen) { const br = Math.sin(clk * 2.4 + idx * 0.7); sy += br * 0.025; sx -= br * 0.016; } // 待機呼吸
     if (flying) { oy -= 1.5 + Math.sin(clk * 3 + idx) * 1.8; rot += Math.sin(clk * 2.2 + idx) * 0.04; } // 飛行漂浮
     else if (moving && !frozen) { const wf = clk * 9 + idx * 1.3; oy -= Math.abs(Math.sin(wf)) * 2.4; rot += Math.sin(wf) * 0.05 * facing; sy -= Math.abs(Math.cos(wf)) * 0.05; } // 走路：跳步＋搖擺＋觸地壓縮
-    if (u.lunge > 0.2) { const p = Math.min(1, u.lunge / 7); rot += p * 0.20 * facing; sx += p * 0.05; sy += p * 0.06; oy -= p * 1.5; } // 攻擊前傾
+    // 攻擊：近戰大幅前傾＝揮擊（棍/劍由舉起的預備姿揮下）；遠程僅微傾
+    if (u.lunge > 0.2) { const p = Math.min(1, u.lunge / 7); const amp = u.ranged ? 0.12 : 0.34;
+      rot += p * amp * facing; sx += p * 0.05; sy += p * 0.06; oy -= p * 1.5; }
     if (u.hitFlash > 0) { const p = Math.min(1, u.hitFlash / 0.12); sy -= p * 0.16; sx += p * 0.10; } // 受傷壓扁
     if (fx.stun > 0 || fx.paralyze > 0) rot += Math.sin(clk * 22 + idx) * 0.09; // 暈/麻搖晃
     if (fx.burn > 0) oy -= Math.abs(Math.sin(clk * 26 + idx)) * 0.8; // 燃燒抖動
